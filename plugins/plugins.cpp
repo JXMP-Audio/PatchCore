@@ -12,6 +12,9 @@
 // Cardinal (built-in)
 #include "Cardinal/src/plugin.hpp"
 
+// JXMP (built-in)
+#include "JXMP/src/plugin.hpp"
+
 // Fundamental (always enabled)
 #include "Fundamental/src/plugin.hpp"
 
@@ -955,6 +958,7 @@ void writeDefaultTheme() {}
 
 // plugin instances
 Plugin* pluginInstance__Cardinal;
+Plugin* pluginInstance__JXMP;
 Plugin* pluginInstance__Fundamental;
 // Plugin* pluginInstance__ZamAudio;
 Plugin* pluginInstance__21kHz;
@@ -1212,6 +1216,20 @@ static void initStatic__Cardinal()
             modelHostParametersMap,
             modelHostTime,
         };
+    }
+}
+
+static void initStatic__JXMP()
+{
+    Plugin* const p = new Plugin;
+    pluginInstance__JXMP = p;
+
+    const StaticPluginLoader spl(p, "JXMP");
+    if (spl.ok())
+    {
+        p->addModel(modelJXMPPatchbay4);
+        p->addModel(modelJXMPPatchbay8);
+        p->addModel(modelJXMPPatchbay16);
     }
 }
 
@@ -3729,6 +3747,7 @@ static void initStatic__ZZC()
 void initStaticPlugins()
 {
     initStatic__Cardinal();
+    initStatic__JXMP();
     initStatic__Fundamental();
     // initStatic__ZamAudio();
     initStatic__21kHz();
