@@ -1,21 +1,10 @@
---- ../Rack/src/window/Window.cpp	2023-12-17 12:57:01.139429461 +0100
-+++ Window.cpp	2023-10-22 13:33:43.777041594 +0200
-@@ -1,33 +1,94 @@
+--- ../Rack/src/window/Window.cpp	2026-10-28 20:37:04.970567558 +0100
++++ Window.cpp	2026-10-28 21:50:56.438129318 +0100
+@@ -1,33 +1,83 @@
 +/*
 + * DISTRHO Cardinal Plugin
-+ * Copyright (C) 2021-2023 Filipe Coelho <falktx@falktx.com>
-+ *
-+ * This program is free software; you can redistribute it and/or
-+ * modify it under the terms of the GNU General Public License as
-+ * published by the Free Software Foundation; either version 3 of
-+ * the License, or any later version.
-+ *
-+ * This program is distributed in the hope that it will be useful,
-+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
-+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-+ * GNU General Public License for more details.
-+ *
-+ * For a full copy of the GNU General Public License see the LICENSE file.
++ * Copyright (C) 2021-2024 Filipe Coelho <falktx@falktx.com>
++ * SPDX-License-Identifier: GPL-3.0-or-later
 + */
 +
 +/**
@@ -61,7 +50,7 @@
 +#include "Application.hpp"
 +#include "extra/String.hpp"
 +#include "../CardinalCommon.hpp"
-+#include "../PluginContext.hpp"
++#include "../CardinalPluginContext.hpp"
 +#include "../WindowParameters.hpp"
 +
 +#ifndef DGL_NO_SHARED_RESOURCES
@@ -108,7 +97,7 @@
  
  
  Font::~Font() {
-@@ -42,9 +103,8 @@
+@@ -42,9 +92,8 @@
  	// Transfer ownership of font data to font object
  	uint8_t* data = system::readFile(filename, &size);
  	// Don't use nvgCreateFont because it doesn't properly handle UTF-8 filenames on Windows.
@@ -119,7 +108,7 @@
  		throw Exception("Failed to load font %s", filename.c_str());
  	}
  	INFO("Loaded font %s", filename.c_str());
-@@ -79,340 +139,478 @@
+@@ -79,340 +128,478 @@
  }
  
  
@@ -492,11 +481,15 @@
 -	APP->event->handleDrop(APP->window->internal->lastMousePos, pathsVec);
 -}
 -
--
+ 
 -static void errorCallback(int error, const char* description) {
 -	WARN("GLFW error %d: %s", error, description);
 -}
- 
+-
+-
+-Window::Window() {
+-	internal = new Internal;
+-	int err;
 +	if (ui != nullptr)
 +	{
 +		const GLubyte* vendor = glGetString(GL_VENDOR);
@@ -518,10 +511,6 @@
 +		window->internal->r_fbVg = nvgCreateSharedGL2(window->internal->r_vg, NVG_ANTIALIAS);
 +#endif
  
--Window::Window() {
--	internal = new Internal;
--	int err;
--
 -	// Set window hints
 -#if defined NANOVG_GL2
 -	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
@@ -797,10 +786,10 @@
 +		std::memcpy(tmp, &pixels[y * width * depth], width * depth);
 +		std::memmove(&pixels[y * width * depth], &pixels[flipY * width * depth], width * depth);
 +		std::memcpy(&pixels[flipY * width * depth], tmp, width * depth);
-+	}
-+}
-+
-+
+ 	}
+ }
+ 
+ 
 +#ifdef STBI_WRITE_NO_STDIO
 +static void Window__downscaleBitmap(uint8_t* pixels, int& width, int& height) {
 +	int targetWidth = width;
@@ -838,15 +827,15 @@
 +	CardinalBaseUI* const ui = static_cast<CardinalBaseUI*>(context);
 +	if (char* const screenshot = String::asBase64(data, size).getAndReleaseBuffer()) {
 +		ui->setState("screenshot", screenshot);
-+		if (ui->remoteDetails != nullptr)
++		if (ui->remoteDetails != nullptr && ui->remoteDetails->connected && ui->remoteDetails->screenshot)
 +			remoteUtils::sendScreenshotToRemote(ui->remoteDetails, screenshot);
 +		std::free(screenshot);
- 	}
- }
++	}
++}
 +#endif
 +#endif
- 
- 
++
++
  void Window::step() {
 +	if (internal->tlw == nullptr || vg == nullptr)
 +		return;
@@ -854,7 +843,7 @@
  	double frameTime = system::getTime();
  	if (std::isfinite(internal->frameTime)) {
  		internal->lastFrameDuration = frameTime - internal->frameTime;
-@@ -424,57 +622,52 @@
+@@ -424,57 +611,52 @@
  	// Make event handlers and step() have a clean NanoVG context
  	nvgReset(vg);
  
@@ -947,7 +936,7 @@
  	windowRatio = (float)fbWidth / winWidth;
  	// t1 = system::getTime();
  
-@@ -488,10 +681,8 @@
+@@ -488,10 +670,8 @@
  		// t2 = system::getTime();
  
  		// Render scene
@@ -959,7 +948,7 @@
  			nvgScale(vg, pixelRatio, pixelRatio);
  
  			// Draw scene
-@@ -502,23 +693,16 @@
+@@ -502,23 +682,16 @@
  			// t3 = system::getTime();
  
  			glViewport(0, 0, fbWidth, fbHeight);
@@ -987,29 +976,15 @@
  	// t5 = system::getTime();
  	// DEBUG("pre-step %6.1f step %6.1f draw %6.1f nvgEndFrame %6.1f glfwSwapBuffers %6.1f total %6.1f",
  	// 	(t1 - frameTime) * 1e3f,
-@@ -528,168 +712,132 @@
+@@ -528,168 +701,156 @@
  	// 	(t5 - t4) * 1e3f,
  	// 	(t5 - frameTime) * 1e3f
  	// );
 -	internal->frame++;
 -}
 +	++internal->frame;
-+
-+#ifdef CARDINAL_WINDOW_CAN_GENERATE_SCREENSHOTS
-+	if (internal->generateScreenshotStep != kScreenshotStepNone) {
-+		++internal->generateScreenshotStep;
-+
-+		int y = 0;
-+#ifdef CARDINAL_TRANSPARENT_SCREENSHOTS
-+		constexpr const int depth = 4;
-+#else
-+		y = APP->scene->menuBar->box.size.y * newPixelRatio;
-+		constexpr const int depth = 3;
-+#endif
  
-+		// Allocate pixel color buffer
-+		uint8_t* const pixels = new uint8_t[winHeight * winWidth * 4];
- 
+-
 -static void flipBitmap(uint8_t* pixels, int width, int height, int depth) {
 -	for (int y = 0; y < height / 2; y++) {
 -		int flipY = height - y - 1;
@@ -1017,39 +992,36 @@
 -		std::memcpy(tmp, &pixels[y * width * depth], width * depth);
 -		std::memcpy(&pixels[y * width * depth], &pixels[flipY * width * depth], width * depth);
 -		std::memcpy(&pixels[flipY * width * depth], tmp, width * depth);
-+		// glReadPixels defaults to GL_BACK, but the back-buffer is unstable, so use the front buffer (what the user sees)
-+		glReadBuffer(GL_FRONT);
-+		glReadPixels(0, 0, winWidth, winHeight, depth == 3 ? GL_RGB : GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-+
-+		if (internal->generateScreenshotStep == kScreenshotStepSaving)
-+		{
-+			// Write pixels to PNG
-+			Window__flipBitmap(pixels, winWidth, winHeight, depth);
-+			winHeight -= y;
-+			const int stride = winWidth * depth;
-+			uint8_t* const pixelsWithOffset = pixels + (stride * y);
-+#ifdef STBI_WRITE_NO_STDIO
-+			Window__downscaleBitmap(pixelsWithOffset, winWidth, winHeight);
-+			stbi_write_png_to_func(Window__writeImagePNG, internal->ui,
-+			                       winWidth, winHeight, depth, pixelsWithOffset, stride);
-+#else
-+			stbi_write_png("screenshot.png", winWidth, winHeight, depth, pixelsWithOffset, stride);
-+#endif
-+
-+			internal->generateScreenshotStep = kScreenshotStepNone;
-+#ifdef CARDINAL_TRANSPARENT_SCREENSHOTS
-+			APP->scene->menuBar->show();
-+			APP->scene->rack->children.front()->show();
-+#endif
++#ifdef CARDINAL_WINDOW_CAN_GENERATE_SCREENSHOTS
++	// PatchCore development aid: PATCHCORE_CAPTURE=/path/file.png writes the full window to a PNG
++	// after PATCHCORE_CAPTURE_FRAME frames (default 120), then quits if PATCHCORE_CAPTURE_QUIT is set.
++	if (const char* const capturePath = std::getenv("PATCHCORE_CAPTURE")) {
++		const char* const captureFrameEnv = std::getenv("PATCHCORE_CAPTURE_FRAME");
++		const int captureFrame = captureFrameEnv != nullptr ? std::atoi(captureFrameEnv) : 120;
++		if (internal->frame == captureFrame) {
++			uint8_t* const pixels = new uint8_t[winHeight * winWidth * 3];
++			glReadBuffer(GL_FRONT);
++			glPixelStorei(GL_PACK_ALIGNMENT, 1);
++			glReadPixels(0, 0, winWidth, winHeight, GL_RGB, GL_UNSIGNED_BYTE, pixels);
++			Window__flipBitmap(pixels, winWidth, winHeight, 3);
++			if (FILE* const f = std::fopen(capturePath, "wb")) {
++				stbi_write_png_to_func([](void* ctx, void* data, int size) {
++					std::fwrite(data, 1, size, static_cast<FILE*>(ctx));
++				}, f, winWidth, winHeight, 3, pixels, winWidth * 3);
++				std::fclose(f);
++				INFO("PatchCore capture written to %s", capturePath);
++			}
++			delete[] pixels;
++			if (std::getenv("PATCHCORE_CAPTURE_QUIT") != nullptr)
++				close();
 +		}
-+
-+		delete[] pixels;
  	}
-+#endif
- }
+-}
  
++	if (internal->generateScreenshotStep != kScreenshotStepNone) {
++		++internal->generateScreenshotStep;
  
- void Window::screenshot(const std::string& screenshotPath) {
+-void Window::screenshot(const std::string& screenshotPath) {
 -	// Get window framebuffer size
 -	int width, height;
 -	glfwGetFramebufferSize(APP->window->win, &width, &height);
@@ -1066,10 +1038,19 @@
 -	stbi_write_png(screenshotPath.c_str(), width, height, 4, pixels, width * 4);
 -
 -	delete[] pixels;
- }
+-}
++		int y = 0;
++#ifdef CARDINAL_TRANSPARENT_SCREENSHOTS
++		constexpr const int depth = 4;
++#else
++		y = APP->scene->menuBar->box.size.y * newPixelRatio;
++		constexpr const int depth = 3;
++#endif
  
++		// Allocate pixel color buffer
++		uint8_t* const pixels = new uint8_t[winHeight * winWidth * 4];
  
- void Window::screenshotModules(const std::string& screenshotsDir, float zoom) {
+-void Window::screenshotModules(const std::string& screenshotsDir, float zoom) {
 -	// Disable preferDarkPanels
 -	bool preferDarkPanels = settings::preferDarkPanels;
 -	settings::preferDarkPanels = false;
@@ -1119,17 +1100,49 @@
 -			nvgImageSize(vg, fbw->getImageHandle(), &width, &height);
 -			uint8_t* pixels = new uint8_t[height * width * 4];
 -			glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
--
--			// Write pixels to PNG
++		// glReadPixels defaults to GL_BACK, but the back-buffer is unstable, so use the front buffer (what the user sees)
++		glReadBuffer(GL_FRONT);
++		glReadPixels(0, 0, winWidth, winHeight, depth == 3 ? GL_RGB : GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+ 
++		if (internal->generateScreenshotStep == kScreenshotStepSaving)
++		{
+ 			// Write pixels to PNG
 -			flipBitmap(pixels, width, height, 4);
 -			stbi_write_png(filename.c_str(), width, height, 4, pixels, width * 4);
--
++			Window__flipBitmap(pixels, winWidth, winHeight, depth);
++			winHeight -= y;
++			const int stride = winWidth * depth;
++			uint8_t* const pixelsWithOffset = pixels + (stride * y);
++#ifdef STBI_WRITE_NO_STDIO
++			Window__downscaleBitmap(pixelsWithOffset, winWidth, winHeight);
++			stbi_write_png_to_func(Window__writeImagePNG, internal->ui,
++			                       winWidth, winHeight, depth, pixelsWithOffset, stride);
++#else
++			stbi_write_png("screenshot.png", winWidth, winHeight, depth, pixelsWithOffset, stride);
++#endif
+ 
 -			// Cleanup
 -			delete[] pixels;
 -			nvgluBindFramebuffer(NULL);
 -			delete fbw;
--		}
--	}
++			internal->generateScreenshotStep = kScreenshotStepNone;
++#ifdef CARDINAL_TRANSPARENT_SCREENSHOTS
++			APP->scene->menuBar->show();
++			APP->scene->rack->children.front()->show();
++#endif
+ 		}
++
++		delete[] pixels;
+ 	}
++#endif
++}
++
++
++void Window::screenshot(const std::string& screenshotPath) {
++}
++
++
++void Window::screenshotModules(const std::string& screenshotsDir, float zoom) {
  }
  
  
@@ -1234,7 +1247,7 @@
  }
  
  
-@@ -709,7 +857,7 @@
+@@ -709,7 +870,7 @@
  
  
  double Window::getFrameDurationRemaining() {
@@ -1243,7 +1256,7 @@
  	return frameDuration - (system::getTime() - internal->frameTime);
  }
  
-@@ -720,14 +868,15 @@
+@@ -720,14 +881,15 @@
  		return pair->second;
  
  	// Load font
@@ -1262,7 +1275,7 @@
  	}
  	internal->fontCache[filename] = font;
  	return font;
-@@ -740,14 +889,15 @@
+@@ -740,14 +902,15 @@
  		return pair->second;
  
  	// Load image
@@ -1281,7 +1294,7 @@
  	}
  	internal->imageCache[filename] = image;
  	return image;
-@@ -764,28 +914,156 @@
+@@ -764,28 +927,156 @@
  }
  
  

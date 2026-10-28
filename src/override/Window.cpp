@@ -704,6 +704,30 @@ void Window::step() {
 	++internal->frame;
 
 #ifdef CARDINAL_WINDOW_CAN_GENERATE_SCREENSHOTS
+	// PatchCore development aid: PATCHCORE_CAPTURE=/path/file.png writes the full window to a PNG
+	// after PATCHCORE_CAPTURE_FRAME frames (default 120), then quits if PATCHCORE_CAPTURE_QUIT is set.
+	if (const char* const capturePath = std::getenv("PATCHCORE_CAPTURE")) {
+		const char* const captureFrameEnv = std::getenv("PATCHCORE_CAPTURE_FRAME");
+		const int captureFrame = captureFrameEnv != nullptr ? std::atoi(captureFrameEnv) : 120;
+		if (internal->frame == captureFrame) {
+			uint8_t* const pixels = new uint8_t[winHeight * winWidth * 3];
+			glReadBuffer(GL_FRONT);
+			glPixelStorei(GL_PACK_ALIGNMENT, 1);
+			glReadPixels(0, 0, winWidth, winHeight, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+			Window__flipBitmap(pixels, winWidth, winHeight, 3);
+			if (FILE* const f = std::fopen(capturePath, "wb")) {
+				stbi_write_png_to_func([](void* ctx, void* data, int size) {
+					std::fwrite(data, 1, size, static_cast<FILE*>(ctx));
+				}, f, winWidth, winHeight, 3, pixels, winWidth * 3);
+				std::fclose(f);
+				INFO("PatchCore capture written to %s", capturePath);
+			}
+			delete[] pixels;
+			if (std::getenv("PATCHCORE_CAPTURE_QUIT") != nullptr)
+				close();
+		}
+	}
+
 	if (internal->generateScreenshotStep != kScreenshotStepNone) {
 		++internal->generateScreenshotStep;
 

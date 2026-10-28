@@ -1,24 +1,13 @@
---- ../Rack/src/app/Scene.cpp	2022-09-21 20:49:12.199540706 +0200
-+++ Scene.cpp	2023-10-21 13:42:59.503556170 +0200
-@@ -1,12 +1,36 @@
+--- ../Rack/src/app/Scene.cpp	2026-10-28 20:37:04.964417223 +0100
++++ Scene.cpp	2026-10-28 22:08:41.123550626 +0100
+@@ -1,12 +1,25 @@
 -#include <thread>
 -
 -#include <osdialog.h>
 +/*
 + * DISTRHO Cardinal Plugin
-+ * Copyright (C) 2021-2023 Filipe Coelho <falktx@falktx.com>
-+ *
-+ * This program is free software; you can redistribute it and/or
-+ * modify it under the terms of the GNU General Public License as
-+ * published by the Free Software Foundation; either version 3 of
-+ * the License, or any later version.
-+ *
-+ * This program is distributed in the hope that it will be useful,
-+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
-+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-+ * GNU General Public License for more details.
-+ *
-+ * For a full copy of the GNU General Public License see the LICENSE file.
++ * Copyright (C) 2021-2025 Filipe Coelho <falktx@falktx.com>
++ * SPDX-License-Identifier: GPL-3.0-or-later
 + */
 +
 +/**
@@ -40,7 +29,7 @@
  #include <system.hpp>
  #include <network.hpp>
  #include <history.hpp>
-@@ -14,6 +38,14 @@
+@@ -14,6 +27,15 @@
  #include <patch.hpp>
  #include <asset.hpp>
  
@@ -50,12 +39,13 @@
 +
 +#include "../CardinalCommon.hpp"
 +#include "../CardinalRemote.hpp"
++#include "../patchcore/PatchCore.hpp"
 +
 +#include <algorithm>
  
  namespace rack {
  namespace app {
-@@ -23,32 +55,72 @@
+@@ -23,32 +45,77 @@
  	math::Vec size;
  
  	void draw(const DrawArgs& args) override {
@@ -127,9 +117,13 @@
  
  struct Scene::Internal {
 -	ResizeHandle* resizeHandle;
--
--	double lastAutosaveTime = 0.0;
 +	ResizeHandle* resizeHandle = nullptr;
+ 
+-	double lastAutosaveTime = 0.0;
++	// PatchCore workspace chrome, null on the Mini variant
++	widget::Widget* dockedBrowser = nullptr;
++	widget::Widget* navigator = nullptr;
++	widget::Widget* transportBar = nullptr;
  
  	bool heldArrowKeys[4] = {};
 +
@@ -138,7 +132,30 @@
  };
  
  
-@@ -67,13 +139,11 @@
+@@ -60,20 +127,34 @@
+ 
+ 	rack = rackScroll->rackWidget;
+ 
++	static bool patchcoreSettingsLoaded = false;
++	if (!patchcoreSettingsLoaded) {
++		patchcore::loadSettings();
++		patchcoreSettingsLoaded = true;
++	}
++	patchcore::createRackFrame(rack);
++
+ 	menuBar = createMenuBar();
+ 	addChild(menuBar);
+ 
++	if (!isMini()) {
++		internal->dockedBrowser = patchcore::createDockedBrowser();
++		addChild(internal->dockedBrowser);
++		internal->navigator = patchcore::createNavigator();
++		addChild(internal->navigator);
++		internal->transportBar = patchcore::createTransportBar();
++		addChild(internal->transportBar);
++	}
++
+ 	browser = browserCreate();
  	browser->hide();
  	addChild(browser);
  
@@ -155,7 +172,16 @@
  	addChild(internal->resizeHandle);
  }
  
-@@ -99,22 +169,13 @@
+@@ -89,6 +170,8 @@
+ 
+ 
+ void Scene::step() {
++	patchcore::devStep();
++
+ 	if (APP->window->isFullScreen()) {
+ 		// Expand RackScrollWidget to cover entire screen if fullscreen
+ 		rackScroll->box.pos.y = 0;
+@@ -99,22 +182,52 @@
  		rackScroll->box.pos.y = menuBar->box.size.y;
  	}
  
@@ -165,7 +191,7 @@
  
  	// Resize owned descendants
  	menuBar->box.size.x = box.size.x;
- 	rackScroll->box.size = box.size.minus(rackScroll->box.pos);
+-	rackScroll->box.size = box.size.minus(rackScroll->box.pos);
  
 -	// Autosave periodically
 -	if (settings::autosaveInterval > 0.0) {
@@ -174,37 +200,85 @@
 -			internal->lastAutosaveTime = time;
 -			APP->patch->saveAutosave();
 -			settings::save();
--		}
--	}
--
++	// PatchCore workspace: navigator on the right, transport at the bottom, rack in the remaining space
++	patchcore::stepFlip();
++	math::Rect rackRect(0, rackScroll->box.pos.y, box.size.x, box.size.y - rackScroll->box.pos.y);
++	const bool patchcoreChrome = patchcore::enabled() && !APP->window->isFullScreen();
++
++	if (internal->transportBar != nullptr) {
++		const bool visible = patchcoreChrome && patchcore::settings.transportVisible;
++		internal->transportBar->setVisible(visible);
++		if (visible) {
++			const float h = internal->transportBar->box.size.y;
++			internal->transportBar->box.pos = math::Vec(0, box.size.y - h);
++			internal->transportBar->box.size.x = box.size.x;
++			rackRect.size.y -= h;
++		}
++	}
++
++	if (internal->navigator != nullptr) {
++		const bool visible = patchcoreChrome && patchcore::settings.navigatorVisible;
++		internal->navigator->setVisible(visible);
++		if (visible) {
++			const float w = 132.f;
++			internal->navigator->box = math::Rect(box.size.x - w, rackRect.pos.y, w, rackRect.size.y);
++			rackRect.size.x -= w;
+ 		}
+ 	}
+ 
++	if (internal->dockedBrowser != nullptr) {
++		const bool visible = patchcoreChrome && patchcore::settings.browserDocked;
++		internal->dockedBrowser->setVisible(visible);
++		if (visible) {
++			const float w = internal->dockedBrowser->box.size.x;
++			internal->dockedBrowser->box.pos = rackRect.pos;
++			internal->dockedBrowser->box.size.y = rackRect.size.y;
++			rackRect.pos.x += w;
++			rackRect.size.x -= w;
++		}
++	}
++
++	rackScroll->box = rackRect;
++
  	// Scroll RackScrollWidget with arrow keys
  	math::Vec arrowDelta;
  	if (internal->heldArrowKeys[0]) {
-@@ -143,6 +204,34 @@
+@@ -143,12 +256,77 @@
  		rackScroll->offset += arrowDelta * arrowSpeed;
  	}
  
 +	if (remoteUtils::RemoteDetails* const remoteDetails = remoteUtils::getRemote()) {
 +		idleRemote(remoteDetails);
 +
-+		if (remoteDetails->autoDeploy) {
++		if (remoteDetails->autoDeploy && remoteDetails->connected) {
 +			const int actionIndex = APP->history->actionIndex;
 +			const double time = system::getTime();
 +
 +			if (internal->historyActionIndex == -1) {
 +				internal->historyActionIndex = actionIndex;
 +				internal->lastSceneChangeTime = time;
-+			} else if (internal->historyActionIndex != actionIndex && actionIndex > 0 && time - internal->lastSceneChangeTime >= 1.0) {
-+				const std::string& name(APP->history->actions[actionIndex - 1]->name);
-+				static const std::vector<std::string> ignoredNames = {
-+					"move knob",
-+					"move modules",
-+					"move switch",
-+				};
-+				if (std::find(ignoredNames.cbegin(), ignoredNames.cend(), name) == ignoredNames.cend()) {
-+					printf("action '%s'\n", APP->history->actions[actionIndex - 1]->name.c_str());
++			} else if (remoteDetails->first ||
++				(internal->historyActionIndex != actionIndex
++				&& actionIndex > 0
++				&& time - internal->lastSceneChangeTime >= 1.0)) {
++				if (remoteDetails->first) {
++					remoteDetails->first = false;
 +					remoteUtils::sendFullPatchToRemote(remoteDetails);
-+					window::generateScreenshot();
++				} else {
++					const std::string& name(APP->history->actions[actionIndex - 1]->name);
++					static const std::vector<std::string> ignoredNames = {
++						"move knob",
++						"move modules",
++						"move switch",
++					};
++					if (std::find(ignoredNames.cbegin(), ignoredNames.cend(), name) == ignoredNames.cend()) {
++						d_debug("action '%s'\n", APP->history->actions[actionIndex - 1]->name.c_str());
++						remoteUtils::sendFullPatchToRemote(remoteDetails);
++
++						if (remoteDetails->screenshot) {
++							window::generateScreenshot();
++						}
++					}
 +				}
 +				internal->historyActionIndex = actionIndex;
 +				internal->lastSceneChangeTime = time;
@@ -215,7 +289,40 @@
  	Widget::step();
  }
  
-@@ -172,7 +261,7 @@
+ 
+ void Scene::draw(const DrawArgs& args) {
+-	Widget::draw(args);
++	const float flipScale = patchcore::flipScaleX();
++	if (flipScale >= 1.f) {
++		Widget::draw(args);
++		return;
++	}
++
++	// PatchCore flip animation: squash the rack view horizontally around its center
++	for (widget::Widget* const child : children) {
++		if (!child->isVisible())
++			continue;
++		if (child != rackScroll) {
++			drawChild(child, args);
++			continue;
++		}
++		nvgBeginPath(args.vg);
++		nvgRect(args.vg, RECT_ARGS(rackScroll->box));
++		nvgFillColor(args.vg, patchcore::theme().chrome0);
++		nvgFill(args.vg);
++
++		const math::Vec center = rackScroll->box.getCenter();
++		nvgSave(args.vg);
++		nvgTranslate(args.vg, center.x, 0);
++		nvgScale(args.vg, flipScale, 1.f);
++		nvgTranslate(args.vg, -center.x, 0);
++		drawChild(child, args);
++		nvgRestore(args.vg);
++	}
+ }
+ 
+ 
+@@ -172,7 +350,7 @@
  	if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
  		// DEBUG("key '%d '%c' scancode %d '%c' keyName '%s'", e.key, e.key, e.scancode, e.scancode, e.keyName.c_str());
  		if (e.keyName == "n" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
@@ -224,7 +331,7 @@
  			e.consume(this);
  		}
  		if (e.keyName == "q" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
-@@ -180,19 +269,25 @@
+@@ -180,19 +358,25 @@
  			e.consume(this);
  		}
  		if (e.keyName == "o" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
@@ -254,7 +361,7 @@
  			e.consume(this);
  		}
  		if (e.keyName == "z" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
-@@ -220,24 +315,42 @@
+@@ -220,24 +404,47 @@
  			APP->scene->rackScroll->setZoom(std::pow(2.f, zoom));
  			e.consume(this);
  		}
@@ -279,8 +386,13 @@
 +		if (e.key == GLFW_KEY_F7 && (e.mods & RACK_MOD_MASK) == 0) {
 +			if (remoteUtils::RemoteDetails* const remoteDetails = remoteUtils::getRemote())
 +			{
-+				remoteUtils::sendFullPatchToRemote(remoteDetails);
-+				window::generateScreenshot();
++				if (remoteDetails->connected) {
++					remoteUtils::sendFullPatchToRemote(remoteDetails);
++
++					if (remoteDetails->screenshot) {
++						window::generateScreenshot();
++					}
++				}
 +			}
 +			e.consume(this);
 +		}
@@ -299,7 +411,7 @@
  
  		// Module selections
  		if (e.keyName == "a" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
-@@ -326,13 +439,6 @@
+@@ -326,13 +533,6 @@
  
  	// Key commands that can be overridden by children
  	if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
@@ -313,7 +425,31 @@
  		if (e.keyName == "v" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
  			rack->pasteClipboardAction();
  			e.consume(this);
-@@ -351,7 +457,7 @@
+@@ -341,6 +541,23 @@
+ 			browser->show();
+ 			e.consume(this);
+ 		}
++
++		// PatchCore shortcuts
++		if (patchcore::enabled() && (e.mods & RACK_MOD_MASK) == 0) {
++			if (e.key == GLFW_KEY_TAB) {
++				patchcore::setViewSide(patchcore::targetViewSide() == patchcore::VIEW_FRONT ? patchcore::VIEW_BACK
++				                                                                           : patchcore::VIEW_FRONT);
++				e.consume(this);
++			}
++			if (e.keyName == "b") {
++				patchcore::toggleBrowser();
++				e.consume(this);
++			}
++			if (e.key == GLFW_KEY_SPACE) {
++				patchcore::transportTogglePlay();
++				e.consume(this);
++			}
++		}
+ 	}
+ }
+ 
+@@ -351,7 +568,7 @@
  		std::string extension = system::getExtension(path);
  
  		if (extension == ".vcv") {

@@ -1,9 +1,9 @@
---- ../Rack/src/app/MenuBar.cpp	2023-12-17 12:57:01.136429153 +0100
-+++ MenuBar.cpp	2023-08-15 17:56:23.782915145 +0200
+--- ../Rack/src/app/MenuBar.cpp	2026-10-28 20:37:04.963440695 +0100
++++ MenuBar.cpp	2026-10-28 22:05:07.470984720 +0100
 @@ -1,8 +1,33 @@
 +/*
 + * DISTRHO Cardinal Plugin
-+ * Copyright (C) 2021-2023 Filipe Coelho <falktx@falktx.com>
++ * Copyright (C) 2021-2024 Filipe Coelho <falktx@falktx.com>
 + *
 + * This program is free software; you can redistribute it and/or
 + * modify it under the terms of the GNU General Public License as
@@ -44,13 +44,14 @@
  #include <window/Window.hpp>
  #include <asset.hpp>
  #include <context.hpp>
-@@ -25,8 +51,29 @@
+@@ -25,18 +51,49 @@
  #include <patch.hpp>
  #include <library.hpp>
  
 +#include "../CardinalCommon.hpp"
 +#include "../CardinalRemote.hpp"
-+#include "../PluginContext.hpp"
++#include "../CardinalPluginContext.hpp"
++#include "../patchcore/PatchCore.hpp"
 +#include "DistrhoPlugin.hpp"
 +#include "DistrhoStandaloneUtils.hpp"
 +
@@ -74,7 +75,27 @@
  namespace app {
  namespace menuBar {
  
-@@ -48,79 +95,238 @@
+ 
+ struct MenuButton : ui::Button {
+ 	void step() override {
+-		box.size.x = bndLabelWidth(APP->window->vg, -1, text.c_str()) + 1.0;
++		if (patchcore::enabled())
++			box.size.x = patchcore::menuButtonWidth(text);
++		else
++			box.size.x = bndLabelWidth(APP->window->vg, -1, text.c_str()) + 1.0;
+ 		Widget::step();
+ 	}
+ 	void draw(const DrawArgs& args) override {
++		if (patchcore::enabled()) {
++			const bool hovered = APP->event->hoveredWidget == this || APP->event->draggedWidget == this;
++			patchcore::drawMenuButton(args.vg, box.size, text, hovered);
++			Widget::draw(args);
++			return;
++		}
+ 		BNDwidgetState state = BND_DEFAULT;
+ 		if (APP->event->hoveredWidget == this)
+ 			state = BND_HOVER;
+@@ -48,79 +105,238 @@
  };
  
  
@@ -151,11 +172,6 @@
  
 -		menu->addChild(createMenuItem("New", RACK_MOD_CTRL_NAME "+N", []() {
 -			APP->patch->loadTemplateDialog();
--		}));
--
--		menu->addChild(createMenuItem("Open", RACK_MOD_CTRL_NAME "+O", []() {
--			APP->patch->loadDialog();
--		}));
 +#ifndef DISTRHO_OS_WASM
 +		constexpr const char* const NewShortcut = RACK_MOD_CTRL_NAME "+N";
 +#else
@@ -168,8 +184,10 @@
 +#if DISTRHO_PLUGIN_WANT_DIRECT_ACCESS
 +		menu->addChild(createMenuItem("New (factory template)", "", []() {
 +			patchUtils::loadTemplateDialog(true);
-+		}));
-+
+ 		}));
+ 
+-		menu->addChild(createMenuItem("Open", RACK_MOD_CTRL_NAME "+O", []() {
+-			APP->patch->loadDialog();
 +#ifndef DISTRHO_OS_WASM
 +		constexpr const char* const OpenName = "Open...";
 +#else
@@ -177,8 +195,8 @@
 +#endif
 +		menu->addChild(createMenuItem(OpenName, RACK_MOD_CTRL_NAME "+O", []() {
 +			patchUtils::loadDialog();
-+		}));
-+
+ 		}));
+ 
 +		const std::string patchesDir = asset::user("patches");
 +		const std::vector<std::string> patches = system::isDirectory(patchesDir) ? system::getEntries(patchesDir) : std::vector<std::string>();
 +		menu->addChild(createSubmenuItem("Open local patch", "", [patches](ui::Menu* menu) {
@@ -189,7 +207,7 @@
 +				}));
 +			}
 +		}, patches.empty()));
- 
++
  		menu->addChild(createSubmenuItem("Open recent", "", [](ui::Menu* menu) {
  			for (const std::string& path : settings::recentPatchPaths) {
  				std::string name = system::getStem(path);
@@ -218,7 +236,7 @@
 +				}
 +
 +				menu->addChild(new ui::MenuSeparator);
- 
++
 +				menu->addChild(createMenuItem("Open patchstorage.com for more patches", "", []() {
 +					patchUtils::openBrowser("https://patchstorage.com/platform/cardinal/");
 +				}));
@@ -231,7 +249,7 @@
 +		}, false, true));
 +
 +		menu->addChild(new ui::MenuSeparator);
-+
+ 
 +#ifndef DISTRHO_OS_WASM
  		menu->addChild(createMenuItem("Save", RACK_MOD_CTRL_NAME "+S", []() {
 -			APP->patch->saveDialog();
@@ -287,7 +305,6 @@
 -		menu->addChild(createMenuItem("Import selection", "", [=]() {
 -			APP->scene->rack->loadSelectionDialog();
 -		}, false, true));
--
 +		menu->addChild(createMenuItem("Save persistent browser data", "", []() {
 +			settings::save();
 +			EM_ASM({
@@ -296,7 +313,7 @@
 +		}));
 +#endif
 +#endif
-+
+ 
 +#if defined(HAVE_LIBLO) || ! DISTRHO_PLUGIN_WANT_DIRECT_ACCESS
 +#ifdef __MOD_DEVICES__
 +#define REMOTE_NAME "MOD"
@@ -350,7 +367,7 @@
  	}
  };
  
-@@ -166,7 +372,7 @@
+@@ -166,7 +382,7 @@
  
  		menu->addChild(new ui::MenuSeparator);
  
@@ -359,7 +376,7 @@
  	}
  };
  
-@@ -256,7 +462,7 @@
+@@ -256,7 +472,7 @@
  		return settings::cableTension;
  	}
  	float getDefaultValue() override {
@@ -368,7 +385,7 @@
  	}
  	float getDisplayValue() override {
  		return getValue() * 100;
-@@ -393,49 +599,39 @@
+@@ -393,49 +609,37 @@
  };
  
  
@@ -378,10 +395,8 @@
 +	for (widget::Widget* child : widget->children)
 +	{
 +		if (widget::FramebufferWidget* const fbw = dynamic_cast<widget::FramebufferWidget*>(child))
-+		{
 +			fbw->setDirty();
-+			break;
-+		}
++
 +		setAllFramebufferWidgetsDirty(child);
 +	}
 +}
@@ -433,27 +448,69 @@
 -		));
 +#if DISTRHO_PLUGIN_WANT_DIRECT_ACCESS
 +		std::string darkModeText;
-+		if (settings::darkMode)
++		if (settings::preferDarkPanels)
 +			darkModeText = CHECKMARK_STRING;
 +		menu->addChild(createMenuItem("Dark Mode", darkModeText, []() {
-+			switchDarkMode(!settings::darkMode);
++			switchDarkMode(!settings::preferDarkPanels);
 +			setAllFramebufferWidgetsDirty(APP->scene);
 +		}));
 +#endif
  
  		menu->addChild(createBoolPtrMenuItem("Show tooltips", "", &settings::tooltips));
  
-@@ -460,9 +656,18 @@
+@@ -459,10 +663,60 @@
+ 		haloBrightnessSlider->box.size.x = 250.0;
  		menu->addChild(haloBrightnessSlider);
  
- 		menu->addChild(new ui::MenuSeparator);
++		if (!isMini()) {
++			menu->addChild(new ui::MenuSeparator);
++			menu->addChild(createMenuLabel("PatchCore"));
++
++			menu->addChild(createCheckMenuItem("PatchCore rack (off = Classic)", "",
++				[]() {return patchcore::settings.theme != patchcore::THEME_CLASSIC;},
++				[]() {
++					patchcore::settings.theme = patchcore::settings.theme == patchcore::THEME_CLASSIC
++					                          ? patchcore::THEME_DARK : patchcore::THEME_CLASSIC;
++					patchcore::viewSide = patchcore::VIEW_FRONT;
++					patchcore::saveSettings();
++					patchcore::setAllFramebuffersDirty(APP->scene);
++				}
++			));
++			menu->addChild(createCheckMenuItem("Mount screws on screwless panels", "",
++				[]() {return patchcore::settings.mountScrews;},
++				[]() {patchcore::settings.mountScrews ^= true; patchcore::saveSettings();},
++				!patchcore::enabled()
++			));
++			menu->addChild(createCheckMenuItem("Sockets and cables on the front", "",
++				[]() {return patchcore::settings.frontCables;},
++				[]() {patchcore::settings.frontCables ^= true; patchcore::saveSettings();},
++				!patchcore::enabled()
++			));
++			menu->addChild(createCheckMenuItem("Docked browser", "B",
++				[]() {return patchcore::settings.browserDocked;},
++				[]() {patchcore::toggleBrowser();},
++				!patchcore::enabled()
++			));
++			menu->addChild(createCheckMenuItem("Navigator", "",
++				[]() {return patchcore::settings.navigatorVisible;},
++				[]() {patchcore::settings.navigatorVisible ^= true; patchcore::saveSettings();},
++				!patchcore::enabled()
++			));
++			menu->addChild(createCheckMenuItem("Transport bar", "",
++				[]() {return patchcore::settings.transportVisible;},
++				[]() {patchcore::settings.transportVisible ^= true; patchcore::saveSettings();},
++				!patchcore::enabled()
++			));
++		}
++
++		menu->addChild(new ui::MenuSeparator);
 +		menu->addChild(createMenuLabel("Module dragging"));
 +
 +		menu->addChild(createBoolPtrMenuItem("Lock module positions", "", &settings::lockModules));
 +
 +		menu->addChild(createBoolPtrMenuItem("Auto-squeeze modules when dragging", "", &settings::squeezeModules));
 +
-+		menu->addChild(new ui::MenuSeparator);
+ 		menu->addChild(new ui::MenuSeparator);
  		menu->addChild(createMenuLabel("Parameters"));
  
 +#ifdef DISTRHO_OS_WASM
@@ -462,7 +519,7 @@
  
  		static const std::vector<std::string> knobModeLabels = {
  			"Linear",
-@@ -487,13 +692,34 @@
+@@ -487,13 +741,34 @@
  		menu->addChild(knobScrollSensitivitySlider);
  
  		menu->addChild(new ui::MenuSeparator);
@@ -501,7 +558,7 @@
  	}
  };
  
-@@ -503,48 +729,11 @@
+@@ -503,48 +778,11 @@
  ////////////////////
  
  
@@ -554,7 +611,7 @@
  	void onAction(const ActionEvent& e) override {
  		ui::Menu* menu = createMenu();
  		menu->cornerFlags = BND_CORNER_TOP;
-@@ -557,292 +746,87 @@
+@@ -557,292 +795,87 @@
  			settings::cpuMeter ^= true;
  		}));
  
@@ -742,13 +799,16 @@
 -		e.unconsume();
 -	}
 -};
--
--
+ 
++				async_dialog_text_input("OSC network port", CARDINAL_DEFAULT_REMOTE_PORT, [=](char* const port) {
++					if (port == nullptr)
++						return;
+ 
 -struct LibraryMenu : ui::Menu {
 -	LibraryMenu() {
 -		refresh();
 -	}
- 
+-
 -	void step() override {
 -		// Refresh menu when appropriate
 -		if (library::refreshRequested) {
@@ -757,10 +817,7 @@
 -		}
 -		Menu::step();
 -	}
-+				async_dialog_text_input("OSC network port", CARDINAL_DEFAULT_REMOTE_PORT, [=](char* const port) {
-+					if (port == nullptr)
-+						return;
- 
+-
 -	void refresh() {
 -		setChildMenu(NULL);
 -		clearChildren();
@@ -799,8 +856,7 @@
 -			addChild(createMenuItem("Log out", "", [=]() {
 -				library::logOut();
 -			}));
-+#endif
- 
+-
 -			addChild(createMenuItem("Account settings", "", [=]() {
 -				system::openBrowser("https://vcvrack.com/account");
 -			}));
@@ -808,7 +864,8 @@
 -			addChild(createMenuItem("Browse VCV Library", "", [=]() {
 -				system::openBrowser("https://library.vcvrack.com/");
 -			}));
--
++#endif
+ 
 -			SyncUpdatesItem* syncItem = new SyncUpdatesItem;
 -			syncItem->text = "Update all";
 -			addChild(syncItem);
@@ -836,7 +893,20 @@
 -		}
 -	}
 -};
+-
+-
+-struct LibraryButton : MenuButton {
+-	NotificationIcon* notification;
+-
+-	LibraryButton() {
+-		notification = new NotificationIcon;
+-		addChild(notification);
+-	}
  
+-	void onAction(const ActionEvent& e) override {
+-		ui::Menu* menu = createMenu<LibraryMenu>();
+-		menu->cornerFlags = BND_CORNER_TOP;
+-		menu->box.pos = getAbsoluteOffset(math::Vec(0, box.size.y));
 +			if (supportsMIDI()) {
 +				std::string rightText;
 +				if (isMIDIEnabled())
@@ -846,19 +916,6 @@
 +				}));
 +			}
  
--struct LibraryButton : MenuButton {
--	NotificationIcon* notification;
--
--	LibraryButton() {
--		notification = new NotificationIcon;
--		addChild(notification);
--	}
--
--	void onAction(const ActionEvent& e) override {
--		ui::Menu* menu = createMenu<LibraryMenu>();
--		menu->cornerFlags = BND_CORNER_TOP;
--		menu->box.pos = getAbsoluteOffset(math::Vec(0, box.size.y));
--
 -		// Check for updates when menu is opened
 -		if (!settings::devMode) {
 -			std::thread t([&]() {
@@ -911,7 +968,7 @@
  };
  
  
-@@ -852,63 +836,30 @@
+@@ -852,63 +885,30 @@
  
  
  struct HelpButton : MenuButton {
@@ -929,14 +986,14 @@
  
 -		menu->addChild(createMenuItem("Tips", "", [=]() {
 -			APP->scene->addChild(tipWindowCreate());
+-		}));
+-
+-		menu->addChild(createMenuItem("User manual", "F1", [=]() {
+-			system::openBrowser("https://vcvrack.com/manual");
 +		menu->addChild(createMenuItem("Rack User manual", "F1", [=]() {
 +			patchUtils::openBrowser("https://vcvrack.com/manual");
  		}));
  
--		menu->addChild(createMenuItem("User manual", "F1", [=]() {
--			system::openBrowser("https://vcvrack.com/manual");
--		}));
--
 -		menu->addChild(createMenuItem("Support", "", [=]() {
 -			system::openBrowser("https://vcvrack.com/support");
 -		}));
@@ -983,7 +1040,7 @@
  	}
  };
  
-@@ -951,15 +902,19 @@
+@@ -951,15 +951,19 @@
  
  		text = "";
  
@@ -1006,18 +1063,37 @@
  
  		Label::step();
  	}
-@@ -969,7 +924,9 @@
+@@ -967,18 +971,34 @@
+ 
+ 
  struct MenuBar : widget::OpaqueWidget {
- 	InfoLabel* infoLabel;
+-	InfoLabel* infoLabel;
++	static constexpr const float kPatchCoreHeight = 46.f;
  
 -	MenuBar() {
++	ui::SequentialLayout* layout;
++	HelpButton* helpButton;
++	InfoLabel* infoLabel;
++	widget::Widget* patchcoreLogo;
++	widget::Widget* patchcoreCenter;
++	widget::Widget* patchcoreRight;
++
 +	MenuBar(const bool isStandalone)
 +		: widget::OpaqueWidget()
 +	{
  		const float margin = 5;
  		box.size.y = BND_WIDGET_HEIGHT + 2 * margin;
  
-@@ -978,7 +935,7 @@
+-		ui::SequentialLayout* layout = new ui::SequentialLayout;
++		patchcoreLogo = patchcore::createTopBarLogo();
++		addChild(patchcoreLogo);
++		patchcoreCenter = patchcore::createTopBarCenter();
++		addChild(patchcoreCenter);
++		patchcoreRight = patchcore::createTopBarRight();
++		addChild(patchcoreRight);
++
++		layout = new ui::SequentialLayout;
+ 		layout->margin = math::Vec(margin, margin);
  		layout->spacing = math::Vec(0, 0);
  		addChild(layout);
  
@@ -1026,7 +1102,7 @@
  		fileButton->text = "File";
  		layout->addChild(fileButton);
  
-@@ -990,13 +947,11 @@
+@@ -990,15 +1010,13 @@
  		viewButton->text = "View";
  		layout->addChild(viewButton);
  
@@ -1034,15 +1110,67 @@
  		EngineButton* engineButton = new EngineButton;
  		engineButton->text = "Engine";
  		layout->addChild(engineButton);
--
++#endif
+ 
 -		LibraryButton* libraryButton = new LibraryButton;
 -		libraryButton->text = "Library";
 -		layout->addChild(libraryButton);
-+#endif
- 
- 		HelpButton* helpButton = new HelpButton;
+-
+-		HelpButton* helpButton = new HelpButton;
++		helpButton = new HelpButton;
  		helpButton->text = "Help";
-@@ -1028,7 +983,7 @@
+ 		layout->addChild(helpButton);
+ 
+@@ -1009,6 +1027,12 @@
+ 	}
+ 
+ 	void draw(const DrawArgs& args) override {
++		if (patchcore::enabled()) {
++			patchcore::drawBarBackground(args.vg, box.size, false);
++			Widget::draw(args);
++			return;
++		}
++
+ 		bndMenuBackground(args.vg, 0.0, 0.0, box.size.x, box.size.y, BND_CORNER_ALL);
+ 		bndBevel(args.vg, 0.0, 0.0, box.size.x, box.size.y);
+ 
+@@ -1016,7 +1040,35 @@
+ 	}
+ 
+ 	void step() override {
++		const bool patchcoreEnabled = patchcore::enabled();
++		const float margin = 5;
++		patchcoreLogo->setVisible(patchcoreEnabled);
++		patchcoreCenter->setVisible(patchcoreEnabled);
++		patchcoreRight->setVisible(patchcoreEnabled);
++		infoLabel->setVisible(!patchcoreEnabled);
++
++		if (patchcoreEnabled) {
++			box.size.y = kPatchCoreHeight;
++			patchcoreLogo->box.pos = math::Vec(12, 0);
++			patchcoreLogo->box.size.y = box.size.y;
++			layout->box.pos = math::Vec(patchcoreLogo->box.getRight(), (box.size.y - BND_WIDGET_HEIGHT) * 0.5f - margin);
++		}
++		else {
++			box.size.y = BND_WIDGET_HEIGHT + 2 * margin;
++			layout->box.pos = math::Vec(0, 0);
++		}
++
+ 		Widget::step();
++
++		if (patchcoreEnabled) {
++			// Selection status only fits on wide windows
++			patchcoreRight->box.size = math::Vec(box.size.x >= 1400 ? 360 : 130, box.size.y);
++			patchcoreRight->box.pos = math::Vec(box.size.x - patchcoreRight->box.size.x - 12, 0);
++			patchcoreCenter->box.pos = math::Vec(layout->box.pos.x + helpButton->box.getRight() + 14, 0);
++			patchcoreCenter->box.size = math::Vec(patchcoreRight->box.pos.x - patchcoreCenter->box.pos.x - 24, box.size.y);
++			return;
++		}
++
+ 		infoLabel->box.size.x = box.size.x - infoLabel->box.pos.x - 5;
+ 		// Setting 50% alpha prevents Label from using the default UI theme color, so set the color manually here.
+ 		infoLabel->color = color::alpha(bndGetTheme()->regularTheme.textColor, 0.5);
+@@ -1028,7 +1080,7 @@
  
  
  widget::Widget* createMenuBar() {

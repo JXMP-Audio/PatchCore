@@ -1,0 +1,119 @@
+--- ../Rack/src/app/CableWidget.cpp	2026-10-28 20:37:04.962985257 +0100
++++ CableWidget.cpp	2026-10-28 22:17:19.285323714 +0100
+@@ -1,3 +1,18 @@
++/*
++ * DISTRHO Cardinal Plugin
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++/**
++ * This file is an edited version of VCVRack's app/CableWidget.cpp
++ * Copyright (C) 2016-2023 VCV.
++ *
++ * This program is free software: you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 3 of
++ * the License, or (at your option) any later version.
++ */
++
+ #include <app/CableWidget.hpp>
+ #include <widget/SvgWidget.hpp>
+ #include <widget/TransformWidget.hpp>
+@@ -12,6 +27,8 @@
+ #include <app/MultiLightWidget.hpp>
+ #include <componentlibrary.hpp>
+ 
++#include "../patchcore/PatchCore.hpp"
++
+ 
+ namespace rack {
+ namespace app {
+@@ -117,6 +134,10 @@
+ 
+ 
+ struct CableWidget::Internal {
++	/** Sag point used for drawing. With PatchCore it follows the ideal sag point through a spring, so cables wobble. */
++	math::Vec slump;
++	math::Vec slumpVelocity;
++	bool slumpValid = false;
+ };
+ 
+ 
+@@ -254,6 +275,22 @@
+ 	math::Vec inputPos = getInputPos();
+ 	math::Vec slump = getSlumpPos(outputPos, inputPos);
+ 
++	if (patchcore::enabled() && internal->slumpValid && isComplete()) {
++		// Underdamped spring towards the ideal sag point
++		const float dt = math::clamp((float) APP->window->getLastFrameDuration(), 0.f, 1.f / 30.f);
++		const float stiffness = 140.f;
++		const float damping = 9.f;
++		const math::Vec accel = slump.minus(internal->slump).mult(stiffness).minus(internal->slumpVelocity.mult(damping));
++		internal->slumpVelocity = internal->slumpVelocity.plus(accel.mult(dt));
++		internal->slump = internal->slump.plus(internal->slumpVelocity.mult(dt));
++		slump = internal->slump;
++	}
++	else {
++		internal->slump = slump;
++		internal->slumpVelocity = math::Vec();
++		internal->slumpValid = true;
++	}
++
+ 	NVGcolor colorOpaque = color;
+ 	colorOpaque.a = 1.f;
+ 
+@@ -318,10 +355,11 @@
+ 		math::Vec outputPos = getOutputPos();
+ 		math::Vec inputPos = getInputPos();
+ 
+-		float thickness = thick ? 9.0 : 6.0;
++		const bool patchcoreLook = patchcore::enabled();
++		float thickness = patchcoreLook ? (thick ? 12.0 : 8.0) : (thick ? 9.0 : 6.0);
+ 
+ 		// The endpoints are off-center
+-		math::Vec slump = getSlumpPos(outputPos, inputPos);
++		math::Vec slump = internal->slumpValid ? internal->slump : getSlumpPos(outputPos, inputPos);
+ 		outputPos = outputPos.plus(slump.minus(outputPos).normalize().mult(13.0));
+ 		inputPos = inputPos.plus(slump.minus(inputPos).normalize().mult(13.0));
+ 
+@@ -329,7 +367,39 @@
+ 		// Avoids glitches when cable is bent
+ 		nvgLineJoin(args.vg, NVG_ROUND);
+ 
+-		if (layer == 2) {
++		if (patchcoreLook) {
++			if (layer == 2) {
++				// Soft shadow cast onto the back panels
++				math::Vec shadowSlump = slump.plus(math::Vec(0, 26));
++				nvgBeginPath(args.vg);
++				nvgMoveTo(args.vg, VEC_ARGS(outputPos.plus(math::Vec(2, 6))));
++				nvgQuadTo(args.vg, VEC_ARGS(shadowSlump), VEC_ARGS(inputPos.plus(math::Vec(2, 6))));
++				nvgStrokeColor(args.vg, nvgRGBAf(0, 0, 0, 0.28));
++				nvgStrokeWidth(args.vg, thickness + 2.0);
++				nvgStroke(args.vg);
++			}
++			else {
++				// Rubber tube: dark rim, body, and a highlight line offset towards the light
++				nvgBeginPath(args.vg);
++				nvgMoveTo(args.vg, VEC_ARGS(outputPos));
++				nvgQuadTo(args.vg, VEC_ARGS(slump), VEC_ARGS(inputPos));
++				nvgStrokeColor(args.vg, color::mult(color, 0.5));
++				nvgStrokeWidth(args.vg, thickness);
++				nvgStroke(args.vg);
++				nvgStrokeColor(args.vg, color::mult(color, 0.92));
++				nvgStrokeWidth(args.vg, thickness - 2.0);
++				nvgStroke(args.vg);
++
++				const math::Vec lift(-thickness * 0.12f, -thickness * 0.2f);
++				nvgBeginPath(args.vg);
++				nvgMoveTo(args.vg, VEC_ARGS(outputPos.plus(lift)));
++				nvgQuadTo(args.vg, VEC_ARGS(slump.plus(lift)), VEC_ARGS(inputPos.plus(lift)));
++				nvgStrokeColor(args.vg, color::alpha(color::plus(color::mult(color, 0.5), nvgRGBf(0.5, 0.5, 0.5)), 0.65));
++				nvgStrokeWidth(args.vg, thickness * 0.28);
++				nvgStroke(args.vg);
++			}
++		}
++		else if (layer == 2) {
+ 			// Draw cable shadow
+ 			math::Vec shadowSlump = slump.plus(math::Vec(0, 30));
+ 			nvgBeginPath(args.vg);

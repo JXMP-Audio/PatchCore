@@ -93,6 +93,16 @@ struct CardinalPluginContext : rack::Context {
     CardinalDISTRHO::Plugin* const plugin;
     CardinalDGL::NanoTopLevelWidget* tlw;
     CardinalDISTRHO::UI* ui;
+    // PatchCore: internal transport, used in standalone when the host provides no musical time
+    volatile bool internalTransportPlaying = false;
+    volatile bool internalTransportResetRequested = false;
+    volatile double internalTransportBeatsPerMinute = 120.0;
+    volatile int32_t internalTransportBeatsPerBar = 4;
+    volatile int32_t internalTransportBeatType = 4;
+    uint64_t internalTransportFrame = 0;
+    bool internalTransportActive = false;
+    // PatchCore: peak level of the first two plugin outputs over the last block, for the transport meters
+    volatile float outputPeaks[2] = {};
     CardinalPluginContext(CardinalDISTRHO::Plugin* const p);
     void writeMidiMessage(const rack::midi::Message& message, uint8_t channel);
     bool addIdleCallback(IdleCallback* cb) const;

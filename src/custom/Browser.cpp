@@ -26,3 +26,47 @@ static const NVGcolor SCHEME_YELLOW = nvgRGBf(0.76f, 0.11f, 0.22f);
 }
 
 #include "../src/app/Browser.cpp"
+
+// PatchCore docked browser access to the module search database and module creation
+
+#include "../patchcore/PatchCore.hpp"
+
+namespace rack {
+namespace patchcore {
+
+std::vector<plugin::Model*> searchModels(const std::string& search) {
+	std::vector<plugin::Model*> models;
+	for (auto& result : app::browser::modelDb.search(search))
+		models.push_back(result.key);
+	return models;
+}
+
+app::ModuleWidget* addModelAtMouse(plugin::Model* const model) {
+	return app::browser::chooseModel(model);
+}
+
+app::ModuleWidget* addModelAt(plugin::Model* const model, const math::Vec pos) {
+	// Same as chooseModel, but placed at the nearest free slot to `pos` instead of the mouse
+	settings::ModuleInfo& mi = settings::moduleInfos[model->plugin->slug][model->slug];
+	mi.added++;
+	mi.lastAdded = system::getUnixTime();
+
+	INFO("Creating module %s", model->getFullName().c_str());
+	engine::Module* const module = model->createModule();
+	APP->engine->addModule(module);
+
+	INFO("Creating module widget %s", model->getFullName().c_str());
+	app::ModuleWidget* const moduleWidget = model->createModuleWidget(module);
+	APP->scene->rack->addModule(moduleWidget);
+	APP->scene->rack->setModulePosNearest(moduleWidget, pos);
+	moduleWidget->loadTemplate();
+
+	history::ModuleAdd* const h = new history::ModuleAdd;
+	h->setModule(moduleWidget);
+	APP->history->push(h);
+
+	return moduleWidget;
+}
+
+} // namespace patchcore
+} // namespace rack
