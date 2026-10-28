@@ -146,6 +146,59 @@ struct PatchbayWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 		return port;
 	}
 
+	static bool hasCompleteCable(app::PortWidget* const port) {
+		for (app::CableWidget* const cw : APP->scene->rack->getCablesOnPort(port)) {
+			if (cw->isComplete())
+				return true;
+		}
+		return false;
+	}
+
+	bool ownsPort(app::PortWidget* const port, const int k) const {
+		return port == frontIn[k] || port == frontOut[k] || port == backIn[k] || port == backOut[k];
+	}
+
+	void step() override {
+		app::CableWidget* const cw = APP->scene->rack->getIncompleteCable();
+		const jxmp::Need dragging = cw ? jxmp::need(cw->outputPort != nullptr, cw->inputPort != nullptr) : jxmp::Need::Nothing;
+
+		for (int k = 0; k < N; ++k) {
+			jxmp::ChannelCables c;
+			c.frontIn = hasCompleteCable(frontIn[k]);
+			c.frontOut = hasCompleteCable(frontOut[k]);
+			c.backIn = hasCompleteCable(backIn[k]);
+			c.backOut = hasCompleteCable(backOut[k]);
+			const jxmp::Dir dir = jxmp::direction(c);
+
+			// A cable dragged out of this free channel: its end follows what the user hovers
+			if (dir == jxmp::Dir::Free && cw != nullptr && (ownsPort(cw->outputPort, k) || ownsPort(cw->inputPort, k))) {
+				const bool front = cw->outputPort == frontOut[k] || cw->inputPort == frontIn[k];
+				const jxmp::Role current = cw->outputPort != nullptr ? jxmp::Role::Out : jxmp::Role::In;
+				const bool foreignOut = cw->hoveredOutputPort != nullptr && !ownsPort(cw->hoveredOutputPort, k);
+				const bool foreignIn = cw->hoveredInputPort != nullptr && !ownsPort(cw->hoveredInputPort, k);
+				const jxmp::Role role = jxmp::ownedDragRole(current, foreignOut, foreignIn);
+				if (role != current) {
+					cw->outputPort = role == jxmp::Role::Out ? (front ? frontOut[k] : backOut[k]) : nullptr;
+					cw->inputPort = role == jxmp::Role::In ? (front ? frontIn[k] : backIn[k]) : nullptr;
+					cw->updateCable();
+				}
+				setRole(front ? frontIn[k] : backIn[k], front ? frontOut[k] : backOut[k], role);
+				continue;
+			}
+
+			const jxmp::Roles r = jxmp::roles(dir, dragging);
+			setRole(frontIn[k], frontOut[k], r.front);
+			setRole(backIn[k], backOut[k], r.back);
+		}
+
+		ModuleWidget::step();
+	}
+
+	static void setRole(SmartPort* const in, SmartPort* const out, const jxmp::Role role) {
+		in->setActive(role == jxmp::Role::In);
+		out->setActive(role == jxmp::Role::Out);
+	}
+
 	patchcore::PortSide portSide(const engine::Port::Type, const int portId) const override {
 		// Front ids come first in both port enums
 		return portId < N ? patchcore::SIDE_FRONT : patchcore::SIDE_BACK;
