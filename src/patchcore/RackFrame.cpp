@@ -9,6 +9,7 @@
 #include <map>
 #include <vector>
 
+#include <app/CableWidget.hpp>
 #include <app/ModuleWidget.hpp>
 #include <app/RackWidget.hpp>
 #include <app/RailWidget.hpp>
@@ -109,12 +110,16 @@ struct RackFrameWidget : widget::TransparentWidget {
 	void step() override {
 		updateRailVisibility();
 
-		// Front/back: modules show either controls or sockets, cables only exist on the back
+		// Front/back: each module shows the sockets of the current side
 		for (widget::Widget* const w : rack->getModuleContainer()->children) {
 			if (app::ModuleWidget* const mw = dynamic_cast<app::ModuleWidget*>(w))
 				app::ModuleWidget_syncPatchCoreView(mw);
 		}
-		rack->getCableContainer()->setVisible(!hideFrontPorts());
+		// Each cable lives on the side of its sockets
+		for (widget::Widget* const w : rack->getCableContainer()->children) {
+			if (app::CableWidget* const cw = dynamic_cast<app::CableWidget*>(w))
+				cw->setVisible(!enabled() || (int) cableSide(cw) == (int) viewSide);
+		}
 
 		if (enabled())
 			updateLayout();

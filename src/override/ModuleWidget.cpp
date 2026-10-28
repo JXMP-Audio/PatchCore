@@ -279,7 +279,7 @@ static void ModuleWidget_hideNonPorts(widget::Widget* const w, std::vector<widge
 
 void ModuleWidget_syncPatchCoreView(ModuleWidget* const mw) {
 	ModuleWidget::Internal* const internal = mw->internal;
-	const int view = !patchcore::enabled() ? 0 : patchcore::isBackView() ? 2 : patchcore::hideFrontPorts() ? 1 : 0;
+	const int view = !patchcore::enabled() ? 0 : patchcore::isBackView() ? 2 : 1;
 	if (view == internal->patchcoreView && mw->children.size() == internal->patchcoreChildCount)
 		return;
 
@@ -287,18 +287,19 @@ void ModuleWidget_syncPatchCoreView(ModuleWidget* const mw) {
 	ModuleWidget_showHiddenRecursive(mw, internal->patchcoreHidden);
 	internal->patchcoreHidden.clear();
 
-	if (view == 1) {
-		// Front: sockets live on the back
+	if (view != 0) {
+		// Back: keep only back sockets (and containers holding them), everything else belongs to the front
+		if (view == 2)
+			ModuleWidget_hideNonPorts(mw, internal->patchcoreHidden);
+
+		// Each socket shows on its own side only
+		const patchcore::PortSide shown = view == 2 ? patchcore::SIDE_BACK : patchcore::SIDE_FRONT;
 		doIfTypeRecursive<PortWidget>(mw, [&](PortWidget* port) {
-			if (port->isVisible()) {
+			if (port->isVisible() && patchcore::portSide(port) != shown) {
 				port->hide();
 				internal->patchcoreHidden.push_back(port);
 			}
 		});
-	}
-	else if (view == 2) {
-		// Back: keep only sockets (and containers holding them), everything else belongs to the front
-		ModuleWidget_hideNonPorts(mw, internal->patchcoreHidden);
 	}
 
 	internal->patchcoreView = view;
@@ -310,6 +311,8 @@ static void ModuleWidget_drawBlankingCaps(ModuleWidget* const mw, const widget::
 	if (!internal->patchcoreCapsComputed) {
 		internal->patchcoreCapsComputed = true;
 		for (PortWidget* const port : mw->getPorts()) {
+			if (patchcore::portSide(port) != patchcore::SIDE_BACK)
+				continue;
 			const math::Rect r(port->getRelativeOffset(math::Vec(), mw), port->box.size);
 			// Ignore the printed socket ring, look for the surface it is printed on
 			const float minArea = r.size.x * r.size.y * 2.5f;
@@ -414,7 +417,7 @@ void ModuleWidget::draw(const DrawArgs& args) {
 		return;
 	}
 
-	if (patchcore::hideFrontPorts()) {
+	if (patchcore::enabled() && patchcore::hasBackPorts(this)) {
 		// Panel first, then blanking caps over the printed sockets, then the controls
 		widget::Widget* const panel = getPanel();
 		if (panel != nullptr && panel->isVisible())

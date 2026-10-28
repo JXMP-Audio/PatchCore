@@ -1,5 +1,5 @@
---- ../Rack/src/app/ModuleWidget.cpp	2026-10-28 20:37:04.963811345 +0100
-+++ ModuleWidget.cpp	2026-10-28 22:14:30.794221632 +0100
+--- ../Rack/src/app/ModuleWidget.cpp	2026-10-28 23:11:03.964573611 +0100
++++ ModuleWidget.cpp	2026-10-28 23:51:52.967274835 +0100
 @@ -1,8 +1,37 @@
 +/*
 + * DISTRHO Cardinal Plugin
@@ -59,7 +59,7 @@
  };
  
  
-@@ -203,6 +244,162 @@
+@@ -203,6 +244,165 @@
  	return pws;
  }
  
@@ -98,7 +98,7 @@
 +
 +void ModuleWidget_syncPatchCoreView(ModuleWidget* const mw) {
 +	ModuleWidget::Internal* const internal = mw->internal;
-+	const int view = !patchcore::enabled() ? 0 : patchcore::isBackView() ? 2 : patchcore::hideFrontPorts() ? 1 : 0;
++	const int view = !patchcore::enabled() ? 0 : patchcore::isBackView() ? 2 : 1;
 +	if (view == internal->patchcoreView && mw->children.size() == internal->patchcoreChildCount)
 +		return;
 +
@@ -106,18 +106,19 @@
 +	ModuleWidget_showHiddenRecursive(mw, internal->patchcoreHidden);
 +	internal->patchcoreHidden.clear();
 +
-+	if (view == 1) {
-+		// Front: sockets live on the back
++	if (view != 0) {
++		// Back: keep only back sockets (and containers holding them), everything else belongs to the front
++		if (view == 2)
++			ModuleWidget_hideNonPorts(mw, internal->patchcoreHidden);
++
++		// Each socket shows on its own side only
++		const patchcore::PortSide shown = view == 2 ? patchcore::SIDE_BACK : patchcore::SIDE_FRONT;
 +		doIfTypeRecursive<PortWidget>(mw, [&](PortWidget* port) {
-+			if (port->isVisible()) {
++			if (port->isVisible() && patchcore::portSide(port) != shown) {
 +				port->hide();
 +				internal->patchcoreHidden.push_back(port);
 +			}
 +		});
-+	}
-+	else if (view == 2) {
-+		// Back: keep only sockets (and containers holding them), everything else belongs to the front
-+		ModuleWidget_hideNonPorts(mw, internal->patchcoreHidden);
 +	}
 +
 +	internal->patchcoreView = view;
@@ -129,6 +130,8 @@
 +	if (!internal->patchcoreCapsComputed) {
 +		internal->patchcoreCapsComputed = true;
 +		for (PortWidget* const port : mw->getPorts()) {
++			if (patchcore::portSide(port) != patchcore::SIDE_BACK)
++				continue;
 +			const math::Rect r(port->getRelativeOffset(math::Vec(), mw), port->box.size);
 +			// Ignore the printed socket ring, look for the surface it is printed on
 +			const float minArea = r.size.x * r.size.y * 2.5f;
@@ -222,7 +225,7 @@
  void ModuleWidget::draw(const DrawArgs& args) {
  	nvgScissor(args.vg, RECT_ARGS(args.clipBox));
  
-@@ -210,7 +407,31 @@
+@@ -210,7 +410,31 @@
  		nvgAlpha(args.vg, 0.33);
  	}
  
@@ -234,7 +237,7 @@
 +		return;
 +	}
 +
-+	if (patchcore::hideFrontPorts()) {
++	if (patchcore::enabled() && patchcore::hasBackPorts(this)) {
 +		// Panel first, then blanking caps over the printed sockets, then the controls
 +		widget::Widget* const panel = getPanel();
 +		if (panel != nullptr && panel->isVisible())
@@ -255,7 +258,7 @@
  
  	// Meter
  	if (module && settings::cpuMeter) {
-@@ -274,7 +495,15 @@
+@@ -274,7 +498,15 @@
  	}
  
  	// Selection
@@ -272,7 +275,7 @@
  		nvgBeginPath(args.vg);
  		nvgRect(args.vg, 0.0, 0.0, VEC_ARGS(box.size));
  		nvgFillColor(args.vg, nvgRGBAf(1, 0, 0, 0.25));
-@@ -288,7 +517,20 @@
+@@ -288,7 +520,20 @@
  }
  
  void ModuleWidget::drawLayer(const DrawArgs& args, int layer) {
@@ -294,7 +297,7 @@
  		nvgBeginPath(args.vg);
  		float r = 20; // Blur radius
  		float c = 20; // Corner radius
-@@ -375,7 +617,7 @@
+@@ -375,7 +620,7 @@
  			if (e.action == GLFW_PRESS) {
  				// Open selection context menu on right-click
  				ui::Menu* menu = createMenu();
@@ -303,7 +306,7 @@
  			}
  			e.consume(this);
  		}
-@@ -629,6 +871,9 @@
+@@ -629,6 +874,9 @@
  	std::string presetDir = model->getUserPresetDirectory();
  	system::createDirectories(presetDir);
  
@@ -313,7 +316,7 @@
  	// Delete directories if empty
  	DEFER({
  		try {
-@@ -640,10 +885,8 @@
+@@ -640,10 +888,8 @@
  		}
  	});
  
@@ -326,7 +329,7 @@
  	if (!pathC) {
  		// No path selected
  		return;
-@@ -651,11 +894,13 @@
+@@ -651,11 +897,13 @@
  	DEFER({std::free(pathC);});
  
  	try {
@@ -342,7 +345,7 @@
  }
  
  void ModuleWidget::save(std::string filename) {
-@@ -670,7 +915,7 @@
+@@ -670,7 +918,7 @@
  	FILE* file = std::fopen(filename.c_str(), "w");
  	if (!file) {
  		std::string message = string::f("Could not save preset to file %s", filename.c_str());
@@ -351,7 +354,7 @@
  		return;
  	}
  	DEFER({std::fclose(file);});
-@@ -688,10 +933,12 @@
+@@ -688,10 +936,12 @@
  void ModuleWidget::saveTemplateDialog() {
  	if (hasTemplate()) {
  		std::string message = string::f("Overwrite default preset for %s?", model->getFullName().c_str());
@@ -367,7 +370,7 @@
  }
  
  bool ModuleWidget::hasTemplate() {
-@@ -708,15 +955,20 @@
+@@ -708,15 +958,20 @@
  
  void ModuleWidget::clearTemplateDialog() {
  	std::string message = string::f("Delete default preset for %s?", model->getFullName().c_str());
@@ -391,7 +394,7 @@
  	// Delete directories if empty
  	DEFER({
  		try {
-@@ -728,10 +980,8 @@
+@@ -728,10 +983,8 @@
  		}
  	});
  
@@ -404,7 +407,7 @@
  	if (!pathC) {
  		// No path selected
  		return;
-@@ -743,7 +993,8 @@
+@@ -743,7 +996,8 @@
  	if (system::getExtension(path) != ".vcvm")
  		path += ".vcvm";
  
@@ -414,7 +417,7 @@
  }
  
  void ModuleWidget::disconnect() {
-@@ -965,7 +1216,7 @@
+@@ -965,7 +1219,7 @@
  						moduleWidget->loadAction(path);
  					}
  					catch (Exception& e) {
@@ -423,7 +426,7 @@
  					}
  				}));
  			}
-@@ -990,12 +1241,6 @@
+@@ -990,12 +1244,6 @@
  	// Info
  	menu->addChild(createSubmenuItem("Info", "", [=](ui::Menu* menu) {
  		model->appendContextMenu(menu);
@@ -436,10 +439,10 @@
  	}));
  
  	// Preset
-@@ -1135,4 +1380,4 @@
+@@ -1135,4 +1383,4 @@
  
  
  } // namespace app
 -} // namespace rack
-\ No newline at end of file
+\ Chybí znak konce řádku na konci souboru
 +} // namespace rack

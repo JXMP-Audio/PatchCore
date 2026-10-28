@@ -75,8 +75,10 @@ static std::string jackLabel(app::PortWidget* const port) {
 
 static void collectPorts(widget::Widget* const w, app::ModuleWidget* const mw, std::vector<std::pair<app::PortWidget*, math::Rect>>& ports) {
 	for (widget::Widget* const child : w->children) {
-		if (app::PortWidget* const port = dynamic_cast<app::PortWidget*>(child))
-			ports.push_back({port, math::Rect(port->getRelativeOffset(math::Vec(), mw), port->box.size)});
+		if (app::PortWidget* const port = dynamic_cast<app::PortWidget*>(child)) {
+			if (portSide(port) == SIDE_BACK)
+				ports.push_back({port, math::Rect(port->getRelativeOffset(math::Vec(), mw), port->box.size)});
+		}
 		else
 			collectPorts(child, mw, ports);
 	}

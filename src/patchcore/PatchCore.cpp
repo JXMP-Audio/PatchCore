@@ -10,7 +10,9 @@
 #include <context.hpp>
 #include <logger.hpp>
 #include <system.hpp>
+#include <app/CableWidget.hpp>
 #include <app/ModuleWidget.hpp>
+#include <app/PortWidget.hpp>
 #include <app/RackScrollWidget.hpp>
 #include <app/RackWidget.hpp>
 #include <app/Scene.hpp>
@@ -75,8 +77,33 @@ bool isBackView() {
 }
 
 
-bool hideFrontPorts() {
-	return enabled() && viewSide == VIEW_FRONT && !settings.frontCables;
+PortSide portSide(app::PortWidget* const port) {
+	app::ModuleWidget* const mw = port->getAncestorOfType<app::ModuleWidget>();
+	if (const SidedModuleWidget* const sided = dynamic_cast<const SidedModuleWidget*>(mw))
+		return sided->portSide(port->type, port->portId);
+	return SIDE_FRONT;
+}
+
+
+bool hasBackPorts(app::ModuleWidget* const mw) {
+	if (dynamic_cast<SidedModuleWidget*>(mw) == nullptr)
+		return false;
+	for (app::PortWidget* const port : mw->getPorts()) {
+		if (portSide(port) == SIDE_BACK)
+			return true;
+	}
+	return false;
+}
+
+
+PortSide cableSide(app::CableWidget* const cw) {
+	if (cw->outputPort != nullptr && cw->inputPort != nullptr)
+		return portSide(cw->outputPort) == portSide(cw->inputPort) ? portSide(cw->outputPort) : SIDE_FRONT;
+	if (cw->outputPort != nullptr)
+		return portSide(cw->outputPort);
+	if (cw->inputPort != nullptr)
+		return portSide(cw->inputPort);
+	return SIDE_FRONT;
 }
 
 
@@ -111,8 +138,6 @@ void loadSettings() {
 		settings.navigatorVisible = json_boolean_value(j);
 	if (json_t* const j = json_object_get(rootJ, "transportVisible"))
 		settings.transportVisible = json_boolean_value(j);
-	if (json_t* const j = json_object_get(rootJ, "frontCables"))
-		settings.frontCables = json_boolean_value(j);
 
 	json_decref(rootJ);
 }
@@ -126,7 +151,6 @@ void saveSettings() {
 	json_object_set_new(rootJ, "browserDocked", json_boolean(settings.browserDocked));
 	json_object_set_new(rootJ, "navigatorVisible", json_boolean(settings.navigatorVisible));
 	json_object_set_new(rootJ, "transportVisible", json_boolean(settings.transportVisible));
-	json_object_set_new(rootJ, "frontCables", json_boolean(settings.frontCables));
 
 	const std::string path = settingsPath();
 	if (json_dump_file(rootJ, path.c_str(), JSON_INDENT(2)) != 0)
