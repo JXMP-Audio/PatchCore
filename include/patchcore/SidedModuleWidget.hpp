@@ -15,6 +15,9 @@ enum PortSide {
 	SIDE_BACK,
 };
 
+/** True when the PatchCore look is active, so sides exist. Defined in src/patchcore/PatchCore.cpp. */
+bool enabled();
+
 /** Implemented by the widgets of JXMP modules, next to app::ModuleWidget.
 Widgets without it belong to basic modules: every port on the front. */
 struct SidedModuleWidget {

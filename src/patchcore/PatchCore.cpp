@@ -190,6 +190,9 @@ static ViewSide flipTarget = VIEW_FRONT;
 
 
 void setViewSide(ViewSide side) {
+	// A cable being dragged must stay on its side: a flip now would let it end on the other side
+	if (APP->scene->rack->getIncompleteCable() != nullptr)
+		return;
 	if (side == viewSide && side == flipTarget)
 		return;
 	flipTarget = side;
@@ -241,6 +244,9 @@ void devStep() {
 				WARN("PatchCore: could not load %s: %s", path, e.what());
 			}
 		}
+		// Runtime only, never saved
+		if (const char* const themeName = std::getenv("PATCHCORE_DEV_THEME"))
+			settings.theme = std::string(themeName) == "classic" ? THEME_CLASSIC : THEME_DARK;
 		if (const char* const view = std::getenv("PATCHCORE_DEV_VIEW"))
 			viewSide = flipTarget = std::string(view) == "back" ? VIEW_BACK : VIEW_FRONT;
 	}

@@ -190,7 +190,7 @@ void transportTogglePlay();
 
 
 /** Development aid, called from Scene::step(). Reads PATCHCORE_DEV_* environment variables once:
-PATCHCORE_DEV_PATCH (patch to load), PATCHCORE_DEV_ZOOM, PATCHCORE_DEV_OFFSET ("x,y" grid offset),
+PATCHCORE_DEV_PATCH (patch to load), PATCHCORE_DEV_THEME ("classic", not saved), PATCHCORE_DEV_ZOOM, PATCHCORE_DEV_OFFSET ("x,y" grid offset),
 PATCHCORE_DEV_VIEW ("back"), PATCHCORE_DEV_SELECT (index of a module to select). */
 void devStep();
 

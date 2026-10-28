@@ -110,6 +110,10 @@ struct PatchbayWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 	SmartPort* frontOut[N];
 	SmartPort* backIn[N];
 	SmartPort* backOut[N];
+	/** Drag tracking: the cable being dragged, which channels own it, and each channel's direction before it */
+	app::CableWidget* lastDrag = nullptr;
+	bool owned[N] = {};
+	jxmp::Dir lastDir[N] = {};
 
 	PatchbayWidget(M* const module) {
 		setModule(module);
@@ -162,6 +166,12 @@ struct PatchbayWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 		app::CableWidget* const cw = APP->scene->rack->getIncompleteCable();
 		const jxmp::Need dragging = cw ? jxmp::need(cw->outputPort != nullptr, cw->inputPort != nullptr) : jxmp::Need::Nothing;
 
+		if (cw != lastDrag) {
+			for (int k = 0; k < N; ++k)
+				owned[k] = cw != nullptr && jxmp::takesOwnership(lastDir[k], ownsPort(cw->outputPort, k) || ownsPort(cw->inputPort, k));
+			lastDrag = cw;
+		}
+
 		for (int k = 0; k < N; ++k) {
 			jxmp::ChannelCables c;
 			c.frontIn = hasCompleteCable(frontIn[k]);
@@ -169,9 +179,19 @@ struct PatchbayWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 			c.backIn = hasCompleteCable(backIn[k]);
 			c.backOut = hasCompleteCable(backOut[k]);
 			const jxmp::Dir dir = jxmp::direction(c);
+			lastDir[k] = dir;
+
+			// Classic look has no sides: only the front pair takes cables
+			if (!patchcore::enabled()) {
+				const jxmp::Roles r = jxmp::roles(dir, dragging);
+				setRole(frontIn[k], frontOut[k], r.front);
+				backIn[k]->setActive(false);
+				backOut[k]->setActive(false);
+				continue;
+			}
 
 			// A cable dragged out of this free channel: its end follows what the user hovers
-			if (dir == jxmp::Dir::Free && cw != nullptr && (ownsPort(cw->outputPort, k) || ownsPort(cw->inputPort, k))) {
+			if (dir == jxmp::Dir::Free && cw != nullptr && owned[k] && (ownsPort(cw->outputPort, k) || ownsPort(cw->inputPort, k))) {
 				const bool front = cw->outputPort == frontOut[k] || cw->inputPort == frontIn[k];
 				const jxmp::Role current = cw->outputPort != nullptr ? jxmp::Role::Out : jxmp::Role::In;
 				const bool foreignOut = cw->hoveredOutputPort != nullptr && !ownsPort(cw->hoveredOutputPort, k);

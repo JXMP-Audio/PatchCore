@@ -67,4 +67,10 @@ inline Role ownedDragRole(Role current, bool hoveringForeignOutput, bool hoverin
 	return current;
 }
 
+/** A cable dragged out of this channel is owned (its end may flip role) only when the channel was free before the
+drag started. A cable picked up by its far end keeps its Patchbay end, like any Rack jack. */
+inline bool takesOwnership(Dir dirBeforeDrag, bool cableTouchesChannel) {
+	return dirBeforeDrag == Dir::Free && cableTouchesChannel;
+}
+
 } // namespace jxmp

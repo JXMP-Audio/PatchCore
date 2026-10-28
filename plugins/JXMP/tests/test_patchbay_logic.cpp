@@ -37,6 +37,12 @@ int main() {
 	assert(ownedDragRole(Role::In, true, false) == Role::In);
 	assert(ownedDragRole(Role::Out, false, false) == Role::Out);
 
+	// Only a drag that starts on a channel that was free before it owns the cable's end
+	assert(takesOwnership(Dir::Free, true));
+	assert(!takesOwnership(Dir::Forward, true));  // picked up its only cable by the far end
+	assert(!takesOwnership(Dir::Reverse, true));
+	assert(!takesOwnership(Dir::Free, false));
+
 	std::puts("patchbay logic: all tests passed");
 	return 0;
 }
