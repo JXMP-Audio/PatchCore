@@ -281,6 +281,11 @@ PLUGIN_FILES += Cardinal/src/AudioToCVPitch.cpp
 endif
 
 # --------------------------------------------------------------
+# JXMP (built-in)
+
+PLUGIN_FILES += $(wildcard JXMP/src/*.cpp)
+
+# --------------------------------------------------------------
 # Fundamental (always enabled)
 
 PLUGIN_FILES += $(filter-out Fundamental/src/plugin.cpp,$(wildcard Fundamental/src/*.cpp))
@@ -2134,6 +2139,12 @@ $(BUILD_DIR)/Cardinal/%.cpp.o: Cardinal/%.cpp
 		-Dstbrp_node=stbrp_node_cardinal \
 		-Dstbrp_rect=stbrp_rect_cardinal \
 		$(CARLA_FLAGS)
+
+$(BUILD_DIR)/JXMP/%.cpp.o: JXMP/%.cpp
+	-@mkdir -p "$(shell dirname $(BUILD_DIR)/$<)"
+	@echo "Compiling $<"
+	$(SILENT)$(CXX) $< $(BUILD_CXX_FLAGS) -c -o $@ \
+		-DpluginInstance=pluginInstance__JXMP
 
 $(BUILD_DIR)/Cardinal/src/AIDA-X.cpp.o: Cardinal/src/AIDA-X.cpp
 	-@mkdir -p "$(shell dirname $(BUILD_DIR)/$<)"

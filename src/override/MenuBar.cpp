@@ -682,11 +682,6 @@ struct ViewButton : MenuButton {
 				[]() {patchcore::settings.mountScrews ^= true; patchcore::saveSettings();},
 				!patchcore::enabled()
 			));
-			menu->addChild(createCheckMenuItem("Sockets and cables on the front", "",
-				[]() {return patchcore::settings.frontCables;},
-				[]() {patchcore::settings.frontCables ^= true; patchcore::saveSettings();},
-				!patchcore::enabled()
-			));
 			menu->addChild(createCheckMenuItem("Docked browser", "B",
 				[]() {return patchcore::settings.browserDocked;},
 				[]() {patchcore::toggleBrowser();},

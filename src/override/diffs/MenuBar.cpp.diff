@@ -1,5 +1,5 @@
---- ../Rack/src/app/MenuBar.cpp	2026-10-28 20:37:04.963440695 +0100
-+++ MenuBar.cpp	2026-10-28 22:05:07.470984720 +0100
+--- ../Rack/src/app/MenuBar.cpp	2026-10-28 23:11:03.964293103 +0100
++++ MenuBar.cpp	2026-10-28 23:52:04.211326074 +0100
 @@ -1,8 +1,33 @@
 +/*
 + * DISTRHO Cardinal Plugin
@@ -458,7 +458,7 @@
  
  		menu->addChild(createBoolPtrMenuItem("Show tooltips", "", &settings::tooltips));
  
-@@ -459,10 +663,60 @@
+@@ -459,10 +663,55 @@
  		haloBrightnessSlider->box.size.x = 250.0;
  		menu->addChild(haloBrightnessSlider);
  
@@ -479,11 +479,6 @@
 +			menu->addChild(createCheckMenuItem("Mount screws on screwless panels", "",
 +				[]() {return patchcore::settings.mountScrews;},
 +				[]() {patchcore::settings.mountScrews ^= true; patchcore::saveSettings();},
-+				!patchcore::enabled()
-+			));
-+			menu->addChild(createCheckMenuItem("Sockets and cables on the front", "",
-+				[]() {return patchcore::settings.frontCables;},
-+				[]() {patchcore::settings.frontCables ^= true; patchcore::saveSettings();},
 +				!patchcore::enabled()
 +			));
 +			menu->addChild(createCheckMenuItem("Docked browser", "B",
@@ -519,7 +514,7 @@
  
  		static const std::vector<std::string> knobModeLabels = {
  			"Linear",
-@@ -487,13 +741,34 @@
+@@ -487,13 +736,34 @@
  		menu->addChild(knobScrollSensitivitySlider);
  
  		menu->addChild(new ui::MenuSeparator);
@@ -558,7 +553,7 @@
  	}
  };
  
-@@ -503,48 +778,11 @@
+@@ -503,48 +773,11 @@
  ////////////////////
  
  
@@ -611,7 +606,7 @@
  	void onAction(const ActionEvent& e) override {
  		ui::Menu* menu = createMenu();
  		menu->cornerFlags = BND_CORNER_TOP;
-@@ -557,292 +795,87 @@
+@@ -557,292 +790,87 @@
  			settings::cpuMeter ^= true;
  		}));
  
@@ -968,7 +963,7 @@
  };
  
  
-@@ -852,63 +885,30 @@
+@@ -852,63 +880,30 @@
  
  
  struct HelpButton : MenuButton {
@@ -1040,7 +1035,7 @@
  	}
  };
  
-@@ -951,15 +951,19 @@
+@@ -951,15 +946,19 @@
  
  		text = "";
  
@@ -1063,7 +1058,7 @@
  
  		Label::step();
  	}
-@@ -967,18 +971,34 @@
+@@ -967,18 +966,34 @@
  
  
  struct MenuBar : widget::OpaqueWidget {
@@ -1102,7 +1097,7 @@
  		fileButton->text = "File";
  		layout->addChild(fileButton);
  
-@@ -990,15 +1010,13 @@
+@@ -990,15 +1005,13 @@
  		viewButton->text = "View";
  		layout->addChild(viewButton);
  
@@ -1121,7 +1116,7 @@
  		helpButton->text = "Help";
  		layout->addChild(helpButton);
  
-@@ -1009,6 +1027,12 @@
+@@ -1009,6 +1022,12 @@
  	}
  
  	void draw(const DrawArgs& args) override {
@@ -1134,7 +1129,7 @@
  		bndMenuBackground(args.vg, 0.0, 0.0, box.size.x, box.size.y, BND_CORNER_ALL);
  		bndBevel(args.vg, 0.0, 0.0, box.size.x, box.size.y);
  
-@@ -1016,7 +1040,35 @@
+@@ -1016,7 +1035,35 @@
  	}
  
  	void step() override {
@@ -1170,7 +1165,7 @@
  		infoLabel->box.size.x = box.size.x - infoLabel->box.pos.x - 5;
  		// Setting 50% alpha prevents Label from using the default UI theme color, so set the color manually here.
  		infoLabel->color = color::alpha(bndGetTheme()->regularTheme.textColor, 0.5);
-@@ -1028,7 +1080,7 @@
+@@ -1028,7 +1075,7 @@
  
  
  widget::Widget* createMenuBar() {

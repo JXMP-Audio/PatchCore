@@ -1,0 +1,19 @@
+{
+  "slug": "JXMP",
+  "name": "JXMP",
+  "version": "2.0.0",
+  "license": "GPL-3.0-or-later",
+  "brand": "JXMP Audio",
+  "author": "JXMP Audio",
+  "authorEmail": "",
+  "authorUrl": "https://github.com/JXMP-Audio",
+  "pluginUrl": "https://github.com/JXMP-Audio/PatchCore",
+  "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/research_docs/04-sided-modules-patchbay-design.md",
+  "sourceUrl": "https://github.com/JXMP-Audio/PatchCore",
+  "changelogUrl": "",
+  "modules": [
+    {"slug": "Patchbay4", "name": "Patchbay 4", "description": "Passes 4 channels between the front and the back of the rack", "tags": ["Utility"]},
+    {"slug": "Patchbay8", "name": "Patchbay 8", "description": "Passes 8 channels between the front and the back of the rack", "tags": ["Utility"]},
+    {"slug": "Patchbay16", "name": "Patchbay 16", "description": "Passes 16 channels between the front and the back of the rack", "tags": ["Utility"]}
+  ]
+}

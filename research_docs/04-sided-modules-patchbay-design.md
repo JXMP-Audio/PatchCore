@@ -29,28 +29,30 @@ comes out of back jack *n*, and the other way round.
 
 ## Architecture
 
-### Port sides (`src/patchcore/SidedModule.hpp`)
+### Port sides (`include/patchcore/SidedModuleWidget.hpp`)
 
 ```cpp
 namespace rack::patchcore {
 enum PortSide { SIDE_FRONT = 0, SIDE_BACK };
 
-/** Implemented by JXMP modules. Modules without it are basic modules: every port on the front. */
-struct SidedModule {
-	virtual ~SidedModule() {}
-	/** Side of an input or output. Called from the UI thread; must be cheap and constant. */
-	virtual PortSide portSide(engine::Port::Type type, int portId) { return SIDE_BACK; }
+/** Implemented by the widgets of JXMP modules. Widgets without it are basic modules: every port on the front. */
+struct SidedModuleWidget {
+	virtual ~SidedModuleWidget() {}
+	/** Side of an input or output. Called every frame from the UI thread: keep it cheap and constant. */
+	virtual PortSide portSide(engine::Port::Type type, int portId) const { return SIDE_BACK; }
 };
 
-/** Side of `port`, SIDE_FRONT for basic modules. */
+/** Side of `port`, SIDE_FRONT for basic modules (src/patchcore). */
 PortSide portSide(app::PortWidget* port);
-/** True when the module has at least one back port. */
+/** True when the module widget has at least one back port. */
 bool hasBackPorts(app::ModuleWidget* mw);
 }
 ```
 
-A module opts in with `struct MyModule : engine::Module, patchcore::SidedModule`. The UI finds
-the interface with `dynamic_cast`. Rack (`src/Rack`) and third-party plugins are not changed.
+A module opts in on its **widget**: `struct MyWidget : app::ModuleWidget, patchcore::SidedModuleWidget`.
+It is the widget, not the module, because module browser previews have no module instance
+but must still know their sides. The UI finds the interface with `dynamic_cast`. The header lives
+in `include/` so plugins can use it. Rack (`src/Rack`) and third-party plugins are not changed.
 
 ### View sync (`src/override/ModuleWidget.cpp`)
 
@@ -71,8 +73,7 @@ in `MenuBar.cpp`. A `frontCables` key left in an old `PatchCore.json` is ignored
 
 - A cable belongs to the side of its ports. It is drawn and hit-tested only while the rack
   shows that side. The cable being dragged follows the side of the port it started from.
-- Ports on the other side are hidden, so they cannot be targets. As a second line of defence,
-  a cable whose ends would be on different sides is not created (the drop is ignored).
+- Ports on the other side are hidden, so a cross-side cable cannot be made in the UI.
 - Cables that load from a patch with ends on different sides (only possible from a hand-edited
   patch) stay connected and are drawn on the front, so nothing silently breaks.
 

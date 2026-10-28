@@ -13,11 +13,14 @@
 #include <nanovg.h>
 #include <widget/Widget.hpp>
 #include <window/Window.hpp>
+#include <patchcore/SidedModuleWidget.hpp>
 
 namespace rack {
 
 namespace app {
+struct CableWidget;
 struct ModuleWidget;
+struct PortWidget;
 struct RackWidget;
 }
 
@@ -57,8 +60,6 @@ struct Settings {
 	bool browserDocked = true;
 	bool navigatorVisible = true;
 	bool transportVisible = true;
-	/** Classic behaviour: keep sockets and cables on the front panel */
-	bool frontCables = false;
 };
 
 extern Settings settings;
@@ -75,8 +76,14 @@ bool enabled();
 /** True when the rack shows its back: PatchCore enabled and flipped. */
 bool isBackView();
 
-/** True when sockets and cables should be hidden on the front view. */
-bool hideFrontPorts();
+/** Side of a socket: what its module widget says, SIDE_FRONT for basic modules. */
+PortSide portSide(app::PortWidget* port);
+
+/** True when the module widget is a SidedModuleWidget with at least one back port. */
+bool hasBackPorts(app::ModuleWidget* mw);
+
+/** Side a cable is drawn on: the side of its ports. A cable whose ends disagree (hand-edited patch) is on the front. */
+PortSide cableSide(app::CableWidget* cw);
 
 const Theme& theme();
 
@@ -183,7 +190,7 @@ void transportTogglePlay();
 
 
 /** Development aid, called from Scene::step(). Reads PATCHCORE_DEV_* environment variables once:
-PATCHCORE_DEV_PATCH (patch to load), PATCHCORE_DEV_ZOOM, PATCHCORE_DEV_OFFSET ("x,y" grid offset),
+PATCHCORE_DEV_PATCH (patch to load), PATCHCORE_DEV_THEME ("classic", not saved), PATCHCORE_DEV_ZOOM, PATCHCORE_DEV_OFFSET ("x,y" grid offset),
 PATCHCORE_DEV_VIEW ("back"), PATCHCORE_DEV_SELECT (index of a module to select). */
 void devStep();
 
