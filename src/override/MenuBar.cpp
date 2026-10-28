@@ -54,6 +54,7 @@
 #include "../CardinalCommon.hpp"
 #include "../CardinalRemote.hpp"
 #include "../CardinalPluginContext.hpp"
+#include "../patchcore/PatchCore.hpp"
 #include "DistrhoPlugin.hpp"
 #include "DistrhoStandaloneUtils.hpp"
 
@@ -80,10 +81,19 @@ namespace menuBar {
 
 struct MenuButton : ui::Button {
 	void step() override {
-		box.size.x = bndLabelWidth(APP->window->vg, -1, text.c_str()) + 1.0;
+		if (patchcore::enabled())
+			box.size.x = patchcore::menuButtonWidth(text);
+		else
+			box.size.x = bndLabelWidth(APP->window->vg, -1, text.c_str()) + 1.0;
 		Widget::step();
 	}
 	void draw(const DrawArgs& args) override {
+		if (patchcore::enabled()) {
+			const bool hovered = APP->event->hoveredWidget == this || APP->event->draggedWidget == this;
+			patchcore::drawMenuButton(args.vg, box.size, text, hovered);
+			Widget::draw(args);
+			return;
+		}
 		BNDwidgetState state = BND_DEFAULT;
 		if (APP->event->hoveredWidget == this)
 			state = BND_HOVER;
@@ -653,6 +663,47 @@ struct ViewButton : MenuButton {
 		haloBrightnessSlider->box.size.x = 250.0;
 		menu->addChild(haloBrightnessSlider);
 
+		if (!isMini()) {
+			menu->addChild(new ui::MenuSeparator);
+			menu->addChild(createMenuLabel("PatchCore"));
+
+			menu->addChild(createCheckMenuItem("PatchCore rack (off = Classic)", "",
+				[]() {return patchcore::settings.theme != patchcore::THEME_CLASSIC;},
+				[]() {
+					patchcore::settings.theme = patchcore::settings.theme == patchcore::THEME_CLASSIC
+					                          ? patchcore::THEME_DARK : patchcore::THEME_CLASSIC;
+					patchcore::viewSide = patchcore::VIEW_FRONT;
+					patchcore::saveSettings();
+					patchcore::setAllFramebuffersDirty(APP->scene);
+				}
+			));
+			menu->addChild(createCheckMenuItem("Mount screws on screwless panels", "",
+				[]() {return patchcore::settings.mountScrews;},
+				[]() {patchcore::settings.mountScrews ^= true; patchcore::saveSettings();},
+				!patchcore::enabled()
+			));
+			menu->addChild(createCheckMenuItem("Sockets and cables on the front", "",
+				[]() {return patchcore::settings.frontCables;},
+				[]() {patchcore::settings.frontCables ^= true; patchcore::saveSettings();},
+				!patchcore::enabled()
+			));
+			menu->addChild(createCheckMenuItem("Docked browser", "B",
+				[]() {return patchcore::settings.browserDocked;},
+				[]() {patchcore::toggleBrowser();},
+				!patchcore::enabled()
+			));
+			menu->addChild(createCheckMenuItem("Navigator", "",
+				[]() {return patchcore::settings.navigatorVisible;},
+				[]() {patchcore::settings.navigatorVisible ^= true; patchcore::saveSettings();},
+				!patchcore::enabled()
+			));
+			menu->addChild(createCheckMenuItem("Transport bar", "",
+				[]() {return patchcore::settings.transportVisible;},
+				[]() {patchcore::settings.transportVisible ^= true; patchcore::saveSettings();},
+				!patchcore::enabled()
+			));
+		}
+
 		menu->addChild(new ui::MenuSeparator);
 		menu->addChild(createMenuLabel("Module dragging"));
 
@@ -920,7 +971,14 @@ struct InfoLabel : ui::Label {
 
 
 struct MenuBar : widget::OpaqueWidget {
+	static constexpr const float kPatchCoreHeight = 46.f;
+
+	ui::SequentialLayout* layout;
+	HelpButton* helpButton;
 	InfoLabel* infoLabel;
+	widget::Widget* patchcoreLogo;
+	widget::Widget* patchcoreCenter;
+	widget::Widget* patchcoreRight;
 
 	MenuBar(const bool isStandalone)
 		: widget::OpaqueWidget()
@@ -928,7 +986,14 @@ struct MenuBar : widget::OpaqueWidget {
 		const float margin = 5;
 		box.size.y = BND_WIDGET_HEIGHT + 2 * margin;
 
-		ui::SequentialLayout* layout = new ui::SequentialLayout;
+		patchcoreLogo = patchcore::createTopBarLogo();
+		addChild(patchcoreLogo);
+		patchcoreCenter = patchcore::createTopBarCenter();
+		addChild(patchcoreCenter);
+		patchcoreRight = patchcore::createTopBarRight();
+		addChild(patchcoreRight);
+
+		layout = new ui::SequentialLayout;
 		layout->margin = math::Vec(margin, margin);
 		layout->spacing = math::Vec(0, 0);
 		addChild(layout);
@@ -951,7 +1016,7 @@ struct MenuBar : widget::OpaqueWidget {
 		layout->addChild(engineButton);
 #endif
 
-		HelpButton* helpButton = new HelpButton;
+		helpButton = new HelpButton;
 		helpButton->text = "Help";
 		layout->addChild(helpButton);
 
@@ -962,6 +1027,12 @@ struct MenuBar : widget::OpaqueWidget {
 	}
 
 	void draw(const DrawArgs& args) override {
+		if (patchcore::enabled()) {
+			patchcore::drawBarBackground(args.vg, box.size, false);
+			Widget::draw(args);
+			return;
+		}
+
 		bndMenuBackground(args.vg, 0.0, 0.0, box.size.x, box.size.y, BND_CORNER_ALL);
 		bndBevel(args.vg, 0.0, 0.0, box.size.x, box.size.y);
 
@@ -969,7 +1040,35 @@ struct MenuBar : widget::OpaqueWidget {
 	}
 
 	void step() override {
+		const bool patchcoreEnabled = patchcore::enabled();
+		const float margin = 5;
+		patchcoreLogo->setVisible(patchcoreEnabled);
+		patchcoreCenter->setVisible(patchcoreEnabled);
+		patchcoreRight->setVisible(patchcoreEnabled);
+		infoLabel->setVisible(!patchcoreEnabled);
+
+		if (patchcoreEnabled) {
+			box.size.y = kPatchCoreHeight;
+			patchcoreLogo->box.pos = math::Vec(12, 0);
+			patchcoreLogo->box.size.y = box.size.y;
+			layout->box.pos = math::Vec(patchcoreLogo->box.getRight(), (box.size.y - BND_WIDGET_HEIGHT) * 0.5f - margin);
+		}
+		else {
+			box.size.y = BND_WIDGET_HEIGHT + 2 * margin;
+			layout->box.pos = math::Vec(0, 0);
+		}
+
 		Widget::step();
+
+		if (patchcoreEnabled) {
+			// Selection status only fits on wide windows
+			patchcoreRight->box.size = math::Vec(box.size.x >= 1400 ? 360 : 130, box.size.y);
+			patchcoreRight->box.pos = math::Vec(box.size.x - patchcoreRight->box.size.x - 12, 0);
+			patchcoreCenter->box.pos = math::Vec(layout->box.pos.x + helpButton->box.getRight() + 14, 0);
+			patchcoreCenter->box.size = math::Vec(patchcoreRight->box.pos.x - patchcoreCenter->box.pos.x - 24, box.size.y);
+			return;
+		}
+
 		infoLabel->box.size.x = box.size.x - infoLabel->box.pos.x - 5;
 		// Setting 50% alpha prevents Label from using the default UI theme color, so set the color manually here.
 		infoLabel->color = color::alpha(bndGetTheme()->regularTheme.textColor, 0.5);

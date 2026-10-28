@@ -1178,7 +1178,39 @@ protected:
         const bool bypassed = context->bypassed;
 
         {
-            const TimePosition& timePos(getTimePosition());
+            TimePosition timePos(getTimePosition());
+
+            // PatchCore: standalone without a timebase master gets an internal transport
+            context->internalTransportActive = rack::isStandalone() && !timePos.bbt.valid;
+            if (context->internalTransportActive)
+            {
+                if (context->internalTransportResetRequested)
+                {
+                    context->internalTransportResetRequested = false;
+                    context->internalTransportFrame = 0;
+                }
+
+                constexpr const double ticksPerBeat = 1920.0;
+                const double bpm = std::max(1.0, (double)context->internalTransportBeatsPerMinute);
+                const int32_t beatsPerBar = std::max(1, (int32_t)context->internalTransportBeatsPerBar);
+                const double beats = context->internalTransportFrame / getSampleRate() * bpm / 60.0;
+                const int64_t wholeBeats = static_cast<int64_t>(beats);
+
+                timePos.playing = context->internalTransportPlaying;
+                timePos.frame = context->internalTransportFrame;
+                timePos.bbt.valid = true;
+                timePos.bbt.bar = static_cast<int32_t>(wholeBeats / beatsPerBar) + 1;
+                timePos.bbt.beat = static_cast<int32_t>(wholeBeats % beatsPerBar) + 1;
+                timePos.bbt.tick = (beats - wholeBeats) * ticksPerBeat;
+                timePos.bbt.barStartTick = (timePos.bbt.bar - 1) * beatsPerBar * ticksPerBeat;
+                timePos.bbt.beatsPerBar = beatsPerBar;
+                timePos.bbt.beatType = context->internalTransportBeatType;
+                timePos.bbt.ticksPerBeat = ticksPerBeat;
+                timePos.bbt.beatsPerMinute = bpm;
+
+                if (timePos.playing)
+                    context->internalTransportFrame += frames;
+            }
 
             bool reset = timePos.playing && (timePos.frame == 0 || d_isDiffHigherThanLimit(fNextExpectedFrame, timePos.frame, (uint64_t)2));
 
@@ -1290,6 +1322,18 @@ protected:
 
         ++context->processCounter;
         context->engine->stepBlock(frames);
+
+        // PatchCore: output peaks for the transport bar meters
+        for (int i=0; i<2; ++i)
+        {
+            float peak = 0.f;
+            if (i < fNumActiveOutputs && outputs[i] != nullptr)
+            {
+                for (uint32_t j=0; j<frames; ++j)
+                    peak = std::max(peak, std::abs(outputs[i][j]));
+            }
+            context->outputPeaks[i] = peak;
+        }
 
         fWasBypassed = bypassed;
     }

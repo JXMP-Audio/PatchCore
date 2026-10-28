@@ -605,6 +605,18 @@ Initializer::Initializer(const CardinalBasePlugin* const plugin, const CardinalB
             }
         }
 
+       #if !defined(DISTRHO_OS_WASM)
+        // Allow pointing a standalone build at an uninstalled resources folder (e.g. bin/Cardinal.lv2/resources)
+        if (asset::systemDir.empty())
+        {
+            if (const char* const envSystemDir = std::getenv("CARDINAL_SYSTEM_DIR"))
+            {
+                asset::systemDir = envSystemDir;
+                asset::bundlePath = system::join(asset::systemDir, "PluginManifests");
+            }
+        }
+       #endif
+
         if (asset::systemDir.empty() || ! system::exists(asset::systemDir) || ! system::exists(asset::bundlePath))
         {
            #ifdef CARDINAL_PLUGIN_SOURCE_DIR

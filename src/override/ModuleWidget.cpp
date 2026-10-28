@@ -26,7 +26,9 @@
  */
 
 #include "../../CardinalCommon.hpp"
+#include "../patchcore/PatchCore.hpp"
 
+#include <algorithm>
 #include <thread>
 #include <regex>
 
@@ -64,6 +66,18 @@ struct ModuleWidget::Internal {
 	bool dragEnabled = true;
 
 	widget::Widget* panel = NULL;
+
+	/** PatchCore: whether the panel provides its own screw widgets (-1 = not checked yet). */
+	int hasScrews = -1;
+
+	/** PatchCore view applied to the children: -1 not synced, 0 classic, 1 front without sockets, 2 back. */
+	int patchcoreView = -1;
+	size_t patchcoreChildCount = 0;
+	/** Children hidden by PatchCore, shown again when the view changes. */
+	std::vector<widget::Widget*> patchcoreHidden;
+	/** Blanking caps covering the printed sockets on the front: port box and panel color. */
+	std::vector<std::pair<math::Rect, NVGcolor>> patchcoreCaps;
+	bool patchcoreCapsComputed = false;
 };
 
 
@@ -230,6 +244,162 @@ std::vector<PortWidget*> ModuleWidget::getOutputs() {
 	return pws;
 }
 
+template <class T>
+static bool hasDescendantOfType(widget::Widget* const w) {
+	for (widget::Widget* const child : w->children) {
+		if (dynamic_cast<T*>(child) != nullptr || hasDescendantOfType<T>(child))
+			return true;
+	}
+	return false;
+}
+
+static void ModuleWidget_showHiddenRecursive(widget::Widget* const w, const std::vector<widget::Widget*>& hidden) {
+	for (widget::Widget* const child : w->children) {
+		if (std::find(hidden.begin(), hidden.end(), child) != hidden.end())
+			child->show();
+		ModuleWidget_showHiddenRecursive(child, hidden);
+	}
+}
+
+/** Hides every widget below `w` that is not a socket and holds no sockets. */
+static void ModuleWidget_hideNonPorts(widget::Widget* const w, std::vector<widget::Widget*>& hidden) {
+	for (widget::Widget* const child : w->children) {
+		if (dynamic_cast<PortWidget*>(child) != nullptr)
+			continue;
+		if (hasDescendantOfType<PortWidget>(child)) {
+			ModuleWidget_hideNonPorts(child, hidden);
+			continue;
+		}
+		if (child->isVisible()) {
+			child->hide();
+			hidden.push_back(child);
+		}
+	}
+}
+
+void ModuleWidget_syncPatchCoreView(ModuleWidget* const mw) {
+	ModuleWidget::Internal* const internal = mw->internal;
+	const int view = !patchcore::enabled() ? 0 : patchcore::isBackView() ? 2 : patchcore::hideFrontPorts() ? 1 : 0;
+	if (view == internal->patchcoreView && mw->children.size() == internal->patchcoreChildCount)
+		return;
+
+	// Undo the previous view. Only widgets that are still children get shown again.
+	ModuleWidget_showHiddenRecursive(mw, internal->patchcoreHidden);
+	internal->patchcoreHidden.clear();
+
+	if (view == 1) {
+		// Front: sockets live on the back
+		doIfTypeRecursive<PortWidget>(mw, [&](PortWidget* port) {
+			if (port->isVisible()) {
+				port->hide();
+				internal->patchcoreHidden.push_back(port);
+			}
+		});
+	}
+	else if (view == 2) {
+		// Back: keep only sockets (and containers holding them), everything else belongs to the front
+		ModuleWidget_hideNonPorts(mw, internal->patchcoreHidden);
+	}
+
+	internal->patchcoreView = view;
+	internal->patchcoreChildCount = mw->children.size();
+}
+
+static void ModuleWidget_drawBlankingCaps(ModuleWidget* const mw, const widget::Widget::DrawArgs& args) {
+	ModuleWidget::Internal* const internal = mw->internal;
+	if (!internal->patchcoreCapsComputed) {
+		internal->patchcoreCapsComputed = true;
+		for (PortWidget* const port : mw->getPorts()) {
+			const math::Rect r(port->getRelativeOffset(math::Vec(), mw), port->box.size);
+			// Ignore the printed socket ring, look for the surface it is printed on
+			const float minArea = r.size.x * r.size.y * 2.5f;
+			NVGcolor color;
+			if (patchcore::panelColorAt(mw, r.getCenter(), minArea, &color))
+				internal->patchcoreCaps.push_back({r, color});
+		}
+	}
+
+	for (const std::pair<math::Rect, NVGcolor>& cap : internal->patchcoreCaps) {
+		const math::Vec c = cap.first.getCenter();
+		nvgBeginPath(args.vg);
+		nvgCircle(args.vg, c.x, c.y, std::max(cap.first.size.x, cap.first.size.y) * 0.5f + 1.5f);
+		nvgFillColor(args.vg, cap.second);
+		nvgFill(args.vg);
+	}
+}
+
+static void ModuleWidget_drawPatchCoreFront(ModuleWidget* const mw, const widget::Widget::DrawArgs& args) {
+	NVGcontext* const vg = args.vg;
+	const float w = mw->box.size.x;
+	const float h = mw->box.size.y;
+	ModuleWidget::Internal* const internal = mw->internal;
+
+	// Mount screws, unless the panel already has screw widgets
+	if (internal->hasScrews == -1) {
+		internal->hasScrews = 0;
+		doIfTypeRecursive<SvgScrew>(mw, [&](SvgScrew*) {
+			internal->hasScrews = 1;
+		});
+	}
+	if (internal->hasScrews == 0 && patchcore::settings.mountScrews) {
+		const float r = 4.5f;
+		const float y1 = RACK_GRID_WIDTH * 0.5f;
+		const float y2 = h - RACK_GRID_WIDTH * 0.5f;
+		if (w <= RACK_GRID_WIDTH * 3) {
+			patchcore::draw::screw(vg, math::Vec(w * 0.5f, y1), r, 0.35f);
+			patchcore::draw::screw(vg, math::Vec(w * 0.5f, y2), r, 1.1f);
+		}
+		else {
+			const float x1 = RACK_GRID_WIDTH * 1.5f;
+			const float x2 = w - RACK_GRID_WIDTH * 1.5f;
+			patchcore::draw::screw(vg, math::Vec(x1, y1), r, 0.35f);
+			patchcore::draw::screw(vg, math::Vec(x2, y2), r, 1.1f);
+			if (w >= RACK_GRID_WIDTH * 8) {
+				patchcore::draw::screw(vg, math::Vec(x2, y1), r, -0.5f);
+				patchcore::draw::screw(vg, math::Vec(x1, y2), r, 0.8f);
+			}
+		}
+	}
+
+	// Panel sheen: top-left gloss and bottom-right falloff (CSS 162deg in the mockup)
+	const float sheen = patchcore::settings.sheen;
+	if (sheen > 0.f) {
+		const math::Vec dir(0.309f, 0.951f);
+		const float len = std::fabs(w * dir.x) + std::fabs(h * dir.y);
+		const math::Vec c(w * 0.5f, h * 0.5f);
+		const math::Vec p0 = c.minus(dir.mult(len * 0.5f));
+		const math::Vec at38 = p0.plus(dir.mult(len * 0.38f));
+		const math::Vec at70 = p0.plus(dir.mult(len * 0.70f));
+		const math::Vec p1 = c.plus(dir.mult(len * 0.5f));
+
+		nvgBeginPath(vg);
+		nvgRect(vg, 0, 0, w, h);
+		nvgFillPaint(vg, nvgLinearGradient(vg, VEC_ARGS(p0), VEC_ARGS(at38),
+		                                   nvgRGBAf(1, 1, 1, 0.16f * sheen), nvgRGBAf(1, 1, 1, 0)));
+		nvgFill(vg);
+
+		nvgBeginPath(vg);
+		nvgRect(vg, 0, 0, w, h);
+		nvgFillPaint(vg, nvgLinearGradient(vg, VEC_ARGS(at70), VEC_ARGS(p1),
+		                                   nvgRGBAf(0, 0, 0, 0), nvgRGBAf(0, 0, 0, 0.18f * sheen)));
+		nvgFill(vg);
+	}
+
+	// Edge bevel: lit left/top edges, dark right edge
+	nvgStrokeWidth(vg, 1.f);
+	nvgBeginPath(vg);
+	nvgMoveTo(vg, 0.5f, h);
+	nvgLineTo(vg, 0.5f, 0.5f);
+	nvgLineTo(vg, w, 0.5f);
+	nvgStrokeColor(vg, nvgRGBAf(1, 1, 1, 0.2f));
+	nvgStroke(vg);
+	nvgBeginPath(vg);
+	nvgMoveTo(vg, w - 0.5f, 0);
+	nvgLineTo(vg, w - 0.5f, h);
+	nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.45f));
+	nvgStroke(vg);
+}
+
 void ModuleWidget::draw(const DrawArgs& args) {
 	nvgScissor(args.vg, RECT_ARGS(args.clipBox));
 
@@ -237,7 +407,31 @@ void ModuleWidget::draw(const DrawArgs& args) {
 		nvgAlpha(args.vg, 0.33);
 	}
 
-	Widget::draw(args);
+	if (patchcore::isBackView()) {
+		// The back of every module is drawn by the rack's back overlay (patchcore/RackFrame.cpp), on top of
+		// anything module widgets draw in their own layers
+		nvgResetScissor(args.vg);
+		return;
+	}
+
+	if (patchcore::hideFrontPorts()) {
+		// Panel first, then blanking caps over the printed sockets, then the controls
+		widget::Widget* const panel = getPanel();
+		if (panel != nullptr && panel->isVisible())
+			drawChild(panel, args);
+		ModuleWidget_drawBlankingCaps(this, args);
+		for (widget::Widget* const child : children) {
+			if (child == panel || !child->isVisible() || !args.clipBox.intersects(child->box))
+				continue;
+			drawChild(child, args);
+		}
+	}
+	else {
+		Widget::draw(args);
+	}
+
+	if (patchcore::enabled())
+		ModuleWidget_drawPatchCoreFront(this, args);
 
 	// Meter
 	if (module && settings::cpuMeter) {
@@ -301,7 +495,15 @@ void ModuleWidget::draw(const DrawArgs& args) {
 	}
 
 	// Selection
-	if (APP->scene->rack->isSelected(this)) {
+	if (patchcore::enabled() && APP->scene->rack->isSelected(this)) {
+		const patchcore::Theme& t = patchcore::theme();
+		nvgBeginPath(args.vg);
+		nvgRect(args.vg, 1.0, 1.0, box.size.x - 2.0, box.size.y - 2.0);
+		nvgStrokeWidth(args.vg, 2.0);
+		nvgStrokeColor(args.vg, patchcore::isBackView() ? t.accent : t.select);
+		nvgStroke(args.vg);
+	}
+	else if (APP->scene->rack->isSelected(this)) {
 		nvgBeginPath(args.vg);
 		nvgRect(args.vg, 0.0, 0.0, VEC_ARGS(box.size));
 		nvgFillColor(args.vg, nvgRGBAf(1, 0, 0, 0.25));
@@ -315,7 +517,20 @@ void ModuleWidget::draw(const DrawArgs& args) {
 }
 
 void ModuleWidget::drawLayer(const DrawArgs& args, int layer) {
-	if (layer == -1) {
+	if (layer == -1 && patchcore::enabled()) {
+		// Contact shadow on the rails, deeper when the module is lifted by selection
+		const bool lifted = APP->scene->rack->isSelected(this);
+		const float r = lifted ? 16.f : 8.f;
+		const math::Vec offset = lifted ? math::Vec(4, 8) : math::Vec(3, 4);
+		math::Rect shadowBox = box.zeroPos();
+		shadowBox.pos = shadowBox.pos.plus(offset);
+		nvgBeginPath(args.vg);
+		nvgRect(args.vg, RECT_ARGS(shadowBox.grow(math::Vec(r, r))));
+		nvgFillPaint(args.vg, nvgBoxGradient(args.vg, RECT_ARGS(shadowBox), 2.f, r,
+		                                     nvgRGBAf(0, 0, 0, lifted ? 0.7f : 0.6f), nvgRGBAf(0, 0, 0, 0)));
+		nvgFill(args.vg);
+	}
+	else if (layer == -1) {
 		nvgBeginPath(args.vg);
 		float r = 20; // Blur radius
 		float c = 20; // Corner radius

@@ -33,6 +33,7 @@
 
 #include "../CardinalCommon.hpp"
 #include "../CardinalRemote.hpp"
+#include "../patchcore/PatchCore.hpp"
 
 #include <algorithm>
 
@@ -106,6 +107,11 @@ struct ResizeHandle : widget::OpaqueWidget {
 struct Scene::Internal {
 	ResizeHandle* resizeHandle = nullptr;
 
+	// PatchCore workspace chrome, null on the Mini variant
+	widget::Widget* dockedBrowser = nullptr;
+	widget::Widget* navigator = nullptr;
+	widget::Widget* transportBar = nullptr;
+
 	bool heldArrowKeys[4] = {};
 
 	double lastSceneChangeTime = 0.0;
@@ -121,8 +127,24 @@ Scene::Scene() {
 
 	rack = rackScroll->rackWidget;
 
+	static bool patchcoreSettingsLoaded = false;
+	if (!patchcoreSettingsLoaded) {
+		patchcore::loadSettings();
+		patchcoreSettingsLoaded = true;
+	}
+	patchcore::createRackFrame(rack);
+
 	menuBar = createMenuBar();
 	addChild(menuBar);
+
+	if (!isMini()) {
+		internal->dockedBrowser = patchcore::createDockedBrowser();
+		addChild(internal->dockedBrowser);
+		internal->navigator = patchcore::createNavigator();
+		addChild(internal->navigator);
+		internal->transportBar = patchcore::createTransportBar();
+		addChild(internal->transportBar);
+	}
 
 	browser = browserCreate();
 	browser->hide();
@@ -148,6 +170,8 @@ math::Vec Scene::getMousePos() {
 
 
 void Scene::step() {
+	patchcore::devStep();
+
 	if (APP->window->isFullScreen()) {
 		// Expand RackScrollWidget to cover entire screen if fullscreen
 		rackScroll->box.pos.y = 0;
@@ -163,7 +187,46 @@ void Scene::step() {
 
 	// Resize owned descendants
 	menuBar->box.size.x = box.size.x;
-	rackScroll->box.size = box.size.minus(rackScroll->box.pos);
+
+	// PatchCore workspace: navigator on the right, transport at the bottom, rack in the remaining space
+	patchcore::stepFlip();
+	math::Rect rackRect(0, rackScroll->box.pos.y, box.size.x, box.size.y - rackScroll->box.pos.y);
+	const bool patchcoreChrome = patchcore::enabled() && !APP->window->isFullScreen();
+
+	if (internal->transportBar != nullptr) {
+		const bool visible = patchcoreChrome && patchcore::settings.transportVisible;
+		internal->transportBar->setVisible(visible);
+		if (visible) {
+			const float h = internal->transportBar->box.size.y;
+			internal->transportBar->box.pos = math::Vec(0, box.size.y - h);
+			internal->transportBar->box.size.x = box.size.x;
+			rackRect.size.y -= h;
+		}
+	}
+
+	if (internal->navigator != nullptr) {
+		const bool visible = patchcoreChrome && patchcore::settings.navigatorVisible;
+		internal->navigator->setVisible(visible);
+		if (visible) {
+			const float w = 132.f;
+			internal->navigator->box = math::Rect(box.size.x - w, rackRect.pos.y, w, rackRect.size.y);
+			rackRect.size.x -= w;
+		}
+	}
+
+	if (internal->dockedBrowser != nullptr) {
+		const bool visible = patchcoreChrome && patchcore::settings.browserDocked;
+		internal->dockedBrowser->setVisible(visible);
+		if (visible) {
+			const float w = internal->dockedBrowser->box.size.x;
+			internal->dockedBrowser->box.pos = rackRect.pos;
+			internal->dockedBrowser->box.size.y = rackRect.size.y;
+			rackRect.pos.x += w;
+			rackRect.size.x -= w;
+		}
+	}
+
+	rackScroll->box = rackRect;
 
 	// Scroll RackScrollWidget with arrow keys
 	math::Vec arrowDelta;
@@ -237,7 +300,33 @@ void Scene::step() {
 
 
 void Scene::draw(const DrawArgs& args) {
-	Widget::draw(args);
+	const float flipScale = patchcore::flipScaleX();
+	if (flipScale >= 1.f) {
+		Widget::draw(args);
+		return;
+	}
+
+	// PatchCore flip animation: squash the rack view horizontally around its center
+	for (widget::Widget* const child : children) {
+		if (!child->isVisible())
+			continue;
+		if (child != rackScroll) {
+			drawChild(child, args);
+			continue;
+		}
+		nvgBeginPath(args.vg);
+		nvgRect(args.vg, RECT_ARGS(rackScroll->box));
+		nvgFillColor(args.vg, patchcore::theme().chrome0);
+		nvgFill(args.vg);
+
+		const math::Vec center = rackScroll->box.getCenter();
+		nvgSave(args.vg);
+		nvgTranslate(args.vg, center.x, 0);
+		nvgScale(args.vg, flipScale, 1.f);
+		nvgTranslate(args.vg, -center.x, 0);
+		drawChild(child, args);
+		nvgRestore(args.vg);
+	}
 }
 
 
@@ -451,6 +540,23 @@ void Scene::onHoverKey(const HoverKeyEvent& e) {
 		if ((e.key == GLFW_KEY_ENTER || e.key == GLFW_KEY_KP_ENTER) && (e.mods & RACK_MOD_MASK) == 0) {
 			browser->show();
 			e.consume(this);
+		}
+
+		// PatchCore shortcuts
+		if (patchcore::enabled() && (e.mods & RACK_MOD_MASK) == 0) {
+			if (e.key == GLFW_KEY_TAB) {
+				patchcore::setViewSide(patchcore::targetViewSide() == patchcore::VIEW_FRONT ? patchcore::VIEW_BACK
+				                                                                           : patchcore::VIEW_FRONT);
+				e.consume(this);
+			}
+			if (e.keyName == "b") {
+				patchcore::toggleBrowser();
+				e.consume(this);
+			}
+			if (e.key == GLFW_KEY_SPACE) {
+				patchcore::transportTogglePlay();
+				e.consume(this);
+			}
 		}
 	}
 }
