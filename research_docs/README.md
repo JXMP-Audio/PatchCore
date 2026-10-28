@@ -8,6 +8,7 @@ A Reason-inspired, realistic frontend for Cardinal (a VCV Rack fork).
 | [02-ui-plan.md](02-ui-plan.md) | Design principles, layout, phased feature set, code touch-points, risks |
 | [03-work-items.md](03-work-items.md) | Backlog (research → P0 foundations → P1 rack realism → P2 chrome → P3 back panel → P4 workflow) |
 | [04-sided-modules-patchbay-design.md](04-sided-modules-patchbay-design.md) | Design: basic modules keep front cables, JXMP modules patch on the back, Patchbay 4/8/16 bridges the two |
+| [05-plan-sided-modules-patchbay.md](05-plan-sided-modules-patchbay.md) | Implementation plan for 04, task by task |
 | [mockups/index.html](mockups/index.html) | Interactive HTML mockup. Open it in a browser |
 | [mockups/screens/](mockups/screens/) | `front.png`, `back.png`, `play.png` captures at 1600×940 |
 
