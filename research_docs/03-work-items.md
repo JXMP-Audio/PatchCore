@@ -38,11 +38,27 @@ Legend: **P** = phase · **S/M/L** = rough size · ☐ open · ☑ done
 - ☐ W-7 Shortcut map (`Tab`, `B`, `F`, `Space`, `N`) and its documentation (S)
 
 ## P3 — Back panel
-- ☐ B-1 Front/back state on the Scene, plus the flip animation (M)
-- ☐ B-2 Generated back panel per module (plate, name, jacks, labels from PortInfo) (L)
-- ☐ B-3 Hide all cables on the front and disable jack dragging there; the Classic theme keeps front cables (S) — *mockup ☑*
-- ☐ B-3b Hide every `PortWidget` on the front, and hide or mask the socket artwork printed in panel SVGs (blanking caps or a port-area mask) (M) — *mockup ☑*
-- ☐ B-4 Patching interactions on the back panel (PortWidget hit-testing at mirrored positions) (M)
+- ☑ B-1 Front/back state on the Scene, plus the flip animation (M)
+- ☑ B-2 Generated back panel per module (plate, name, jacks, labels from PortInfo) (L)
+- ☑ B-3 ~~Hide all cables on the front~~ replaced by S-1: each cable lives on the side of its sockets
+- ☑ B-3b ~~Hide every `PortWidget` on the front~~ replaced by S-1: only back sockets of JXMP modules are hidden and capped
+- ☑ B-4 Patching interactions on the back panel (M)
+
+## Sided modules ([04](04-sided-modules-patchbay-design.md), plan [05](05-plan-sided-modules-patchbay.md))
+- ☑ S-1 `SidedModuleWidget`: basic modules keep front sockets, JXMP modules patch on the back (M)
+- ☑ S-2 JXMP plugin with Patchbay 4/8/16 and smart jacks (L)
+- ☐ S-3 Serial plate on the back of JXMP modules ([06](06-jxmp-voice-modules-design.md)) (S)
+
+## Cables ([07](07-realistic-cables-design.md))
+- ☐ C-1 Rope simulation with tests (M)
+- ☐ C-2 3.5 mm and 6.3 mm plugs, shadow, plug-in animation (M)
+- ☐ C-3 Cable types Standard / LED / Braided / Coiled, defaults and right-click menu, saved in the patch (M)
+- ☐ C-4 Stackable plugs and towers (L)
+- ☐ C-5 6.3 mm sockets on JXMP back panels (S)
+
+## JXMP voice ([06](06-jxmp-voice-modules-design.md))
+- ☐ V-1 Common base: panel, widget, serial (M)
+- ☐ V-2 JX-AMP (VCA) (S) · ☐ V-3 JX-ENV (ADSR) (M) · ☐ V-4 JX-OSC (VCO) (L) · ☐ V-5 JX-FLT (VCF) (M)
 
 ## P4 — Workflow
 - ☐ X-1 Fold a row or module to a 1U strip, saved in patch metadata (M)
