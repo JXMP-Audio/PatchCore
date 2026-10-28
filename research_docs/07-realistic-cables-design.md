@@ -19,7 +19,7 @@ colour and the type of each cable.
 | Physics | Rope simulation (Verlet chain) with gravity, length and stiffness |
 | Extras | Shadow on the panel; plug-in animation |
 | Colour | Chosen by the user |
-| Cable types | Standard (rubber), LED, Braided (textile), Coiled (spiral) |
+| Cable types | Standard (rubber), LED, Braided (textile), Coiled (spiral); any of them with a classic or a **stackable** plug |
 | Where to choose | View menu: default colour (or "cycle" as today) and default type for new cables. Right-click on a plug: colour and type of that cable. Saved in the patch |
 | Classic theme | Unchanged |
 
@@ -101,6 +101,31 @@ NanoVG or an SVG in `plugins/JXMP/res/`). The Patchbay's back jacks and every JX
 sockets use it. Front jacks of the Patchbay stay Eurorack-sized (3.5 mm plugs from basic
 modules land there).
 
+### Stackable plugs
+
+A stackable plug has a socket on its back, so another plug can go into it, like real stackable
+patch cables. Plugs on one jack form a **tower**.
+
+- **Attribute, not a type:** every cable type can have a classic or a stackable plug
+  (`"patchcoreStackable": true` in the cable JSON). Right-click on a plug toggles it.
+- **The rule, everywhere in the PatchCore look (front and back):** a jack holds one plug. A second
+  cable on the same jack only goes in on top of a stackable plug.
+- **Automatic change:** when a cable is dropped on an output that already has a classic plug,
+  that plug turns stackable and the new plug goes on top. The change is part of the same undo
+  step.
+- **Outputs only.** An input takes one cable, as in Rack. Ruling: stacking on an input would mean
+  a cable that starts somewhere other than its logical source port.
+- **Order:** the tower order is the order of the cables on the port (oldest at the bottom).
+  Each plug above is drawn slightly larger and offset towards the light, with a shadow on the plug
+  below, so the tower reads as height.
+- **Pulling a plug pulls the tower:** dragging the jack (the bottom plug) moves every cable of the
+  tower; dropped on another output, the whole tower moves there. Dragging a higher plug of the
+  tower takes that plug and everything above it. This needs plug hit-testing: `PlugWidget`
+  events in the `CableWidget` override, and the drag/drop of several cables in a new
+  `src/override/PortWidget.cpp` override (with its diff in `src/override/diffs/`).
+- **Old patches** with several cables on one output load with all but the top plug stackable.
+- **Classic theme:** unchanged (Rack's own unlimited cables per output, no towers).
+
 ## Performance
 
 - A rope point costs a few multiplications per constraint pass: 100 awake cables × 20 points ×
@@ -124,4 +149,4 @@ modules land there).
 
 ## Out of scope
 
-Cable-to-cable collision, cable labels, per-cable thickness setting.
+Cable-to-cable collision, cable labels, per-cable thickness setting, stacking on inputs.
