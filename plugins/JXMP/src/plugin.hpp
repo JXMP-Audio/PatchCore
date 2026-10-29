@@ -21,3 +21,4 @@ extern Model* modelJXMPVCO;
 extern Model* modelJXMPVCF;
 extern Model* modelJXMPLFO;
 extern Model* modelJXMPNoise;
+extern Model* modelJXMPMixer;

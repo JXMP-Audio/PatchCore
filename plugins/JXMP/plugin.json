@@ -88,6 +88,15 @@
       "tags": [
         "Noise"
       ]
+    },
+    {
+      "slug": "Mixer",
+      "name": "Mixer",
+      "description": "JX-MIX: four-channel mixer with level, CV and mute per channel and a master level",
+      "tags": [
+        "Mixer",
+        "Polyphonic"
+      ]
     }
   ]
 }
