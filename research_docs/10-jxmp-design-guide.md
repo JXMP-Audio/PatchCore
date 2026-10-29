@@ -40,6 +40,7 @@ metal toggles with LEDs, outputs on light fields. No third-party names or logos.
 | JX-ENV (ADSR) | yellow `#f2c230` |
 | JX-PB (Patchbay) | grey `#8a8f98` |
 | JX-LFO (LFO) | violet `#9a6bd6` |
+| JX-NSE (Noise) | white-grey `#c9cbd0` |
 | future modules | a new colour each, not reused |
 
 ## Knob caps — what each colour means
@@ -88,7 +89,7 @@ inputs have light text. All JXMP sockets are on the back (Patchbay front jacks a
 - [x] Voice check: VCO → VCF → VCA with ADSR through Patchbays, save/reload, plugins/JXMP/README.md
 - [ ] Next modules, modelled on the basic Fundamental set (DSP may be adapted from plugins/Fundamental, GPL-3, with attribution), one at a time, each: spec section here → pure-logic tests → module → screenshot check → merge + bump:
   1. [x] JX-LFO (LFO, 10 HP) — colour violet `#9a6bd6`: sin/tri/saw/sqr outputs, rate (Hz scale), fine/offset/invert, PW, reset/sync, poly
-  2. JX-NSE (Noise) — colour white-grey `#c9cbd0`: white/pink/red/violet/blue/grey/black outputs, level
+  2. [x] JX-NSE (Noise, 6 HP) — colour white-grey `#c9cbd0`: white/pink/red/violet/blue/grey/black outputs, level
   3. JX-MIX (Mixer) — colour red `#d8443a`: 4 channels level + mute, master, poly sum
   4. JX-SEQ (8-step sequencer) — colour cyan `#2fb8c4`: 8 steps of CV + gate toggles, clock/reset/run, length
   5. JX-DLY (Delay) — colour teal `#4ac0a0`: time, feedback, tone, mix, CV

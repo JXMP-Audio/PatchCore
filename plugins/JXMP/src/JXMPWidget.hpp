@@ -89,7 +89,7 @@ struct JXMPPanelDecor : widget::TransparentWidget {
 
 		st::patina(vg, box.size, seed);
 		st::text(vg, math::Vec(w / 2, mm2px(6.6f)), title, titleSize(vg, w), st::legend(), st::FONT_TITLE, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.8f);
-		st::text(vg, math::Vec(w / 2, h - mm2px(4.5f)), w < mm2px(30.f) ? "JXMP" : "JXMP AUDIO", 8.5f, st::legendDim(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 2.f);
+		st::text(vg, math::Vec(w / 2, h - mm2px(4.5f)), w < mm2px(32.f) ? "JXMP" : "JXMP AUDIO", 8.5f, st::legendDim(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 2.f);
 
 		// Sections: a divider line across the panel with the title cut into it
 		for (const Section& sec : sections) {
@@ -317,7 +317,7 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 			st::text(vg, c.plus(mm2px(math::Vec(0.f, 6.3f))), name, 7.f, out ? nvgRGB(0x22, 0x23, 0x26) : st::legend(), st::FONT_LABEL,
 			         NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.3f);
 		}
-		st::text(vg, math::Vec(w / 2, h - mm2px(4.5f)), w < mm2px(30.f) ? "JXMP" : "JXMP AUDIO", 8.5f, st::legendDim(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 2.f);
+		st::text(vg, math::Vec(w / 2, h - mm2px(4.5f)), w < mm2px(32.f) ? "JXMP" : "JXMP AUDIO", 8.5f, st::legendDim(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 2.f);
 		return true;
 	}
 
