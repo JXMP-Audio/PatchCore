@@ -1,3 +1,21 @@
+# PatchCore
+
+PatchCore is JXMP Audio's modular rack, built on DISTRHO Cardinal (below). It lays the rack out
+like hardware: basic modules patch on the front, the JXMP modules (`plugins/JXMP/`) on the back
+(`Tab` turns the rack around), with a Patchbay between the two.
+
+```sh
+./run-patchcore.sh demo        # the JXMP ambient patch (builds PatchCore first if needed)
+./run-patchcore.sh             # an empty rack
+./run-patchcore.sh --help      # all options (showcase patch, your own patch, --build, --install)
+```
+
+Right-click on the rack (or Enter) finds modules (`vco@jxmp`, `#lfo`), right-click on a module
+selects it, Ctrl+right-click opens its menu, the mouse wheel turns knobs. Design notes and plans:
+[research_docs/](research_docs/).
+
+---
+
 # DISTRHO Cardinal
 
 *Cardinal, the Rack!*
