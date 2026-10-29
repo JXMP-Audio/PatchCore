@@ -100,6 +100,62 @@ inline void patina(NVGcontext* vg, math::Vec size, uint32_t seed) {
 		nvgStrokeColor(vg, nvgRGBAf(1, 1, 1, 0.025f + rng.next() * 0.045f));
 		nvgStroke(vg);
 	}
+	// Chipped paint along the edges, more near the corners: irregular flakes of bare aluminium with a dark
+	// rim where the paint breaks
+	const int chips = 10 + (int) (rng.next() * 10);
+	for (int i = 0; i < chips; ++i) {
+		const int edge = (int) (rng.next() * 4.f) % 4;
+		float t = rng.next();
+		if (rng.next() < 0.4f)
+			t = rng.next() < 0.5f ? t * 0.1f : 1.f - t * 0.1f;  // near a corner
+		const float inset = mm2px(rng.next() * 0.5f);
+		math::Vec cpos;
+		switch (edge) {
+		case 0: cpos = math::Vec(t * size.x, inset); break;
+		case 1: cpos = math::Vec(size.x - inset, t * size.y); break;
+		case 2: cpos = math::Vec(t * size.x, size.y - inset); break;
+		default: cpos = math::Vec(inset, t * size.y); break;
+		}
+		const float rad = mm2px(0.35f + rng.next() * rng.next() * 1.9f);
+		const int verts = 7 + (int) (rng.next() * 4);
+		nvgBeginPath(vg);
+		for (int v = 0; v < verts; ++v) {
+			const float a = v * 2.f * M_PI / verts + (rng.next() - 0.5f) * 0.5f;
+			const float rr = rad * (0.45f + 0.55f * rng.next());
+			const float px = cpos.x + std::cos(a) * rr * (edge % 2 == 0 ? 1.4f : 0.8f);
+			const float py = cpos.y + std::sin(a) * rr * (edge % 2 == 0 ? 0.8f : 1.4f);
+			if (v == 0) nvgMoveTo(vg, px, py); else nvgLineTo(vg, px, py);
+		}
+		nvgClosePath(vg);
+		nvgFillPaint(vg, nvgLinearGradient(vg, cpos.x - rad, cpos.y - rad, cpos.x + rad, cpos.y + rad, nvgRGBA(0xc4, 0xc7, 0xcc, 230), nvgRGBA(0x7e, 0x82, 0x89, 230)));
+		nvgFill(vg);
+		nvgStrokeWidth(vg, 0.6f);
+		nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.45f));
+		nvgStroke(vg);
+	}
+
+	// Worn paint line along the very edge, broken in places
+	nvgStrokeWidth(vg, 0.8f);
+	for (int e = 0; e < 4; ++e) {
+		const bool horiz = e % 2 == 0;
+		const float len = horiz ? size.x : size.y;
+		float pos = 0.f;
+		while (pos < len) {
+			const float seg = mm2px(1.f + rng.next() * 8.f);
+			if (rng.next() < 0.55f) {
+				const float off = 0.6f;
+				nvgBeginPath(vg);
+				if (e == 0) { nvgMoveTo(vg, pos, off); nvgLineTo(vg, pos + seg, off); }
+				else if (e == 1) { nvgMoveTo(vg, size.x - off, pos); nvgLineTo(vg, size.x - off, pos + seg); }
+				else if (e == 2) { nvgMoveTo(vg, pos, size.y - off); nvgLineTo(vg, pos + seg, size.y - off); }
+				else { nvgMoveTo(vg, off, pos); nvgLineTo(vg, off, pos + seg); }
+				nvgStrokeColor(vg, nvgRGBAf(0.75f, 0.77f, 0.8f, 0.10f + rng.next() * 0.15f));
+				nvgStroke(vg);
+			}
+			pos += seg;
+		}
+	}
+
 	// A few faint rub marks
 	for (int i = 0; i < 4; ++i) {
 		const float x = rng.next() * size.x, y = rng.next() * size.y, r = mm2px(2.f + rng.next() * 5.f);
