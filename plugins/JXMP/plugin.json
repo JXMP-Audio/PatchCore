@@ -80,6 +80,14 @@
         "LFO",
         "Polyphonic"
       ]
+    },
+    {
+      "slug": "Noise",
+      "name": "Noise",
+      "description": "JX-NSE: white, pink, red, violet, blue, gray and black noise with level",
+      "tags": [
+        "Noise"
+      ]
     }
   ]
 }
