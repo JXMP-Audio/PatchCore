@@ -53,6 +53,15 @@
         "Envelope generator",
         "Polyphonic"
       ]
+    },
+    {
+      "slug": "VCO",
+      "name": "VCO",
+      "description": "JX-OSC: VCO with octave switch, shape morph, sub oscillator and unison",
+      "tags": [
+        "VCO",
+        "Polyphonic"
+      ]
     }
   ]
 }
