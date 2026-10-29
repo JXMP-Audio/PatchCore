@@ -44,17 +44,17 @@ struct Osc : engine::Module {
 		configSwitch(SUB_OCT_PARAM, 0.f, 1.f, 0.f, "Sub octave", {"-1 octave", "-2 octaves"});
 		configParam(VOICES_PARAM, 1.f, 7.f, 1.f, "Unison voices")->snapEnabled = true;
 		configParam(DETUNE_PARAM, 0.f, 50.f, 15.f, "Unison detune", " cents");
-		configInput(PITCH_INPUT, "V/Oct");
-		configInput(FM_INPUT, "FM");
-		configInput(SYNC_INPUT, "Sync");
-		configInput(PW_INPUT, "PWM");
-		configInput(MORPH_INPUT, "Morph");
-		configOutput(SIN_OUTPUT, "Sin");
-		configOutput(TRI_OUTPUT, "Tri");
-		configOutput(SAW_OUTPUT, "Saw");
-		configOutput(SQR_OUTPUT, "Sqr");
-		configOutput(SUB_OUTPUT, "Sub");
-		configOutput(MIX_OUTPUT, "Mix");
+		configInput(PITCH_INPUT, "V/Oct")->description = "Pitch, 1 V per octave (0 V = C4). Polyphonic: one oscillator per channel.";
+		configInput(FM_INPUT, "FM")->description = "Frequency modulation, amount set by the FM knob. EXP: in octaves per volt, LIN: linear through zero.";
+		configInput(SYNC_INPUT, "Sync")->description = "Sync: a rising signal restarts the cycle (HARD) or reverses it (SOFT).";
+		configInput(PW_INPUT, "PWM")->description = "Pulse width CV for the square, amount set by the PWM knob.";
+		configInput(MORPH_INPUT, "Morph")->description = "Morph CV: moves the MIX output through sine, triangle, saw and square, amount set by MORPH CV.";
+		configOutput(SIN_OUTPUT, "Sin")->description = "Sine wave, ±5 V (all unison voices summed).";
+		configOutput(TRI_OUTPUT, "Tri")->description = "Triangle wave, ±5 V.";
+		configOutput(SAW_OUTPUT, "Saw")->description = "Sawtooth wave, ±5 V.";
+		configOutput(SQR_OUTPUT, "Sqr")->description = "Square / pulse wave, ±5 V, width set by PW.";
+		configOutput(SUB_OUTPUT, "Sub")->description = "Sub oscillator on its own: a square one or two octaves down (SUB OCT), always at full level.";
+		configOutput(MIX_OUTPUT, "Mix")->description = "The morphed shape (MORPH) plus the sub oscillator at the SUB LEVEL.";
 	}
 
 	void process(const ProcessArgs& args) override {

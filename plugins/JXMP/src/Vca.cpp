@@ -22,12 +22,12 @@ struct Vca : engine::Module {
 		configParam(LEVEL2_PARAM, 0.f, 1.f, 1.f, "Channel 2 level", "%", 0.f, 100.f);
 		configSwitch(RESPONSE1_PARAM, 0.f, 1.f, 1.f, "Channel 1 response", {"Linear", "Exponential"});
 		configSwitch(RESPONSE2_PARAM, 0.f, 1.f, 1.f, "Channel 2 response", {"Linear", "Exponential"});
-		configInput(IN1_INPUT, "In 1");
-		configInput(CV1_INPUT, "CV 1");
-		configInput(IN2_INPUT, "In 2 (normalled to In 1)");
-		configInput(CV2_INPUT, "CV 2");
-		configOutput(OUT1_OUTPUT, "Out 1");
-		configOutput(OUT2_OUTPUT, "Out 2");
+		configInput(IN1_INPUT, "In 1")->description = "Signal to amplify (audio or CV). Polyphonic.";
+		configInput(CV1_INPUT, "CV 1")->description = "Level CV for channel 1: 0 V closed, 10 V open (times the LEVEL knob). Usually an envelope.";
+		configInput(IN2_INPUT, "In 2 (normalled to In 1)")->description = "Signal for channel 2. Unpatched, channel 2 takes channel 1's input, so one signal can go through two different VCAs.";
+		configInput(CV2_INPUT, "CV 2")->description = "Level CV for channel 2: 0 V closed, 10 V open (times the LEVEL knob).";
+		configOutput(OUT1_OUTPUT, "Out 1")->description = "Channel 1 output: IN 1 × LEVEL × CV 1.";
+		configOutput(OUT2_OUTPUT, "Out 2")->description = "Channel 2 output: IN 2 × LEVEL × CV 2.";
 		configBypass(IN1_INPUT, OUT1_OUTPUT);
 		configBypass(IN2_INPUT, OUT2_OUTPUT);
 	}

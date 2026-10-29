@@ -615,6 +615,17 @@ void ModuleWidget::onHoverKey(const HoverKeyEvent& e) {
 void ModuleWidget::onButton(const ButtonEvent& e) {
 	bool selected = APP->scene->rack->isSelected(this);
 
+	// PatchCore: a right-click selects the module (like a drag selection), so it is clearly the target and Delete
+	// removes it. A module that is the only selected one gets its own menu, not the selection menu.
+	if (patchcore::enabled() && e.button == GLFW_MOUSE_BUTTON_RIGHT && e.action == GLFW_PRESS
+	    && (!selected || APP->scene->rack->getSelected().size() == 1)) {
+		if (!selected) {
+			APP->scene->rack->deselectAll();
+			APP->scene->rack->select(this);
+		}
+		selected = false;
+	}
+
 	if (selected) {
 		if (e.button == GLFW_MOUSE_BUTTON_RIGHT) {
 			if (e.action == GLFW_PRESS) {

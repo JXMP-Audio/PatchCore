@@ -31,11 +31,11 @@ struct Seq : engine::Module {
 		configParam(LENGTH_PARAM, 1.f, 8.f, 8.f, "Length")->snapEnabled = true;
 		configSwitch(RUN_PARAM, 0.f, 1.f, 1.f, "Run", {"Stopped", "Running"});
 		configButton(RESET_PARAM, "Reset");
-		configInput(CLOCK_INPUT, "Clock");
-		configInput(RESET_INPUT, "Reset");
-		configInput(RUN_INPUT, "Run (gate)");
-		configOutput(CV_OUTPUT, "CV");
-		configOutput(GATE_OUTPUT, "Gate");
+		configInput(CLOCK_INPUT, "Clock")->description = "External clock: every rising edge moves to the next step and replaces the internal TEMPO.";
+		configInput(RESET_INPUT, "Reset")->description = "Reset: a trigger goes back to step 1; the next clock plays step 1.";
+		configInput(RUN_INPUT, "Run (gate)")->description = "Run gate: the sequence runs while this is above 1 V (replaces the RUN button).";
+		configOutput(CV_OUTPUT, "CV")->description = "CV of the current step, 0–10 V. Patch it through JX-QNT to the pitch of an oscillator.";
+		configOutput(GATE_OUTPUT, "Gate")->description = "Gate of the current step: high while the clock is high, if the step's gate button is on.";
 	}
 
 	void onReset() override {

@@ -28,10 +28,10 @@ struct Qnt : engine::Module {
 		configSwitch(SCALE_PARAM, 0.f, jxmp::NUM_SCALES - 1, 1.f, "Scale", scales);
 		configSwitch(ROOT_PARAM, 0.f, 11.f, 0.f, "Root", {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"});
 		configParam(OCTAVE_PARAM, -2.f, 2.f, 0.f, "Octave")->snapEnabled = true;
-		configInput(IN_INPUT, "V/Oct");
-		configInput(ROOT_INPUT, "Root CV (1 V/oct)");
-		configOutput(OUT_OUTPUT, "V/Oct");
-		configOutput(TRIG_OUTPUT, "Trig (note change)");
+		configInput(IN_INPUT, "V/Oct")->description = "Pitch to quantize, 1 V per octave. Polyphonic.";
+		configInput(ROOT_INPUT, "Root CV (1 V/oct)")->description = "Root note CV, 1 V per octave (added to the ROOT knob); transposes the scale.";
+		configOutput(OUT_OUTPUT, "V/Oct")->description = "The input moved to the nearest note of the scale, plus OCTAVE.";
+		configOutput(TRIG_OUTPUT, "Trig (note change)")->description = "A 1 ms trigger whenever the output note changes; can drive an envelope.";
 		configBypass(IN_INPUT, OUT_OUTPUT);
 		lightDivider.setDivision(256);
 	}

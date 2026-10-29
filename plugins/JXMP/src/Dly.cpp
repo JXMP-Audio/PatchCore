@@ -25,13 +25,13 @@ struct Dly : engine::Module {
 		configParam(FEEDBACK_PARAM, 0.f, 1.f, 0.4f, "Feedback", "%", 0.f, 100.f);
 		configParam(TONE_PARAM, -1.f, 1.f, 0.f, "Tone (dark ← → thin)", "%", 0.f, 100.f);
 		configParam(MIX_PARAM, 0.f, 1.f, 0.5f, "Mix (dry ← → wet)", "%", 0.f, 100.f);
-		configInput(IN_INPUT, "In");
-		configInput(TIME_INPUT, "Time CV");
-		configInput(FEEDBACK_INPUT, "FB CV");
-		configInput(TONE_INPUT, "Tone CV");
-		configInput(MIX_INPUT, "Mix CV");
-		configOutput(OUT_OUTPUT, "Out");
-		configOutput(WET_OUTPUT, "Wet");
+		configInput(IN_INPUT, "In")->description = "Audio to delay (polyphonic inputs are summed to mono).";
+		configInput(TIME_INPUT, "Time CV")->description = "Time CV: 1 V moves the TIME knob by a tenth of its range. Changing it bends the pitch like tape.";
+		configInput(FEEDBACK_INPUT, "FB CV")->description = "Feedback CV, 10 % per volt.";
+		configInput(TONE_INPUT, "Tone CV")->description = "Tone CV, 10 % per volt (negative darker, positive thinner).";
+		configInput(MIX_INPUT, "Mix CV")->description = "Mix CV, 10 % per volt.";
+		configOutput(OUT_OUTPUT, "Out")->description = "Dry and delayed signal mixed by MIX.";
+		configOutput(WET_OUTPUT, "Wet")->description = "Only the delayed signal (the repeats), whatever MIX is set.";
 		configBypass(IN_INPUT, OUT_OUTPUT);
 		allocate(48000.f);
 	}

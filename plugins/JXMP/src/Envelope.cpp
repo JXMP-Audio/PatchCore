@@ -44,15 +44,15 @@ struct Adsr : engine::Module {
 		configParam(CURVE_PARAM, -1.f, 1.f, 0.f, "Curve", "%", 0, 100);
 		configSwitch(MODE_PARAM, 0.f, 2.f, 0.f, "Mode", {"ADSR", "AD", "Loop"});
 		configButton(PUSH_PARAM, "Push");
-		configInput(GATE_INPUT, "Gate");
-		configInput(RETRIG_INPUT, "Retrig");
-		configInput(ATTACK_INPUT, "A CV");
-		configInput(DECAY_INPUT, "D CV");
-		configInput(SUSTAIN_INPUT, "S CV");
-		configInput(RELEASE_INPUT, "R CV");
-		configOutput(ENV_OUTPUT, "Env");
-		configOutput(INV_OUTPUT, "Inv");
-		configOutput(EOC_OUTPUT, "EOC");
+		configInput(GATE_INPUT, "Gate")->description = "Gate: the envelope runs while this is above 1 V. Polyphonic: one envelope per channel. In LOOP mode an unpatched gate means free-running.";
+		configInput(RETRIG_INPUT, "Retrig")->description = "Retrigger: a trigger restarts the attack without waiting for the gate to close.";
+		configInput(ATTACK_INPUT, "A CV")->description = "Attack time CV, scaled by the A CV AMOUNT knob (10 V = the full knob range).";
+		configInput(DECAY_INPUT, "D CV")->description = "Decay time CV, scaled by the D CV AMOUNT knob (10 V = the full knob range).";
+		configInput(SUSTAIN_INPUT, "S CV")->description = "Sustain level CV, scaled by the S CV AMOUNT knob (10 V = the full knob range).";
+		configInput(RELEASE_INPUT, "R CV")->description = "Release time CV, scaled by the R CV AMOUNT knob (10 V = the full knob range).";
+		configOutput(ENV_OUTPUT, "Env")->description = "Envelope: 0 to 10 V. Patch it to a VCA level (JX-AMP CV) or a filter cutoff (JX-FLT ENV).";
+		configOutput(INV_OUTPUT, "Inv")->description = "Inverted envelope: 10 V minus the envelope, rests at 10 V and dips while a note plays.";
+		configOutput(EOC_OUTPUT, "EOC")->description = "End of cycle: a 1 ms trigger when the envelope finishes (end of release, end of decay in AD, every cycle in LOOP).";
 		lightDivider.setDivision(128);
 	}
 

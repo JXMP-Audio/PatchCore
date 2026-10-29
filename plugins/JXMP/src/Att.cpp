@@ -22,8 +22,8 @@ struct Att : engine::Module {
 		for (int i = 0; i < 4; ++i) {
 			configParam(GAIN_PARAM + i, -2.f, 2.f, 1.f, string::f("Row %d gain", i + 1), "×");
 			configParam(OFFSET_PARAM + i, -10.f, 10.f, 0.f, string::f("Row %d offset", i + 1), " V");
-			configInput(IN_INPUT + i, string::f("In %d", i + 1));
-			configOutput(OUT_OUTPUT + i, string::f("Out %d", i + 1));
+			configInput(IN_INPUT + i, string::f("In %d", i + 1))->description = "Row input. Unpatched, it takes the input of the row above; the first row then gives 10 V, so OFFSET/GAIN make a manual voltage.";
+			configOutput(OUT_OUTPUT + i, string::f("Out %d", i + 1))->description = "Input × GAIN + OFFSET, limited to ±12 V.";
 			configBypass(IN_INPUT + i, OUT_OUTPUT + i);
 		}
 	}
