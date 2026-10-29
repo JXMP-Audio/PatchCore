@@ -44,6 +44,15 @@
         "VCA",
         "Polyphonic"
       ]
+    },
+    {
+      "slug": "ADSR",
+      "name": "ADSR",
+      "description": "JX-ENV: ADSR envelope with curve, AD and loop modes, inverted output and end-of-cycle trigger",
+      "tags": [
+        "Envelope generator",
+        "Polyphonic"
+      ]
     }
   ]
 }
