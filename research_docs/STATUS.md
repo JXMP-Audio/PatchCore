@@ -39,6 +39,13 @@ Built and the tests pass, only partly checked on screen.
   Mixer; a drag moves a module only after Shift+press.
 - JX-MIX stays as it is (user: the console is extra, JX-MIX is enough in places).
 
+### Note: building after switching branches
+
+`main` has no console in `plugins/JXMP/plugin.json`; a binary built on `console` and then rebuilt on
+`main` can keep stale objects and crash at start ("Plugin defines module Console4 … not defined in
+manifest"). After switching branches run `touch plugins/plugins.cpp` (or `make clean` in plugins) before
+`make`. Until `console` is merged, build and run from the `console` branch.
+
 ### Next
 
 1. Checked on screen (evening 2026-10-29): front, back and the Mixer view (opened from the top bar)
