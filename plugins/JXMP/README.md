@@ -13,6 +13,7 @@ Built-in modules by JXMP Audio for PatchCore. Their sockets are on the back of t
 | JX-MIX | Mixer | 14 HP | Four channels with level, CV (0–10 V) and a mute button each, master level up to 200 %, level LEDs. Polyphonic. |
 | JX-SEQ | SEQ | 18 HP | 8-step CV (0–10 V) and gate sequencer: gate button per step, internal tempo 30–300 BPM or external clock, length 1–8, run (button or gate input), reset. |
 | JX-DLY | Delay | 10 HP | Mono delay 1 ms–10 s with feedback, tone (dark ↔ thin) in the repeats, dry/wet mix, CV for all four, OUT and WET outputs; turning TIME glides like tape. |
+| JX-QNT | Quantizer | 8 HP | Quantizes V/oct to ten scales (chromatic, major, minor, modes, pentatonics, blues, whole tone) on any root (knob or 1 V/oct CV), octave shift, trigger on every note change, note LEDs on a little keyboard. Polyphonic. |
 | JX-AMP | VCA | 8 HP | Two VCAs with level knobs, linear or exponential response; channel 2 is normalled to channel 1's input. Polyphonic. |
 | JX-ENV | ADSR | 14 HP | Envelope with CV for each stage, curve (linear to exponential), ADSR / AD / loop modes, push button, ENV, inverted and end-of-cycle outputs. Polyphonic. |
 | JX-PB4 / PB8 / PB16 | Patchbay 4 / 8 / 16 | 4 / 4 / 8 HP | Passes channels between the front and the back. Plug something into front jack *n* and it comes out of back jack *n*, or the other way round. The first cable decides the direction; the LEDs show it (green → back, yellow → front). |

@@ -24,3 +24,4 @@ extern Model* modelJXMPNoise;
 extern Model* modelJXMPMixer;
 extern Model* modelJXMPSeq;
 extern Model* modelJXMPDelay;
+extern Model* modelJXMPQuantizer;
