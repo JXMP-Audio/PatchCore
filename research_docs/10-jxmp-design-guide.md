@@ -105,4 +105,5 @@ inputs have light text. All JXMP sockets are on the back (Patchbay front jacks a
   2. [x] JX-RND (Random, 8 HP) — colour amber `#e0a43a`: sample & hold of noise or an input, smooth random, internal rate or clock, unipolar/bipolar
   3. [x] JX-SLW (Slew / glide, 8 HP) — colour olive `#8fae3a`: rise and fall times, linear/exponential, for portamento on V/OCT
   4. [x] JX-ATT (Attenuverters, 10 HP) — colour slate `#6f86a8`: four attenuverters with offsets, chained (an unpatched input is a constant)
+- [ ] Next (2026-10-29): views (Rack · Back · Editor · Mixer) and plugin/standalone transport, JX-CONSOLE 4/8/16/32 with the Mixer view and VU meters, piano-roll Editor — design draft [11](11-views-console-editor-design.md)
 - Cancelled: realistic cables (07/08) — the original cables stay
