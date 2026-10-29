@@ -1238,6 +1238,7 @@ static void initStatic__JXMP()
         p->addModel(modelJXMPNoise);
         p->addModel(modelJXMPMixer);
         p->addModel(modelJXMPSeq);
+        p->addModel(modelJXMPDelay);
     }
 }
 

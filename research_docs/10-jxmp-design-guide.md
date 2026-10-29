@@ -43,6 +43,7 @@ metal toggles with LEDs, outputs on light fields. No third-party names or logos.
 | JX-NSE (Noise) | white-grey `#c9cbd0` |
 | JX-MIX (Mixer) | red `#d8443a` |
 | JX-SEQ (SEQ) | cyan `#2fb8c4` |
+| JX-DLY (Delay) | teal `#4ac0a0` |
 | future modules | a new colour each, not reused |
 
 ## Knob caps — what each colour means
@@ -94,5 +95,5 @@ inputs have light text. All JXMP sockets are on the back (Patchbay front jacks a
   2. [x] JX-NSE (Noise, 6 HP) — colour white-grey `#c9cbd0`: white/pink/red/violet/blue/grey/black outputs, level
   3. [x] JX-MIX (Mixer, 14 HP) — colour red `#d8443a`: 4 channels level + mute, master, poly sum
   4. [x] JX-SEQ (8-step sequencer, 18 HP) — colour cyan `#2fb8c4`: 8 steps of CV + gate toggles, clock/reset/run, length
-  5. JX-DLY (Delay) — colour teal `#4ac0a0`: time, feedback, tone, mix, CV
+  5. [x] JX-DLY (Delay, 10 HP) — colour teal `#4ac0a0`: time, feedback, tone, mix, CV
 - Cancelled: realistic cables (07/08) — the original cables stay
