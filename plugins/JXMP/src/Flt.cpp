@@ -122,39 +122,66 @@ struct Flt : engine::Module {
 
 struct FltWidget : JXMPModuleWidget {
 	FltWidget(Flt* const module) {
-		setup(module, "JX-FLT", nvgRGB(0x3a, 0x8d, 0xde), 10);
+		setup(module, "JX-FLT", nvgRGB(0x3a, 0x8d, 0xde), 14);
 
-		// Front: controls
-		label(math::Vec(16.f, 22.f), "CUTOFF");
-		addParam(createParamCentered<RoundHugeBlackKnob>(mm2px(math::Vec(16.f, 34.f)), module, Flt::FREQ_PARAM));
-		label(math::Vec(38.f, 22.f), "RES");
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(math::Vec(38.f, 30.f)), module, Flt::RES_PARAM));
-		label(math::Vec(38.f, 39.f), "DRIVE", 6.f);
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(math::Vec(38.f, 47.f)), module, Flt::DRIVE_PARAM));
+		// Front: JXMP style (research_docs/10-jxmp-design-guide.md)
+		namespace st = jxmp::style;
+		styled();
+		const float nameSize = 7.5f;
+		const float minFreq = (std::log2(dsp::FREQ_C4 / 8000.f) + 5) / 10;
+		const float maxFreq = (std::log2(8000.f / dsp::FREQ_C4) + 5) / 10;
 
-		const float cvY = 62.f;
-		const char* cvNames[3] = {"FREQ", "RES", "DRIVE"};
-		for (int i = 0; i < 3; ++i) {
-			label(math::Vec(10.f + i * 15.f, cvY - 6.f), cvNames[i], 6.f);
-			addParam(createParamCentered<Trimpot>(mm2px(math::Vec(10.f + i * 15.f, cvY)), module, Flt::FREQ_CV_PARAM + i));
+		// FILTER
+		section(4.f, 20.5f, 63.12f, 33.f, "FILTER");
+		const float fName = 25.f, fRow = 41.5f;
+		// Cutoff: a tick per octave (param = (log2(f / C4) + 5) / 10), labelled at both ends and C4
+		std::vector<st::Mark> cutoffMarks = {{minFreq, "8"}};
+		for (int k = -4; k <= 4; ++k)
+			cutoffMarks.push_back({(k + 5) / 10.f, k == 0 ? "262" : ""});
+		cutoffMarks.push_back({maxFreq, "8k"});
+		label(math::Vec(17.f, fName), "CUTOFF", nameSize);
+		knob(math::Vec(17.f, fRow), Flt::FREQ_PARAM, 15.f, st::CAP_MAIN, minFreq, maxFreq, cutoffMarks);
+		label(math::Vec(39.f, fName), "RESONANCE", nameSize);
+		knob(math::Vec(39.f, fRow), Flt::RES_PARAM, 10.f, st::CAP_MAIN, 0.f, 1.f,
+		     st::marks(0.f, 1.f, 0.1f, 5, [](float v) { return string::f("%d", (int) std::round(v * 100.f)); }));
+		label(math::Vec(57.f, fName), "DRIVE", nameSize);
+		knob(math::Vec(57.f, fRow), Flt::DRIVE_PARAM, 9.f, st::CAP_WHITE, -1.f, 1.f,
+		     st::marks(-1.f, 1.f, 0.2f, 5, [](float v) { return string::f("%d", (int) std::round(v * 100.f + 100.f)); }));
+
+		// MODE
+		section(4.f, 57.f, 63.12f, 31.f, "MODE");
+		const float mName = 62.f, mRow = 76.f;
+		const math::Vec modePos(17.f, mRow);
+		label(math::Vec(17.f, mName), "TYPE", nameSize);
+		knob(modePos, Flt::MODE_PARAM, 10.f, st::CAP_BLACK, 0.f, 3.f, {{0.f, ""}, {1.f, ""}, {2.f, ""}, {3.f, ""}});
+		const st::Icon modes[4] = {st::ICON_LP, st::ICON_BP, st::ICON_HP, st::ICON_NOTCH};
+		for (int m = 0; m < 4; ++m) {
+			const float a = -0.83f * M_PI + 1.66f * M_PI * m / 3.f - M_PI / 2;
+			icon(modes[m], modePos.plus(math::Vec(std::cos(a), std::sin(a)).mult(9.f)), 3.6f);
 		}
-		label(math::Vec(25.4f, cvY + 6.5f), "CV AMOUNT", 6.f);
+		label(math::Vec(37.f, mName), "SLOPE", nameSize);
+		toggle(math::Vec(37.f, mRow), Flt::SLOPE_PARAM, 2, {"24 DB", "12 DB"});
+		label(math::Vec(56.f, mName), "KEYTRACK", nameSize);
+		knob(math::Vec(56.f, mRow), Flt::KEYTRACK_PARAM, 9.f, st::CAP_GREY, 0.f, 1.f,
+		     st::marks(0.f, 1.f, 0.1f, 5, [](float v) { return string::f("%d", (int) std::round(v * 100.f)); }));
 
-		label(math::Vec(13.f, 78.f), "KEYTRACK", 6.f);
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(math::Vec(13.f, 86.f)), module, Flt::KEYTRACK_PARAM));
-		label(math::Vec(37.f, 78.f), "ENV", 6.f);
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(math::Vec(37.f, 86.f)), module, Flt::ENV_AMT_PARAM));
-
-		label(math::Vec(16.f, 99.f), "LP BP HP N", 6.f);
-		addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(math::Vec(16.f, 108.f)), module, Flt::MODE_PARAM));
-		label(math::Vec(37.f, 99.f), "12 · 24", 6.f);
-		addParam(createParamCentered<CKSS>(mm2px(math::Vec(37.f, 108.f)), module, Flt::SLOPE_PARAM));
+		// MODULATION
+		section(4.f, 91.5f, 63.12f, 26.f, "MODULATION");
+		const float cName = 96.5f, cRow = 108.5f;
+		const char* cvNames[3] = {"FREQ CV", "RES CV", "DRIVE CV"};
+		label(math::Vec(13.f, cName), "ENV", nameSize);
+		knob(math::Vec(13.f, cRow), Flt::ENV_AMT_PARAM, 9.f, st::CAP_GREY, -1.f, 1.f, st::bipolar());
+		for (int i = 0; i < 3; ++i) {
+			const float x = 29.f + i * 14.f;
+			label(math::Vec(x, cName), cvNames[i], 6.5f);
+			knob(math::Vec(x, cRow), Flt::FREQ_CV_PARAM + i, 7.f, st::CAP_GREY, -1.f, 1.f, st::bipolar());
+		}
 
 		// Back: sockets
 		for (int i = 0; i < Flt::NUM_INPUTS; ++i)
-			addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(12.f, 30.f + i * 14.f)), module, Flt::IN_INPUT + i));
+			addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(15.f, 30.f + i * 15.f)), module, Flt::IN_INPUT + i));
 		for (int i = 0; i < Flt::NUM_OUTPUTS; ++i)
-			addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(38.f, 30.f + i * 14.f)), module, Flt::OUT_OUTPUT + i));
+			addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(48.f, 30.f + i * 15.f)), module, Flt::OUT_OUTPUT + i));
 	}
 };
 
