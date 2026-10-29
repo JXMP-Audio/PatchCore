@@ -49,7 +49,7 @@ Legend: **P** = phase · **S/M/L** = rough size · ☐ open · ☑ done
 - ☑ S-2 JXMP plugin with Patchbay 4/8/16 and smart jacks (L)
 - ☐ S-3 Serial plate on the back of JXMP modules ([06](06-jxmp-voice-modules-design.md)) (S)
 
-## Cables ([07](07-realistic-cables-design.md))
+## Cables ([07](07-realistic-cables-design.md)) — cancelled, original cables stay
 - ☐ C-1 Rope simulation with tests (M)
 - ☐ C-2 3.5 mm and 6.3 mm plugs, shadow, plug-in animation (M)
 - ☐ C-3 Cable types Standard / LED / Braided / Coiled, defaults and right-click menu, saved in the patch (M)

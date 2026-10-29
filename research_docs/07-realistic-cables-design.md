@@ -1,5 +1,8 @@
 # 07 — Realistic cables and jacks
 
+> **Cancelled (2026-10-29):** the user dropped the realistic cables; PatchCore keeps its original cables. The work is kept on the local branch `realistic-cables` only.
+
+
 Status: approved design (2026-10-29) · PatchCore look only, the Classic theme keeps today's cables
 
 ## Goal

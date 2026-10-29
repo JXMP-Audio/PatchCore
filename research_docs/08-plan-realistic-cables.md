@@ -1,5 +1,8 @@
 # Realistic cables Implementation Plan
 
+> **Cancelled (2026-10-29):** see [07](07-realistic-cables-design.md). Not to be executed.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** In the PatchCore look, cables hang and swing like ropes, end in drawn 3.5 mm (front) or 6.3 mm (back) plugs with a shadow and a plug-in animation, come in four types with a classic or stackable plug, and stack into towers on outputs.
