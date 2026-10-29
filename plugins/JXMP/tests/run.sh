@@ -6,6 +6,6 @@ out="${TMPDIR:-/tmp}/jxmp-tests"
 mkdir -p "$out"
 for t in "$here"/test_*.cpp; do
 	name="$(basename "$t" .cpp)"
-	g++ -std=c++17 -Wall -Wextra -Werror -I"$here/../src" "$t" -o "$out/$name"
+	g++ -std=c++11 -Wall -Wextra -Werror -I"$here/../src" "$t" -o "$out/$name"
 	"$out/$name"
 done

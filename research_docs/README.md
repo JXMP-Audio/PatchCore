@@ -13,6 +13,7 @@ A Reason-inspired, realistic frontend for Cardinal (a VCV Rack fork).
 | [07-realistic-cables-design.md](07-realistic-cables-design.md) | **Cancelled.** Design: realistic cables (kept for reference) |
 | [08-plan-realistic-cables.md](08-plan-realistic-cables.md) | **Cancelled.** Implementation plan for 07 |
 | [09-plan-jxmp-voice-modules.md](09-plan-jxmp-voice-modules.md) | Implementation plan for 06, task by task |
+| [10-jxmp-design-guide.md](10-jxmp-design-guide.md) | JXMP design guide: cap colours, panel, scales, switches, wear, plan |
 | [mockups/index.html](mockups/index.html) | Interactive HTML mockup. Open it in a browser |
 | [mockups/screens/](mockups/screens/) | `front.png`, `back.png`, `play.png` captures at 1600×940 |
 

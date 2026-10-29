@@ -15,10 +15,9 @@ enum class Need { Nothing, Input, Output };
 
 /** Which of a channel's four ports have a complete cable. */
 struct ChannelCables {
-	bool frontIn = false;
-	bool frontOut = false;
-	bool backIn = false;
-	bool backOut = false;
+	bool frontIn, frontOut, backIn, backOut;
+	ChannelCables(bool fi = false, bool fo = false, bool bi = false, bool bo = false)
+		: frontIn(fi), frontOut(fo), backIn(bi), backOut(bo) {}
 };
 
 struct Roles {

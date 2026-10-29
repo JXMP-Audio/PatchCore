@@ -5,6 +5,7 @@
 
 #include "plugin.hpp"
 #include "PatchbayLogic.hpp"
+#include "Serial.hpp"
 
 // Internal types stay local to this file: every plugin links into one binary
 namespace {
@@ -217,6 +218,10 @@ struct PatchbayWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 	static void setRole(SmartPort* const in, SmartPort* const out, const jxmp::Role role) {
 		in->setActive(role == jxmp::Role::In);
 		out->setActive(role == jxmp::Role::Out);
+	}
+
+	std::string serialLabel() const override {
+		return string::f("JX-PB%d · S/N ", N) + jxmp::serialNumber(module ? module->id : -1);
 	}
 
 	patchcore::PortSide portSide(const engine::Port::Type, const int portId) const override {
