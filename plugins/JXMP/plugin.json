@@ -105,6 +105,15 @@
       "tags": [
         "Sequencer"
       ]
+    },
+    {
+      "slug": "Delay",
+      "name": "Delay",
+      "description": "JX-DLY: mono delay from 1 ms to 10 s with feedback, tone and dry/wet mix",
+      "tags": [
+        "Delay",
+        "Effect"
+      ]
     }
   ]
 }
