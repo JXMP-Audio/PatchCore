@@ -310,6 +310,7 @@ struct VuMeter : widget::TransparentWidget {
 /** Fader with a dB scale on the left of the slot and a grey cap with a white grip line. */
 struct Fader : app::SliderKnob {
 	float capHeight = 18.f;
+	NVGcolor capColor = nvgRGB(0x80, 0x83, 0x89);
 
 	Fader() {
 		minAngle = 0.f;
@@ -370,7 +371,8 @@ struct Fader : app::SliderKnob {
 		nvgFill(vg);
 		nvgBeginPath(vg);
 		nvgRoundedRect(vg, RECT_ARGS(cap), 2.f);
-		nvgFillPaint(vg, nvgLinearGradient(vg, 0, cap.pos.y, 0, cap.pos.y + cap.size.y, nvgRGB(0x9a, 0x9d, 0xa3), nvgRGB(0x4a, 0x4c, 0x51)));
+		nvgFillPaint(vg, nvgLinearGradient(vg, 0, cap.pos.y, 0, cap.pos.y + cap.size.y, color::plus(capColor, nvgRGBf(0.1f, 0.1f, 0.1f)),
+		                                   color::mult(capColor, 0.55f)));
 		nvgFill(vg);
 		nvgStrokeWidth(vg, 0.7f);
 		nvgStrokeColor(vg, nvgRGB(0x16, 0x16, 0x18));
@@ -448,6 +450,119 @@ st::Knob* makeKnob(Console* module, int paramId, math::Vec centerPx, float diame
 const NVGcolor kCapWhite = nvgRGB(0xe8, 0xe6, 0xe0), kCapGrey = nvgRGB(0x7c, 0x80, 0x88), kCapBlack = nvgRGB(0x26, 0x27, 0x2a);
 
 
+/** Divider line with a title in the console colour cut into it, as on the module panels. */
+void sectionLine(NVGcontext* vg, float x0, float x1, float y, const char* title) {
+	float tw = 0.f;
+	std::shared_ptr<window::Font> f = st::font(st::FONT_LABEL);
+	if (f && title && *title) {
+		nvgFontFaceId(vg, f->handle);
+		nvgFontSize(vg, 8.f);
+		nvgTextLetterSpacing(vg, 1.2f);
+		float bounds[4];
+		tw = nvgTextBounds(vg, 0, 0, title, nullptr, bounds);
+	}
+	const float tx = x0 + 4.f;
+	nvgBeginPath(vg);
+	if (tw > 0.f) {
+		nvgMoveTo(vg, x0, y);
+		nvgLineTo(vg, tx - 3.f, y);
+		nvgMoveTo(vg, tx + tw + 3.f, y);
+	}
+	else {
+		nvgMoveTo(vg, x0, y);
+	}
+	nvgLineTo(vg, x1, y);
+	nvgStrokeWidth(vg, 0.8f);
+	nvgStrokeColor(vg, st::line());
+	nvgStroke(vg);
+	if (tw > 0.f)
+		st::text(vg, math::Vec(tx, y), title, 8.f, kConsoleColor, st::FONT_LABEL, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, 1.2f);
+}
+
+/** Ticks around a knob: eleven marks, longer at both ends and the centre. */
+void knobScale(NVGcontext* vg, math::Vec c, float radius) {
+	const float a0 = -0.83f * M_PI, a1 = 0.83f * M_PI;
+	for (int i = 0; i <= 10; ++i) {
+		const bool major = i == 0 || i == 5 || i == 10;
+		const float a = a0 + (a1 - a0) * i / 10.f - M_PI / 2;
+		const float r0 = radius + 1.5f, r1 = r0 + (major ? 3.5f : 2.f);
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, c.x + std::cos(a) * r0, c.y + std::sin(a) * r0);
+		nvgLineTo(vg, c.x + std::cos(a) * r1, c.y + std::sin(a) * r1);
+		nvgStrokeWidth(vg, major ? 1.f : 0.7f);
+		nvgStrokeColor(vg, major ? st::legend() : st::legendDim());
+		nvgStroke(vg);
+	}
+}
+
+/** Square rubber button that lights up as a whole (MUTE, SOLO), with its legend printed on it. */
+struct RubberButton : app::Switch {
+	Console* console = nullptr;
+	int lightId = 0;
+	NVGcolor lit = nvgRGB(0xe8, 0x3a, 0x30);
+	std::string legend;
+
+	float brightness() {
+		return console ? math::clamp(console->lights[lightId].getBrightness(), 0.f, 1.f) : 0.f;
+	}
+
+	void draw(const DrawArgs& args) override {
+		NVGcontext* const vg = args.vg;
+		const math::Rect r = box.zeroPos();
+		const float b = brightness();
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg, r.pos.x + 0.8f, r.pos.y + 1.6f, r.size.x, r.size.y, 3.f);
+		nvgFillColor(vg, nvgRGBAf(0, 0, 0, 0.5f));
+		nvgFill(vg);
+		const NVGcolor offTop = nvgRGB(0x3c, 0x3e, 0x43), offBottom = nvgRGB(0x1e, 0x1f, 0x22);
+		const NVGcolor top = color::lerp(offTop, color::plus(lit, nvgRGBf(0.12f, 0.12f, 0.12f)), b);
+		const NVGcolor bottom = color::lerp(offBottom, color::mult(lit, 0.7f), b);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg, RECT_ARGS(r), 3.f);
+		nvgFillPaint(vg, nvgLinearGradient(vg, 0, 0, 0, r.size.y, top, bottom));
+		nvgFill(vg);
+		nvgStrokeWidth(vg, 0.7f);
+		nvgStrokeColor(vg, nvgRGB(0x0a, 0x0a, 0x0b));
+		nvgStroke(vg);
+		// Soft top highlight of the rubber
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg, r.pos.x + 1.5f, r.pos.y + 1.f, r.size.x - 3.f, r.size.y * 0.4f, 2.f);
+		nvgFillColor(vg, nvgRGBAf(1, 1, 1, 0.06f + 0.1f * b));
+		nvgFill(vg);
+		st::text(vg, r.getCenter(), legend, std::min(9.f, r.size.y * 0.55f), b > 0.4f ? nvgRGB(0x1a, 0x12, 0x10) : st::legend(), st::FONT_LABEL,
+		         NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.5f);
+	}
+
+	void drawLayer(const DrawArgs& args, int layer) override {
+		app::Switch::drawLayer(args, layer);
+		const float b = brightness();
+		if (layer != 1 || b <= 0.f)
+			return;
+		NVGcontext* const vg = args.vg;
+		const math::Vec c = box.size.div(2);
+		const float rr = box.size.x * 0.9f;
+		nvgBeginPath(vg);
+		nvgRect(vg, c.x - rr, c.y - rr, 2 * rr, 2 * rr);
+		nvgFillPaint(vg, nvgRadialGradient(vg, c.x, c.y, box.size.y * 0.3f, rr, color::alpha(lit, 0.35f * b), color::alpha(lit, 0.f)));
+		nvgFill(vg);
+	}
+};
+
+RubberButton* makeButton(Console* module, int paramId, int lightId, math::Vec centerPx, math::Vec sizePx, NVGcolor lit,
+                         const char* legend) {
+	RubberButton* const b = createParam<RubberButton>(math::Vec(), module, paramId);
+	b->console = module;
+	b->lightId = lightId;
+	b->lit = lit;
+	b->legend = legend;
+	b->box.size = sizePx;
+	b->box.pos = centerPx.minus(sizePx.div(2));
+	return b;
+}
+
+const NVGcolor kMuteRed = nvgRGB(0xe8, 0x3a, 0x30), kSoloOrange = nvgRGB(0xff, 0x8a, 0x1c);
+
+
 // ---------------------------------------------------------------------------------------------------------
 // Mixer view content
 
@@ -456,6 +571,9 @@ const float kStripW = 72.f, kMasterW = 300.f, kDesignH = 640.f;
 /** Background and legends of one channel strip, its controls are children. */
 struct Strip : widget::Widget {
 	int channel = 0;
+	uint32_t seed = 1;
+	/** Knob centres and radii, for their scales */
+	std::vector<std::pair<math::Vec, float>> knobs;
 
 	void draw(const DrawArgs& args) override {
 		NVGcontext* const vg = args.vg;
@@ -464,39 +582,53 @@ struct Strip : widget::Widget {
 		nvgRect(vg, 0, 0, w, box.size.y);
 		nvgFillColor(vg, channel % 2 ? st::panel() : color::plus(st::panel(), nvgRGBf(0.012f, 0.012f, 0.012f)));
 		nvgFill(vg);
+		st::patina(vg, box.size, seed);
 		nvgBeginPath(vg);
 		nvgMoveTo(vg, w - 0.5f, 0);
 		nvgLineTo(vg, w - 0.5f, box.size.y);
 		nvgStrokeWidth(vg, 1.f);
-		nvgStrokeColor(vg, nvgRGB(0x15, 0x16, 0x18));
+		nvgStrokeColor(vg, nvgRGB(0x12, 0x13, 0x15));
 		nvgStroke(vg);
 
-		st::text(vg, math::Vec(cx, 15.f), string::f("%d", channel + 1), 15.f, st::legend(), st::FONT_TITLE, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.5f);
+		// Scribble strip: a strip of cream tape with the channel name
+		nvgSave(vg);
+		nvgTranslate(vg, cx, 15.f);
+		nvgRotate(vg, ((seed % 7) - 3.f) * 0.006f);
+		const math::Rect tape(-w / 2 + 6.f, -9.f, w - 12.f, 18.f);
+		nvgBeginPath(vg);
+		nvgRect(vg, RECT_ARGS(tape));
+		nvgFillPaint(vg, nvgLinearGradient(vg, 0, tape.pos.y, 0, tape.pos.y + tape.size.y, nvgRGB(0xf1, 0xe8, 0xcf), nvgRGB(0xdc, 0xd0, 0xb0)));
+		nvgFill(vg);
+		nvgStrokeWidth(vg, 0.5f);
+		nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.35f));
+		nvgStroke(vg);
+		st::text(vg, math::Vec(0, 0.5f), string::f("CH %d", channel + 1), 10.f, nvgRGB(0x2a, 0x26, 0x20), st::FONT_TITLE, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.6f);
+		nvgRestore(vg);
 		nvgBeginPath(vg);
 		nvgRect(vg, 6.f, 28.f, w - 12.f, 2.5f);
 		nvgFillColor(vg, kConsoleColor);
 		nvgFill(vg);
 
 		const struct { float y; const char* text; } labels[] = {
-		    {48.f, "HIGH"}, {90.f, "MID"}, {132.f, "FREQ"}, {172.f, "LOW"}, {234.f, "SEND A"}, {276.f, "SEND B"},
-		    {336.f, "PAN"}, {376.f, "M      S"},
+		    {48.f, "HIGH"}, {90.f, "MID"}, {132.f, "FREQ"}, {172.f, "LOW"}, {234.f, "SEND A"}, {276.f, "SEND B"}, {336.f, "PAN"},
 		};
 		for (const auto& l : labels)
 			st::text(vg, math::Vec(cx, l.y), l.text, 8.f, st::legend(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.6f);
-		for (const float y : {38.f, 222.f, 322.f, 402.f}) {
-			nvgBeginPath(vg);
-			nvgMoveTo(vg, 6.f, y);
-			nvgLineTo(vg, w - 6.f, y);
-			nvgStrokeWidth(vg, 0.8f);
-			nvgStrokeColor(vg, st::line());
-			nvgStroke(vg);
-		}
+		sectionLine(vg, 4.f, w - 4.f, 38.f, "EQ");
+		sectionLine(vg, 4.f, w - 4.f, 222.f, "SENDS");
+		sectionLine(vg, 4.f, w - 4.f, 322.f, "PAN");
+		sectionLine(vg, 4.f, w - 4.f, 404.f, "");
+		for (const std::pair<math::Vec, float>& k : knobs)
+			knobScale(vg, k.first, k.second);
 		Widget::draw(args);
 	}
 };
 
 /** Background and legends of the master section. */
 struct MasterSection : widget::Widget {
+	uint32_t seed = 1;
+	std::vector<std::pair<math::Vec, float>> knobs;
+
 	void draw(const DrawArgs& args) override {
 		NVGcontext* const vg = args.vg;
 		const float w = box.size.x;
@@ -504,6 +636,13 @@ struct MasterSection : widget::Widget {
 		nvgRect(vg, 0, 0, w, box.size.y);
 		nvgFillColor(vg, st::panelDark());
 		nvgFill(vg);
+		st::patina(vg, box.size, seed);
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, 0.5f, 0);
+		nvgLineTo(vg, 0.5f, box.size.y);
+		nvgStrokeWidth(vg, 1.f);
+		nvgStrokeColor(vg, nvgRGB(0x0c, 0x0c, 0x0e));
+		nvgStroke(vg);
 		st::text(vg, math::Vec(w / 2, 15.f), "MASTER", 15.f, st::legend(), st::FONT_TITLE, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.8f);
 		nvgBeginPath(vg);
 		nvgRect(vg, 10.f, 28.f, w - 20.f, 2.5f);
@@ -512,18 +651,16 @@ struct MasterSection : widget::Widget {
 		const struct { float x, y; const char* text; } labels[] = {
 		    {55.f, 150.f, "METER"}, {55.f, 228.f, "RET A"}, {125.f, 228.f, "RET B"}, {55.f, 300.f, "SEND A"},
 		    {125.f, 300.f, "SEND B"}, {55.f, 318.f, "PRE"}, {125.f, 318.f, "PRE"}, {55.f, 362.f, "POST"}, {125.f, 362.f, "POST"},
-		    {90.f, 400.f, "MUTE"}, {236.f, 212.f, "MASTER"},
+		    {236.f, 212.f, "MASTER"},
 		};
 		for (const auto& l : labels)
 			st::text(vg, math::Vec(l.x, l.y), l.text, 8.f, st::legend(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.6f);
-		for (const float y : {136.f, 212.f, 286.f, 386.f}) {
-			nvgBeginPath(vg);
-			nvgMoveTo(vg, 12.f, y);
-			nvgLineTo(vg, 170.f, y);
-			nvgStrokeWidth(vg, 0.8f);
-			nvgStrokeColor(vg, st::line());
-			nvgStroke(vg);
-		}
+		sectionLine(vg, 12.f, 170.f, 136.f, "SOURCE");
+		sectionLine(vg, 12.f, 170.f, 212.f, "RETURNS");
+		sectionLine(vg, 12.f, 170.f, 286.f, "SENDS");
+		sectionLine(vg, 12.f, 170.f, 386.f, "OUTPUT");
+		for (const std::pair<math::Vec, float>& k : knobs)
+			knobScale(vg, k.first, k.second);
 		st::text(vg, math::Vec(90.f, 600.f), "TAB / ESC: RACK", 7.5f, st::legendDim(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 1.f);
 		Widget::draw(args);
 	}
@@ -550,19 +687,25 @@ struct ConsoleView : widget::Widget {
 	Strip* createStrip(int i) {
 		Strip* const s = new Strip;
 		s->channel = i;
+		s->seed = (uint32_t) module->id * 2654435761u + (uint32_t) i * 40503u + 7u;
 		s->box = math::Rect(i * kStripW, 0, kStripW, kDesignH);
 		const float cx = kStripW / 2;
-		s->addChild(makeKnob(module, module->ch(i, CH_HIGH), math::Vec(cx, 68.f), 8.f, kCapWhite));
-		s->addChild(makeKnob(module, module->ch(i, CH_MID), math::Vec(cx, 110.f), 8.f, kCapWhite));
-		s->addChild(makeKnob(module, module->ch(i, CH_FREQ), math::Vec(cx, 151.f), 6.5f, kCapGrey));
-		s->addChild(makeKnob(module, module->ch(i, CH_LOW), math::Vec(cx, 194.f), 8.f, kCapWhite));
-		s->addChild(makeKnob(module, module->ch(i, CH_SEND_A), math::Vec(cx, 254.f), 8.f, kCapWhite));
-		s->addChild(makeKnob(module, module->ch(i, CH_SEND_B), math::Vec(cx, 296.f), 8.f, kCapWhite));
-		s->addChild(makeKnob(module, module->ch(i, CH_PAN), math::Vec(cx, 356.f), 7.f, kCapGrey));
-		s->addChild(createLightParamCentered<VCVLightLatch<MediumSimpleLight<RedLight>>>(math::Vec(cx - 15.f, 390.f), module,
-		                                                                                  module->ch(i, CH_MUTE), module->muteLight(i)));
-		s->addChild(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OrangeLight>>>(math::Vec(cx + 15.f, 390.f), module,
-		                                                                                     module->ch(i, CH_SOLO), module->soloLight(i)));
+		auto knob = [&](int param, float y, float mm, NVGcolor cap) {
+			st::Knob* const k = makeKnob(module, param, math::Vec(cx, y), mm, cap);
+			s->knobs.push_back(std::make_pair(math::Vec(cx, y), k->box.size.x / 2));
+			s->addChild(k);
+		};
+		knob(module->ch(i, CH_HIGH), 68.f, 8.f, kCapWhite);
+		knob(module->ch(i, CH_MID), 110.f, 8.f, kCapWhite);
+		knob(module->ch(i, CH_FREQ), 151.f, 6.5f, kCapGrey);
+		knob(module->ch(i, CH_LOW), 194.f, 8.f, kCapWhite);
+		knob(module->ch(i, CH_SEND_A), 254.f, 8.f, kCapWhite);
+		knob(module->ch(i, CH_SEND_B), 296.f, 8.f, kCapWhite);
+		knob(module->ch(i, CH_PAN), 356.f, 7.f, kCapGrey);
+		s->addChild(makeButton(module, module->ch(i, CH_MUTE), module->muteLight(i), math::Vec(cx - 15.f, 386.f), math::Vec(26.f, 18.f),
+		                       kMuteRed, "M"));
+		s->addChild(makeButton(module, module->ch(i, CH_SOLO), module->soloLight(i), math::Vec(cx + 15.f, 386.f), math::Vec(26.f, 18.f),
+		                       kSoloOrange, "S"));
 		Fader* const f = createParam<Fader>(math::Vec(4.f, 412.f), module, module->ch(i, CH_FADER));
 		f->box.size = math::Vec(48.f, 214.f);
 		s->addChild(f);
@@ -576,6 +719,7 @@ struct ConsoleView : widget::Widget {
 
 	MasterSection* createMaster() {
 		MasterSection* const s = new MasterSection;
+		s->seed = (uint32_t) module->id * 2246822519u + 99u;
 		s->box = math::Rect(0, 0, kMasterW, kDesignH);
 		for (int r = 0; r < 2; ++r) {
 			VuMeter* const vu = new VuMeter;
@@ -590,18 +734,22 @@ struct ConsoleView : widget::Widget {
 		ro->fontSize = 11.f;
 		ro->box = math::Rect(92.f, 163.f, 78.f, 24.f);
 		s->addChild(ro);
-		s->addChild(makeKnob(module, module->global(G_RETURN_A), math::Vec(55.f, 254.f), 9.f, kCapWhite));
-		s->addChild(makeKnob(module, module->global(G_RETURN_B), math::Vec(125.f, 254.f), 9.f, kCapWhite));
+		for (int r = 0; r < 2; ++r) {
+			st::Knob* const k = makeKnob(module, module->global(r == 0 ? G_RETURN_A : G_RETURN_B), math::Vec(55.f + r * 70.f, 254.f), 9.f, kCapWhite);
+			s->knobs.push_back(std::make_pair(math::Vec(55.f + r * 70.f, 254.f), k->box.size.x / 2));
+			s->addChild(k);
+		}
 		for (int r = 0; r < 2; ++r) {
 			st::Toggle* const t = createParam<st::Toggle>(math::Vec(), module, module->global(r == 0 ? G_SEND_A_PRE : G_SEND_B_PRE));
 			t->box.pos = math::Vec(55.f + r * 70.f, 340.f).minus(t->box.size.div(2));
 			s->addChild(t);
 		}
-		s->addChild(createLightParamCentered<VCVLightLatch<MediumSimpleLight<RedLight>>>(math::Vec(90.f, 424.f), module,
-		                                                                                  module->global(G_MASTER_MUTE), module->masterMuteLight()));
+		s->addChild(makeButton(module, module->global(G_MASTER_MUTE), module->masterMuteLight(), math::Vec(90.f, 420.f), math::Vec(44.f, 22.f),
+		                       kMuteRed, "MUTE"));
 		Fader* const f = createParam<Fader>(math::Vec(196.f, 226.f), module, module->global(G_MASTER));
 		f->box.size = math::Vec(64.f, 390.f);
 		f->capHeight = 22.f;
+		f->capColor = nvgRGB(0xc8, 0x44, 0x3a);  // the master fader has a red cap, as on hardware
 		s->addChild(f);
 		return s;
 	}
@@ -668,10 +816,8 @@ struct ConsoleWidget : JXMPModuleWidget, patchcore::MixerProvider {
 
 		// MASTER: mute and fader
 		section(4.f, 82.f, w - 8.f, 36.f, "MASTER");
-		label(math::Vec(16.f, 88.f), "MUTE", 7.f);
-		if (module)
-			addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<RedLight>>>(mm2px(math::Vec(16.f, 96.f)), module,
-			                                                                               module->global(G_MASTER_MUTE), module->masterMuteLight()));
+		addParam(makeButton(module, module ? module->global(G_MASTER_MUTE) : 0, module ? module->masterMuteLight() : 0,
+		                    mm2px(math::Vec(16.f, 96.f)), mm2px(math::Vec(11.f, 7.f)), kMuteRed, "MUTE"));
 		Fader* const f = createParam<Fader>(mm2px(math::Vec(48.f, 84.5f)), module, module ? module->global(G_MASTER) : 0);
 		f->box.size = mm2px(math::Vec(30.f, 33.5f));
 		f->capHeight = mm2px(5.f);
