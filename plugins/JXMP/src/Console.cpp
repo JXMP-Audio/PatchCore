@@ -22,6 +22,13 @@ namespace st = jxmp::style;
 const NVGcolor kConsoleColor = nvgRGB(0x5b, 0x6e, 0xe1);  // indigo
 const int kMaxChannels = 32;
 
+/** Solo LEDs are orange, as on hardware consoles */
+struct OrangeLight : GrayModuleLightWidget {
+	OrangeLight() {
+		addBaseColor(nvgRGB(0xff, 0x8a, 0x1c));
+	}
+};
+
 enum ChannelParam { CH_HIGH, CH_MID, CH_FREQ, CH_LOW, CH_SEND_A, CH_SEND_B, CH_PAN, CH_MUTE, CH_SOLO, CH_FADER, CH_PARAMS };
 enum GlobalParam { G_MASTER, G_MASTER_MUTE, G_RETURN_A, G_RETURN_B, G_SEND_A_PRE, G_SEND_B_PRE, G_METER, G_PARAMS };
 enum Output { OUT_MAIN_L, OUT_MAIN_R, OUT_SEND_A, OUT_SEND_B, NUM_OUTPUTS };
@@ -49,6 +56,8 @@ struct Console : engine::Module {
 	cs::Vu vuL, vuR;
 	bool active = false;
 
+	/** Blinks the MUTE LEDs of the channels silenced by another channel's solo */
+	float blinkPhase = 0.f;
 	cs::Biquad eq[kMaxChannels][3];
 	dsp::ClockDivider eqDivider;
 
@@ -138,11 +147,16 @@ struct Console : engine::Module {
 		bool anySolo = false;
 		for (int i = 0; i < n; ++i)
 			anySolo = anySolo || param(ch(i, CH_SOLO)) > 0.5f;
+		blinkPhase += dt * 2.f;
+		if (blinkPhase >= 1.f)
+			blinkPhase -= 1.f;
+		const bool blinkOn = blinkPhase < 0.5f;
 
 		float left = 0.f, right = 0.f, sendA = 0.f, sendB = 0.f;
 		for (int i = 0; i < n; ++i) {
 			const bool mute = param(ch(i, CH_MUTE)) > 0.5f, solo = param(ch(i, CH_SOLO)) > 0.5f;
-			lights[muteLight(i)].setBrightness(mute);
+			// MUTE: steady red when muted, blinking red when another channel's solo silences this one
+			lights[muteLight(i)].setBrightness(mute ? 1.f : anySolo && !solo && blinkOn ? 0.85f : 0.f);
 			lights[soloLight(i)].setBrightness(solo);
 			if (updateEq) {
 				eq[i][0].setLowShelf(args.sampleRate, 100.f, param(ch(i, CH_LOW)));
@@ -547,7 +561,7 @@ struct ConsoleView : widget::Widget {
 		s->addChild(makeKnob(module, module->ch(i, CH_PAN), math::Vec(cx, 356.f), 7.f, kCapGrey));
 		s->addChild(createLightParamCentered<VCVLightLatch<MediumSimpleLight<RedLight>>>(math::Vec(cx - 15.f, 390.f), module,
 		                                                                                  module->ch(i, CH_MUTE), module->muteLight(i)));
-		s->addChild(createLightParamCentered<VCVLightLatch<MediumSimpleLight<YellowLight>>>(math::Vec(cx + 15.f, 390.f), module,
+		s->addChild(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OrangeLight>>>(math::Vec(cx + 15.f, 390.f), module,
 		                                                                                     module->ch(i, CH_SOLO), module->soloLight(i)));
 		Fader* const f = createParam<Fader>(math::Vec(4.f, 412.f), module, module->ch(i, CH_FADER));
 		f->box.size = math::Vec(48.f, 214.f);

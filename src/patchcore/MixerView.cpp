@@ -105,6 +105,8 @@ struct MixerView : widget::OpaqueWidget {
 		nvgFillColor(args.vg, nvgRGB(0x17, 0x18, 0x1a));
 		nvgFill(args.vg);
 		OpaqueWidget::draw(args);
+		// Lights glow in layer 1, which the rack only draws for its modules
+		Widget::drawLayer(args, 1);
 	}
 
 	void onHoverKey(const HoverKeyEvent& e) override {
