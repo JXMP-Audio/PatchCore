@@ -79,7 +79,8 @@ math::Vec patchbayJackPos(const int k) {
 	const int rows = N == 16 ? 8 : N;
 	const float pitch = N == 4 ? 22.f : 12.f;
 	const float top = N == 4 ? 34.f : 28.f;
-	const float x = (N == 16 && k >= 8) ? 29.32f : 9.f;
+	// Centred in the panel (or in each half of the 8 HP panel)
+	const float x = (N == 16 && k >= 8) ? 30.48f : 10.16f;
 	return mm2px(math::Vec(x, top + (k % rows) * pitch));
 }
 
@@ -100,7 +101,7 @@ struct PatchbayWidget : JXMPModuleWidget {
 		setup(module, string::f("JX-PB%d", N).c_str(), nvgRGB(0x8a, 0x8f, 0x98), N == 16 ? 8 : 4);
 		styled();
 		for (int k = 0; k < N; ++k)
-			label(mm2px(math::Vec(0, 0)).plus(patchbayJackPos<N>(k)).div(mm2px(1.f)).minus(math::Vec(6.6f, 0.f)), string::f("%d", k + 1).c_str(), 6.5f);
+			label(mm2px(math::Vec(0, 0)).plus(patchbayJackPos<N>(k)).div(mm2px(1.f)).minus(math::Vec(6.4f, 0.f)), string::f("%d", k + 1).c_str(), 6.5f);
 
 		for (int k = 0; k < N; ++k) {
 			const math::Vec p = patchbayJackPos<N>(k);
@@ -108,8 +109,8 @@ struct PatchbayWidget : JXMPModuleWidget {
 			frontOut[k] = addSmartOutput(p, M::FRONT_OUTPUT + k);
 			backIn[k] = addSmartInput(p, M::BACK_INPUT + k);
 			backOut[k] = addSmartOutput(p, M::BACK_OUTPUT + k);
-			addChild(createLightCentered<TinyLight<GreenLight>>(p.plus(mm2px(math::Vec(7.f, -2.2f))), module, M::FORWARD_LIGHT + k));
-			addChild(createLightCentered<TinyLight<YellowLight>>(p.plus(mm2px(math::Vec(7.f, 2.2f))), module, M::REVERSE_LIGHT + k));
+			addChild(createLightCentered<TinyLight<GreenLight>>(p.plus(mm2px(math::Vec(6.4f, -2.2f))), module, M::FORWARD_LIGHT + k));
+			addChild(createLightCentered<TinyLight<YellowLight>>(p.plus(mm2px(math::Vec(6.4f, 2.2f))), module, M::REVERSE_LIGHT + k));
 		}
 	}
 
