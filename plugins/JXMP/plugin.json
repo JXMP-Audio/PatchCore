@@ -114,6 +114,15 @@
         "Delay",
         "Effect"
       ]
+    },
+    {
+      "slug": "Quantizer",
+      "name": "Quantizer",
+      "description": "JX-QNT: quantizer to ten scales on any root, octave shift and a trigger on note changes",
+      "tags": [
+        "Quantizer",
+        "Polyphonic"
+      ]
     }
   ]
 }
