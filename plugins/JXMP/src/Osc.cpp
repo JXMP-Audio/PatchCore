@@ -142,72 +142,79 @@ struct Osc : engine::Module {
 
 struct OscWidget : JXMPModuleWidget {
 	OscWidget(Osc* const module) {
-		setup(module, "JX-OSC", nvgRGB(0xee, 0x7b, 0x1f), 14);
+		setup(module, "JX-OSC", nvgRGB(0xee, 0x7b, 0x1f), 18);
 
-		// Front: JXMP style, three framed sections. Scales show the real parameter values.
+		// Front: JXMP style, three framed sections. Names above the knobs, scales in the parameters' real
+		// values with numbers only at both ends and the centre (units are in the tooltips).
 		namespace st = jxmp::style;
 		styled();
+		const float nameSize = 7.5f;
 
-		section(3.f, 20.5f, 65.1f, 29.f, "PITCH");
-		// FREQ: semitones around C4 (262 Hz); a tick per octave, labelled in Hz every second octave
+		// PITCH
+		section(4.f, 20.5f, 83.44f, 33.f, "PITCH");
+		const float pName = 25.f, pRow = 41.5f;
 		std::vector<st::Mark> freqMarks;
-		const char* hz[9] = {"16", "", "65", "", "262", "", "1k", "", "4k"};
 		for (int o = 0; o <= 8; ++o)
-			freqMarks.push_back({-48.f + 12.f * o, hz[o]});
-		knob(math::Vec(15.f, 33.f), Osc::FREQ_PARAM, 15.f, st::CAP_MAIN, -54.f, 54.f, freqMarks);
-		label(math::Vec(15.f, 46.5f), "FREQ HZ");
-		knob(math::Vec(35.f, 32.f), Osc::OCTAVE_PARAM, 9.f, st::CAP_BLACK, -2.f, 2.f,
-		     st::marks(-2.f, 2.f, 1.f, 1, [](float v) { return v > 0.f ? string::f("+%d", (int) v) : string::f("%d", (int) v); }));
-		label(math::Vec(35.f, 43.5f), "OCTAVE");
-		knob(math::Vec(50.f, 32.f), Osc::FM_PARAM, 7.f, st::CAP_GREY, -1.f, 1.f, st::bipolar());
-		label(math::Vec(50.f, 43.5f), "FM");
-		label(math::Vec(59.5f, 25.5f), "LIN", 6.f);
-		addParam(createParamCentered<CKSS>(mm2px(math::Vec(59.5f, 32.f)), module, Osc::LINEAR_PARAM));
-		label(math::Vec(66.f, 25.5f), "HARD", 6.f);
-		addParam(createParamCentered<CKSS>(mm2px(math::Vec(66.f, 32.f)), module, Osc::SYNC_PARAM));
-		label(math::Vec(59.5f, 38.5f), "EXP", 6.f);
-		label(math::Vec(66.f, 38.5f), "SOFT", 6.f);
-		label(math::Vec(62.75f, 43.5f), "FM · SYNC", 6.f);
+			freqMarks.push_back({-48.f + 12.f * o, o == 0 ? "16" : o == 4 ? "262" : o == 8 ? "4k" : ""});
+		label(math::Vec(18.f, pName), "FREQ", nameSize);
+		knob(math::Vec(18.f, pRow), Osc::FREQ_PARAM, 15.f, st::CAP_MAIN, -54.f, 54.f, freqMarks);
+		label(math::Vec(40.f, pName), "OCTAVE", nameSize);
+		knob(math::Vec(40.f, pRow), Osc::OCTAVE_PARAM, 9.f, st::CAP_BLACK, -2.f, 2.f,
+		     {{-2.f, "-2"}, {-1.f, ""}, {0.f, "0"}, {1.f, ""}, {2.f, "+2"}});
+		label(math::Vec(56.f, pName), "FM", nameSize);
+		knob(math::Vec(56.f, pRow), Osc::FM_PARAM, 7.f, st::CAP_GREY, -1.f, 1.f, st::bipolar());
+		label(math::Vec(70.f, pName), "FM MODE", nameSize);
+		label(math::Vec(70.f, pRow - 6.2f), "LIN", 6.f);
+		addParam(createParamCentered<CKSS>(mm2px(math::Vec(70.f, pRow)), module, Osc::LINEAR_PARAM));
+		label(math::Vec(70.f, pRow + 6.2f), "EXP", 6.f);
+		label(math::Vec(81.f, pName), "SYNC", nameSize);
+		label(math::Vec(81.f, pRow - 6.2f), "HARD", 6.f);
+		addParam(createParamCentered<CKSS>(mm2px(math::Vec(81.f, pRow)), module, Osc::SYNC_PARAM));
+		label(math::Vec(81.f, pRow + 6.2f), "SOFT", 6.f);
 
-		section(3.f, 53.5f, 65.1f, 28.f, "SHAPE");
-		knob(math::Vec(13.f, 65.5f), Osc::PW_PARAM, 9.f, st::CAP_WHITE, 0.01f, 0.99f,
-		     st::marks(0.1f, 0.9f, 0.1f, 4, [](float v) { return string::f("%d", (int) std::round(v * 100.f)); }));
-		label(math::Vec(13.f, 77.f), "PW %");
-		knob(math::Vec(26.f, 65.5f), Osc::PW_CV_PARAM, 7.f, st::CAP_GREY, -1.f, 1.f, st::bipolar());
-		label(math::Vec(26.f, 77.f), "PWM");
-		const math::Vec morphPos(43.f, 65.f);
+		// SHAPE
+		section(4.f, 57.f, 83.44f, 31.f, "SHAPE");
+		const float sName = 62.f, sRow = 76.f;
+		label(math::Vec(16.f, sName), "PW", nameSize);
+		knob(math::Vec(16.f, sRow), Osc::PW_PARAM, 9.f, st::CAP_WHITE, 0.01f, 0.99f,
+		     {{0.01f, "1"}, {0.1f, ""}, {0.2f, ""}, {0.3f, ""}, {0.4f, ""}, {0.5f, "50"}, {0.6f, ""}, {0.7f, ""}, {0.8f, ""}, {0.9f, ""}, {0.99f, "99"}});
+		label(math::Vec(32.f, sName), "PWM", nameSize);
+		knob(math::Vec(32.f, sRow), Osc::PW_CV_PARAM, 7.f, st::CAP_GREY, -1.f, 1.f, st::bipolar());
+		const math::Vec morphPos(53.f, sRow);
+		label(math::Vec(53.f, sName), "MORPH", nameSize);
 		knob(morphPos, Osc::MORPH_PARAM, 10.f, st::CAP_MAIN, 0.f, 3.f, {{0.f, ""}, {1.f, ""}, {2.f, ""}, {3.f, ""}});
 		const st::Icon waves[4] = {st::ICON_SIN, st::ICON_TRI, st::ICON_SAW, st::ICON_SQR};
 		for (int w = 0; w < 4; ++w) {
 			const float a = -0.83f * M_PI + 1.66f * M_PI * w / 3.f - M_PI / 2;
-			icon(waves[w], morphPos.plus(math::Vec(std::cos(a), std::sin(a)).mult(8.6f)), 3.2f);
+			icon(waves[w], morphPos.plus(math::Vec(std::cos(a), std::sin(a)).mult(9.f)), 3.2f);
 		}
-		label(math::Vec(43.f, 77.f), "MORPH");
-		knob(math::Vec(60.f, 65.5f), Osc::MORPH_CV_PARAM, 7.f, st::CAP_GREY, -1.f, 1.f, st::bipolar());
-		label(math::Vec(60.f, 77.f), "CV");
+		label(math::Vec(75.f, sName), "MORPH CV", nameSize);
+		knob(math::Vec(75.f, sRow), Osc::MORPH_CV_PARAM, 7.f, st::CAP_GREY, -1.f, 1.f, st::bipolar());
 
-		section(3.f, 85.5f, 65.1f, 27.f, "UNISON · SUB");
-		knob(math::Vec(13.f, 97.f), Osc::VOICES_PARAM, 9.f, st::CAP_BLACK, 1.f, 7.f,
-		     st::marks(1.f, 7.f, 1.f, 1, [](float v) { return string::f("%d", (int) v); }));
-		label(math::Vec(13.f, 108.5f), "VOICES");
-		knob(math::Vec(29.5f, 97.f), Osc::DETUNE_PARAM, 9.f, st::CAP_WHITE, 0.f, 50.f,
+		// UNISON · SUB
+		section(4.f, 91.5f, 83.44f, 26.f, "UNISON · SUB");
+		const float uName = 96.5f, uRow = 109.f;
+		label(math::Vec(16.f, uName), "VOICES", nameSize);
+		knob(math::Vec(16.f, uRow), Osc::VOICES_PARAM, 9.f, st::CAP_BLACK, 1.f, 7.f,
+		     {{1.f, "1"}, {2.f, ""}, {3.f, ""}, {4.f, "4"}, {5.f, ""}, {6.f, ""}, {7.f, "7"}});
+		label(math::Vec(35.f, uName), "DETUNE", nameSize);
+		knob(math::Vec(35.f, uRow), Osc::DETUNE_PARAM, 9.f, st::CAP_WHITE, 0.f, 50.f,
 		     st::marks(0.f, 50.f, 5.f, 5, [](float v) { return string::f("%d", (int) v); }));
-		label(math::Vec(29.5f, 108.5f), "DETUNE CT");
-		knob(math::Vec(46.f, 97.f), Osc::SUB_LEVEL_PARAM, 9.f, st::CAP_WHITE, 0.f, 1.f,
+		label(math::Vec(54.f, uName), "SUB LEVEL", nameSize);
+		knob(math::Vec(54.f, uRow), Osc::SUB_LEVEL_PARAM, 9.f, st::CAP_WHITE, 0.f, 1.f,
 		     st::marks(0.f, 1.f, 0.1f, 5, [](float v) { return string::f("%d", (int) std::round(v * 100.f)); }));
-		label(math::Vec(46.f, 108.5f), "SUB %");
-		label(math::Vec(61.f, 90.5f), "-2", 6.f);
-		addParam(createParamCentered<CKSS>(mm2px(math::Vec(61.f, 97.f)), module, Osc::SUB_OCT_PARAM));
-		label(math::Vec(61.f, 103.5f), "-1", 6.f);
-		label(math::Vec(61.f, 108.5f), "OCT", 6.f);
+		label(math::Vec(74.f, uName), "SUB OCT", nameSize);
+		label(math::Vec(74.f, uRow - 6.2f), "-2", 6.f);
+		addParam(createParamCentered<CKSS>(mm2px(math::Vec(74.f, uRow)), module, Osc::SUB_OCT_PARAM));
+		label(math::Vec(74.f, uRow + 6.2f), "-1", 6.f);
 
 		// Back: sockets
 		for (int i = 0; i < Osc::NUM_INPUTS; ++i)
-			addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(13.f, 30.f + i * 15.f)), module, Osc::PITCH_INPUT + i));
+			addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(16.f, 32.f + i * 15.f)), module, Osc::PITCH_INPUT + i));
 		for (int i = 0; i < 4; ++i)
-			addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(42.f, 30.f + i * 15.f)), module, Osc::SIN_OUTPUT + i));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(58.f, 30.f)), module, Osc::SUB_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(58.f, 45.f)), module, Osc::MIX_OUTPUT));
+			addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(50.f, 32.f + i * 15.f)), module, Osc::SIN_OUTPUT + i));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(72.f, 32.f)), module, Osc::SUB_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(72.f, 47.f)), module, Osc::MIX_OUTPUT));
 	}
 };
 
