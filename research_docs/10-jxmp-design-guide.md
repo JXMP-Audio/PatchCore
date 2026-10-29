@@ -84,8 +84,8 @@ below the switch.
 
 ## Back side
 
-Same anthracite with patina, the title in bold italic, the colour stripe, a metal serial plate top
-right. Jack names under each jack in Barlow; **outputs sit on a light field** (`#c9cbcf`, dark text),
+Same anthracite with patina, the title in bold italic centred (as on the front), the colour stripe, a metal
+serial plate centred under the stripe on every module. Jack names under each jack in Barlow; **outputs sit on a light field** (`#c9cbcf`, dark text),
 inputs have light text. All JXMP sockets are on the back (Patchbay front jacks are the exception).
 
 ## Plan (as of 2026-10-29)
