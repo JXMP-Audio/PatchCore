@@ -1,5 +1,5 @@
 --- ../Rack/src/app/Scene.cpp	2026-10-28 23:11:03.964909203 +0100
-+++ Scene.cpp	2026-10-29 13:44:20.114107493 +0100
++++ Scene.cpp	2026-10-29 14:32:33.824999834 +0100
 @@ -1,12 +1,25 @@
 -#include <thread>
 -
@@ -29,7 +29,7 @@
  #include <system.hpp>
  #include <network.hpp>
  #include <history.hpp>
-@@ -14,6 +27,16 @@
+@@ -14,6 +27,17 @@
  #include <patch.hpp>
  #include <asset.hpp>
  
@@ -41,12 +41,13 @@
 +#include "../CardinalRemote.hpp"
 +#include "../WindowParameters.hpp"
 +#include "../patchcore/PatchCore.hpp"
++#include <patchcore/Mixer.hpp>
 +
 +#include <algorithm>
  
  namespace rack {
  namespace app {
-@@ -23,32 +46,79 @@
+@@ -23,32 +47,80 @@
  	math::Vec size;
  
  	void draw(const DrawArgs& args) override {
@@ -93,17 +94,17 @@
 +
 +	void onHover(const HoverEvent& e) override {
 +		e.consume(this);
- 	}
- 
--	void onDragStart(const DragStartEvent& e) override {
++	}
++
 +	void onEnter(const EnterEvent& e) override {
 +		glfwSetCursor(APP->window->win, glfwCreateStandardCursor(GLFW_RESIZE_NWSE_CURSOR));
 +	}
 +
 +	void onLeave(const LeaveEvent& e) override {
 +		glfwSetCursor(APP->window->win, nullptr);
-+	}
-+
+ 	}
+ 
+-	void onDragStart(const DragStartEvent& e) override {
 +	void onDragStart(const DragStartEvent&) override {
  		size = APP->window->getSize();
  	}
@@ -127,6 +128,7 @@
 +	widget::Widget* classicBrowser = nullptr;
 +	widget::Widget* navigator = nullptr;
 +	widget::Widget* transportBar = nullptr;
++	widget::Widget* mixerView = nullptr;
  
  	bool heldArrowKeys[4] = {};
 +
@@ -135,7 +137,7 @@
  };
  
  
-@@ -60,20 +130,41 @@
+@@ -60,20 +132,43 @@
  
  	rack = rackScroll->rackWidget;
  
@@ -155,6 +157,8 @@
 +		addChild(internal->navigator);
 +		internal->transportBar = patchcore::createTransportBar();
 +		addChild(internal->transportBar);
++		internal->mixerView = patchcore::createMixerView();
++		addChild(internal->mixerView);
 +	}
 +
  	browser = browserCreate();
@@ -181,7 +185,7 @@
  	addChild(internal->resizeHandle);
  }
  
-@@ -89,6 +180,8 @@
+@@ -89,6 +184,8 @@
  
  
  void Scene::step() {
@@ -190,7 +194,7 @@
  	if (APP->window->isFullScreen()) {
  		// Expand RackScrollWidget to cover entire screen if fullscreen
  		rackScroll->box.pos.y = 0;
-@@ -99,22 +192,61 @@
+@@ -99,22 +196,70 @@
  		rackScroll->box.pos.y = menuBar->box.size.y;
  	}
  
@@ -234,9 +238,9 @@
 +			internal->transportBar->box.pos = math::Vec(0, box.size.y - h);
 +			internal->transportBar->box.size.x = box.size.x;
 +			rackRect.size.y -= h;
-+		}
-+	}
-+
+ 		}
+ 	}
+ 
 +	if (internal->navigator != nullptr) {
 +		const bool visible = patchcoreChrome && patchcore::settings.navigatorVisible;
 +		internal->navigator->setVisible(visible);
@@ -244,9 +248,9 @@
 +			const float w = 132.f;
 +			internal->navigator->box = math::Rect(box.size.x - w, rackRect.pos.y, w, rackRect.size.y);
 +			rackRect.size.x -= w;
- 		}
- 	}
- 
++		}
++	}
++
 +	// The rack asks the scene's browser to open: point it at the quick search in the PatchCore look
 +	if (internal->quickSearch != nullptr) {
 +		widget::Widget* const wanted = patchcore::enabled() ? internal->quickSearch : internal->classicBrowser;
@@ -258,10 +262,19 @@
 +
 +	rackScroll->box = rackRect;
 +
++	// Mixer view over the rack area (it hides itself when it closes)
++	if (internal->mixerView != nullptr) {
++		if (patchcore::mixerShown())
++			internal->mixerView->show();
++		internal->mixerView->box = rackRect;
++		if (internal->navigator != nullptr && internal->navigator->isVisible())
++			internal->mixerView->box.size.x -= internal->navigator->box.size.x;
++	}
++
  	// Scroll RackScrollWidget with arrow keys
  	math::Vec arrowDelta;
  	if (internal->heldArrowKeys[0]) {
-@@ -143,12 +275,77 @@
+@@ -143,12 +288,77 @@
  		rackScroll->offset += arrowDelta * arrowSpeed;
  	}
  
@@ -340,7 +353,7 @@
  }
  
  
-@@ -172,7 +369,7 @@
+@@ -172,7 +382,7 @@
  	if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
  		// DEBUG("key '%d '%c' scancode %d '%c' keyName '%s'", e.key, e.key, e.scancode, e.scancode, e.keyName.c_str());
  		if (e.keyName == "n" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
@@ -349,7 +362,7 @@
  			e.consume(this);
  		}
  		if (e.keyName == "q" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
-@@ -180,19 +377,25 @@
+@@ -180,19 +390,25 @@
  			e.consume(this);
  		}
  		if (e.keyName == "o" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
@@ -379,7 +392,7 @@
  			e.consume(this);
  		}
  		if (e.keyName == "z" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
-@@ -220,24 +423,47 @@
+@@ -220,24 +436,47 @@
  			APP->scene->rackScroll->setZoom(std::pow(2.f, zoom));
  			e.consume(this);
  		}
@@ -429,7 +442,7 @@
  
  		// Module selections
  		if (e.keyName == "a" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
-@@ -326,13 +552,6 @@
+@@ -326,13 +565,6 @@
  
  	// Key commands that can be overridden by children
  	if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
@@ -443,14 +456,18 @@
  		if (e.keyName == "v" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
  			rack->pasteClipboardAction();
  			e.consume(this);
-@@ -341,6 +560,19 @@
+@@ -341,6 +573,23 @@
  			browser->show();
  			e.consume(this);
  		}
 +
 +		// PatchCore shortcuts
 +		if (patchcore::enabled() && (e.mods & RACK_MOD_MASK) == 0) {
-+			if (e.key == GLFW_KEY_TAB) {
++			if (e.key == GLFW_KEY_TAB && patchcore::mixerShown()) {
++				patchcore::showMixer(false);
++				e.consume(this);
++			}
++			else if (e.key == GLFW_KEY_TAB) {
 +				patchcore::setViewSide(patchcore::targetViewSide() == patchcore::VIEW_FRONT ? patchcore::VIEW_BACK
 +				                                                                           : patchcore::VIEW_FRONT);
 +				e.consume(this);
@@ -463,7 +480,7 @@
  	}
  }
  
-@@ -351,7 +583,7 @@
+@@ -351,7 +600,7 @@
  		std::string extension = system::getExtension(path);
  
  		if (extension == ".vcv") {

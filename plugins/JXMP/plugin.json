@@ -150,6 +150,38 @@
         "Attenuator",
         "Polyphonic"
       ]
+    },
+    {
+      "slug": "Console4",
+      "name": "Console 4",
+      "description": "JX-CONSOLE: main mixer with 4 channels (EQ, 2 sends, pan, mute, solo, fader), 2 stereo returns, master and VU meters; one per project, controlled in the Mixer view",
+      "tags": [
+        "Mixer"
+      ]
+    },
+    {
+      "slug": "Console8",
+      "name": "Console 8",
+      "description": "JX-CONSOLE: main mixer with 8 channels (EQ, 2 sends, pan, mute, solo, fader), 2 stereo returns, master and VU meters; one per project, controlled in the Mixer view",
+      "tags": [
+        "Mixer"
+      ]
+    },
+    {
+      "slug": "Console16",
+      "name": "Console 16",
+      "description": "JX-CONSOLE: main mixer with 16 channels (EQ, 2 sends, pan, mute, solo, fader), 2 stereo returns, master and VU meters; one per project, controlled in the Mixer view",
+      "tags": [
+        "Mixer"
+      ]
+    },
+    {
+      "slug": "Console32",
+      "name": "Console 32",
+      "description": "JX-CONSOLE: main mixer with 32 channels (EQ, 2 sends, pan, mute, solo, fader), 2 stereo returns, master and VU meters; one per project, controlled in the Mixer view",
+      "tags": [
+        "Mixer"
+      ]
     }
   ]
 }

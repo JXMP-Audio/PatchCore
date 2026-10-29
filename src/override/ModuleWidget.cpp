@@ -27,6 +27,7 @@
 
 #include "../../CardinalCommon.hpp"
 #include "../patchcore/PatchCore.hpp"
+#include <patchcore/Mixer.hpp>
 
 #include <algorithm>
 #include <thread>
@@ -78,6 +79,8 @@ struct ModuleWidget::Internal {
 	/** Blanking caps covering the printed sockets on the front: port box and panel color. */
 	std::vector<std::pair<math::Rect, NVGcolor>> patchcoreCaps;
 	bool patchcoreCapsComputed = false;
+	/** PatchCore: a drag moves the module only when it started with Shift. */
+	bool patchcoreDrag = false;
 };
 
 
@@ -623,6 +626,12 @@ void ModuleWidget::onButton(const ButtonEvent& e) {
 		if ((e.mods & RACK_MOD_MASK) != GLFW_MOD_SHIFT) {
 			Widget::onButton(e);
 			e.stopPropagating();
+			// A console keeps plain clicks on its panel, so a double-click opens the Mixer view
+			if (!e.isConsumed() && e.button == GLFW_MOUSE_BUTTON_LEFT && dynamic_cast<patchcore::MixerProvider*>(this)) {
+				if (e.action == GLFW_PRESS)
+					internal->patchcoreDrag = false;
+				e.consume(this);
+			}
 			return;
 		}
 		if (e.action == GLFW_PRESS && (e.button == GLFW_MOUSE_BUTTON_LEFT || e.button == GLFW_MOUSE_BUTTON_RIGHT)) {
@@ -638,6 +647,7 @@ void ModuleWidget::onButton(const ButtonEvent& e) {
 			}
 			else if (!settings::lockModules) {
 				internal->dragOffset = e.pos;
+				internal->patchcoreDrag = true;
 			}
 		}
 		if (e.button == GLFW_MOUSE_BUTTON_LEFT || e.button == GLFW_MOUSE_BUTTON_RIGHT)
@@ -741,6 +751,8 @@ void ModuleWidget::onDragEnd(const DragEndEvent& e) {
 }
 
 void ModuleWidget::onDragMove(const DragMoveEvent& e) {
+	if (patchcore::enabled() && !internal->patchcoreDrag)
+		return;
 	if (e.button == GLFW_MOUSE_BUTTON_LEFT) {
 		math::Vec mousePos = APP->scene->rack->getMousePos();
 

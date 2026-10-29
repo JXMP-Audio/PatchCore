@@ -53,6 +53,7 @@ RACK_FILES += override/Scene.cpp
 RACK_FILES += patchcore/PatchCore.cpp
 RACK_FILES += patchcore/BackPanel.cpp
 RACK_FILES += patchcore/QuickSearch.cpp
+RACK_FILES += patchcore/MixerView.cpp
 RACK_FILES += patchcore/Navigator.cpp
 RACK_FILES += patchcore/RackFrame.cpp
 RACK_FILES += patchcore/TopBar.cpp

@@ -9,6 +9,7 @@
 
 #include "PatchCore.hpp"
 #include "QuickSearchLogic.hpp"
+#include <patchcore/Mixer.hpp>
 
 #include <algorithm>
 #include <map>
@@ -217,6 +218,9 @@ struct QuickSearch : widget::OpaqueWidget {
 		if (row < 0 || row >= (int) rows.size() || rows[row].header)
 			return;
 		plugin::Model* const model = rows[row].model;
+		// Only one console (and other one-per-project modules) in the project
+		if (singletonTaken(model))
+			return;
 		hide();
 		addModelAt(model, rackPos);
 	}
@@ -424,7 +428,10 @@ void QsList::draw(const DrawArgs& args) {
 			metaText += string::f(" · %d HP", meta.hp);
 		if (!row.model->tagIds.empty())
 			metaText += " · " + tag::getTag(row.model->tagIds.front());
-		draw::text(vg, uiFont(), 10.5f, t.textFaint, math::Vec(kPad + 30.f, y + 26.f), NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, metaText);
+		const bool taken = singletonTaken(row.model);
+		if (taken)
+			metaText += " · already in the project";
+		draw::text(vg, uiFont(), 10.5f, taken ? t.rec : t.textFaint, math::Vec(kPad + 30.f, y + 26.f), NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, metaText);
 	}
 	nvgRestore(vg);
 }

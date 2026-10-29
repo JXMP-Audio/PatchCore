@@ -35,6 +35,7 @@
 #include "../CardinalRemote.hpp"
 #include "../WindowParameters.hpp"
 #include "../patchcore/PatchCore.hpp"
+#include <patchcore/Mixer.hpp>
 
 #include <algorithm>
 
@@ -114,6 +115,7 @@ struct Scene::Internal {
 	widget::Widget* classicBrowser = nullptr;
 	widget::Widget* navigator = nullptr;
 	widget::Widget* transportBar = nullptr;
+	widget::Widget* mixerView = nullptr;
 
 	bool heldArrowKeys[4] = {};
 
@@ -146,6 +148,8 @@ Scene::Scene() {
 		addChild(internal->navigator);
 		internal->transportBar = patchcore::createTransportBar();
 		addChild(internal->transportBar);
+		internal->mixerView = patchcore::createMixerView();
+		addChild(internal->mixerView);
 	}
 
 	browser = browserCreate();
@@ -246,6 +250,15 @@ void Scene::step() {
 	}
 
 	rackScroll->box = rackRect;
+
+	// Mixer view over the rack area (it hides itself when it closes)
+	if (internal->mixerView != nullptr) {
+		if (patchcore::mixerShown())
+			internal->mixerView->show();
+		internal->mixerView->box = rackRect;
+		if (internal->navigator != nullptr && internal->navigator->isVisible())
+			internal->mixerView->box.size.x -= internal->navigator->box.size.x;
+	}
 
 	// Scroll RackScrollWidget with arrow keys
 	math::Vec arrowDelta;
@@ -563,7 +576,11 @@ void Scene::onHoverKey(const HoverKeyEvent& e) {
 
 		// PatchCore shortcuts
 		if (patchcore::enabled() && (e.mods & RACK_MOD_MASK) == 0) {
-			if (e.key == GLFW_KEY_TAB) {
+			if (e.key == GLFW_KEY_TAB && patchcore::mixerShown()) {
+				patchcore::showMixer(false);
+				e.consume(this);
+			}
+			else if (e.key == GLFW_KEY_TAB) {
 				patchcore::setViewSide(patchcore::targetViewSide() == patchcore::VIEW_FRONT ? patchcore::VIEW_BACK
 				                                                                           : patchcore::VIEW_FRONT);
 				e.consume(this);

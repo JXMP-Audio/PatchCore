@@ -1243,6 +1243,10 @@ static void initStatic__JXMP()
         p->addModel(modelJXMPRandom);
         p->addModel(modelJXMPSlew);
         p->addModel(modelJXMPAttenuverter);
+        p->addModel(modelJXMPConsole4);
+        p->addModel(modelJXMPConsole8);
+        p->addModel(modelJXMPConsole16);
+        p->addModel(modelJXMPConsole32);
     }
 }
 
