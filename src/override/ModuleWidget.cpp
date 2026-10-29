@@ -615,15 +615,26 @@ void ModuleWidget::onHoverKey(const HoverKeyEvent& e) {
 void ModuleWidget::onButton(const ButtonEvent& e) {
 	bool selected = APP->scene->rack->isSelected(this);
 
-	// PatchCore: a right-click selects the module (like a drag selection), so it is clearly the target and Delete
-	// removes it. A module that is the only selected one gets its own menu, not the selection menu.
-	if (patchcore::enabled() && e.button == GLFW_MOUSE_BUTTON_RIGHT && e.action == GLFW_PRESS
-	    && (!selected || APP->scene->rack->getSelected().size() == 1)) {
-		if (!selected) {
-			APP->scene->rack->deselectAll();
-			APP->scene->rack->select(this);
+	// PatchCore: a right-click only selects the module (like a drag selection), so Delete removes it.
+	// Shift+right-click adds or removes it from the selection; Ctrl+right-click opens the menu.
+	if (patchcore::enabled() && e.button == GLFW_MOUSE_BUTTON_RIGHT) {
+		const int mods = e.mods & RACK_MOD_MASK;
+		if (mods != RACK_MOD_CTRL) {
+			if (e.action == GLFW_PRESS) {
+				if (mods == GLFW_MOD_SHIFT) {
+					APP->scene->rack->select(this, !selected);
+				}
+				else {
+					APP->scene->rack->deselectAll();
+					APP->scene->rack->select(this);
+				}
+			}
+			e.consume(this);
+			return;
 		}
-		selected = false;
+		// Ctrl+right-click: the module's own menu, or the selection menu when several modules are selected
+		if (selected && APP->scene->rack->getSelected().size() == 1)
+			selected = false;
 	}
 
 	if (selected) {
