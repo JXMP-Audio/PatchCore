@@ -27,3 +27,4 @@ extern Model* modelJXMPDelay;
 extern Model* modelJXMPQuantizer;
 extern Model* modelJXMPRandom;
 extern Model* modelJXMPSlew;
+extern Model* modelJXMPAttenuverter;

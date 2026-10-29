@@ -16,6 +16,7 @@ Built-in modules by JXMP Audio for PatchCore. Their sockets are on the back of t
 | JX-QNT | Quantizer | 8 HP | Quantizes V/oct to ten scales (chromatic, major, minor, modes, pentatonics, blues, whole tone) on any root (knob or 1 V/oct CV), octave shift, trigger on every note change, note LEDs on a little keyboard. Polyphonic. |
 | JX-RND | Random | 8 HP | Random voltages: sample & hold of noise or of the IN socket, a smooth output gliding between values, internal rate 0.03–256 Hz with CV or a clock input, level, unipolar/bipolar, trigger out. |
 | JX-SLW | Slew | 8 HP | Slew limiter / glide: separate rise and fall times (0 or 1 ms–10 s) with CV, linear or exponential, rise/fall LEDs. Polyphonic. |
+| JX-ATT | Attenuverter | 10 HP | Four attenuverters (gain ±2×) with offsets (±10 V); an unpatched input takes the row above, the first a 10 V constant, so empty rows are manual voltage sources. Polarity LEDs. Polyphonic. |
 | JX-AMP | VCA | 8 HP | Two VCAs with level knobs, linear or exponential response; channel 2 is normalled to channel 1's input. Polyphonic. |
 | JX-ENV | ADSR | 14 HP | Envelope with CV for each stage, curve (linear to exponential), ADSR / AD / loop modes, push button, ENV, inverted and end-of-cycle outputs. Polyphonic. |
 | JX-PB4 / PB8 / PB16 | Patchbay 4 / 8 / 16 | 4 / 4 / 8 HP | Passes channels between the front and the back. Plug something into front jack *n* and it comes out of back jack *n*, or the other way round. The first cable decides the direction; the LEDs show it (green → back, yellow → front). |
