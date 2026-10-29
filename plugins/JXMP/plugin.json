@@ -97,6 +97,14 @@
         "Mixer",
         "Polyphonic"
       ]
+    },
+    {
+      "slug": "SEQ",
+      "name": "SEQ",
+      "description": "JX-SEQ: 8-step CV and gate sequencer with internal tempo or external clock, length, run and reset",
+      "tags": [
+        "Sequencer"
+      ]
     }
   ]
 }
