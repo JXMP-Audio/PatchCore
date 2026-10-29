@@ -123,6 +123,15 @@
         "Quantizer",
         "Polyphonic"
       ]
+    },
+    {
+      "slug": "Random",
+      "name": "Random",
+      "description": "JX-RND: sample & hold and smooth random voltages at an internal rate or on a clock",
+      "tags": [
+        "Random",
+        "Sample and hold"
+      ]
     }
   ]
 }

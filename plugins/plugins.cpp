@@ -1240,6 +1240,7 @@ static void initStatic__JXMP()
         p->addModel(modelJXMPSeq);
         p->addModel(modelJXMPDelay);
         p->addModel(modelJXMPQuantizer);
+        p->addModel(modelJXMPRandom);
     }
 }
 
