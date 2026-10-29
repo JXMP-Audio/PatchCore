@@ -156,8 +156,9 @@ struct Navigator : widget::OpaqueWidget {
 			{"Tab", "flip rack"},
 			{"Enter", "find module"},
 			{"Space", "play/stop"},
-			{"", "click: select module"},
-			{"", "right-click: menu"},
+			{"", "shift+click: select"},
+			{"", "shift+drag: move module"},
+			{"", "shift+right: module menu"},
 			{"", "wheel: turn knobs"},
 		};
 		float y = box.size.y - 14.f - (keys.size() - 1) * 19.f;

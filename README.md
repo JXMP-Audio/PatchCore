@@ -10,8 +10,9 @@ like hardware: basic modules patch on the front, the JXMP modules (`plugins/JXMP
 ./run-patchcore.sh --help      # all options (showcase patch, your own patch, --build, --install)
 ```
 
-Right-click on the rack (or Enter) finds modules (`vco@jxmp`, `#lfo`), a click on a module selects
-it (Delete removes it), right-click selects it and opens its menu, the mouse wheel turns knobs. Design notes and plans:
+Right-click on the rack (or Enter) finds modules (`vco@jxmp`, `#lfo`). The module itself reacts only
+with Shift: Shift+click selects it (Delete removes it), Shift+drag moves it, Shift+right-click opens
+its menu. Without Shift knobs and jacks always work, even on a selected module. The mouse wheel turns knobs. Design notes and plans:
 [research_docs/](research_docs/).
 
 ---
