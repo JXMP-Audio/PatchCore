@@ -115,9 +115,8 @@ channel 2's input is normalled from channel 1's.
 
 Added:
 
-- **Response** switch per channel: linear / exponential. The exponential curve is
-  `jxmp::vcaGain(cv01, exp)`: `cv01` for linear, `cv01^4`-style (`(exp(4·x) − 1)/(e^4 − 1)`) for
-  exponential.
+- **Response** switch per channel: linear / exponential. The exponential curve is Fundamental
+  VCA's law, `jxmp::vcaGain(cv01, exp)`: `cv01` for linear, `(50^x − 1) / 49` for exponential.
 
 Back sockets: IN 1, CV 1, IN 2, CV 2 in; OUT 1, OUT 2 out.
 
