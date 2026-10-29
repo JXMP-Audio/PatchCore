@@ -49,6 +49,30 @@ inline void text(NVGcontext* vg, math::Vec pos, const std::string& s, float size
 }
 
 
+/** One scale position: `t` = the parameter value (normalised by JXMPModuleWidget::knob), a label for major marks. */
+struct Mark {
+	float t;
+	std::string label;
+};
+
+/** Marks from `from` to `to` every `step`; every `labelEvery`-th mark gets a label from `fmt(value)`. */
+template <class F>
+inline std::vector<Mark> marks(float from, float to, float step, int labelEvery, F fmt) {
+	std::vector<Mark> out;
+	int i = 0;
+	for (float v = from; v <= to + step * 0.01f; v += step, ++i)
+		out.push_back({v, labelEvery > 0 && i % labelEvery == 0 ? fmt(v) : std::string()});
+	return out;
+}
+
+/** Bipolar amount: −, 0, + with minor ticks every 10 %. */
+inline std::vector<Mark> bipolar() {
+	std::vector<Mark> out;
+	for (int i = -10; i <= 10; ++i)
+		out.push_back({i / 10.f, i == -10 ? "-" : i == 0 ? "0" : i == 10 ? "+" : ""});
+	return out;
+}
+
 /** Knob with a ridged black body, a coloured cap and a white pointer. `diameterMm` sets its size. */
 struct Knob : app::Knob {
 	float diameterMm = 10.f;

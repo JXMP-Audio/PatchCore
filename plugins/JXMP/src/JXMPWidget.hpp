@@ -33,9 +33,7 @@ struct JXMPPanelDecor : widget::TransparentWidget {
 	struct Scale {
 		math::Vec center;  // px
 		float radius;      // px, the knob radius
-		int steps;         // ticks = steps + 1
-		std::vector<std::string> numbers;  // empty, or one per tick
-		bool major;        // bigger ticks for big knobs
+		std::vector<jxmp::style::Mark> marks;
 	};
 	struct IconMark {
 		jxmp::style::Icon type;
@@ -103,24 +101,24 @@ struct JXMPPanelDecor : widget::TransparentWidget {
 			}
 		}
 
-		// Knob scales
+		// Knob scales: a tick at every mark, longer with a label at labelled marks
 		const float a0 = -0.83f * M_PI, a1 = 0.83f * M_PI;
 		for (const Scale& sc : scales) {
-			for (int i = 0; i <= sc.steps; ++i) {
-				const float a = a0 + (a1 - a0) * i / sc.steps - M_PI / 2;
-				const bool end = i == 0 || i == sc.steps;
-				const float r0 = sc.radius + mm2px(0.7f);
-				const float r1 = r0 + mm2px(sc.major || end ? 1.3f : 0.8f);
+			for (const jxmp::style::Mark& m : sc.marks) {
+				const float a = a0 + (a1 - a0) * m.t - M_PI / 2;
+				const bool major = !m.label.empty();
+				const float r0 = sc.radius + mm2px(0.6f);
+				const float r1 = r0 + mm2px(major ? 1.2f : 0.7f);
 				nvgBeginPath(vg);
 				nvgMoveTo(vg, sc.center.x + std::cos(a) * r0, sc.center.y + std::sin(a) * r0);
 				nvgLineTo(vg, sc.center.x + std::cos(a) * r1, sc.center.y + std::sin(a) * r1);
-				nvgStrokeWidth(vg, 0.9f);
-				nvgStrokeColor(vg, st::legendDim());
+				nvgStrokeWidth(vg, major ? 1.f : 0.7f);
+				nvgStrokeColor(vg, major ? st::legend() : st::legendDim());
 				nvgStroke(vg);
-				if (i < (int) sc.numbers.size() && !sc.numbers[i].empty()) {
-					const float rn = r1 + mm2px(1.6f);
-					st::text(vg, math::Vec(sc.center.x + std::cos(a) * rn, sc.center.y + std::sin(a) * rn), sc.numbers[i], 7.5f,
-					         st::legendDim(), false);
+				if (major) {
+					const float rn = r1 + mm2px(1.9f);
+					st::text(vg, math::Vec(sc.center.x + std::cos(a) * rn, sc.center.y + std::sin(a) * rn), m.label, 7.f,
+					         st::legendDim(), false, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.2f);
 				}
 			}
 		}
@@ -201,9 +199,10 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 		decor->sections.push_back({math::Rect(mm2px(math::Vec(x, y)), mm2px(math::Vec(w, h))), title});
 	}
 
-	/** Styled knob centred at `mm`, with a scale of `steps` ticks and optional numbers. */
-	jxmp::style::Knob* knob(math::Vec mm, int paramId, float diameterMm, jxmp::style::Cap cap, int steps = 10,
-	                        std::vector<std::string> numbers = {}) {
+	/** Styled knob centred at `mm`. `marks` are scale positions in the parameter's own values, between
+	`minValue` and `maxValue` (the range given to configParam), so the scale shows what the knob really does. */
+	jxmp::style::Knob* knob(math::Vec mm, int paramId, float diameterMm, jxmp::style::Cap cap, float minValue, float maxValue,
+	                        const std::vector<jxmp::style::Mark>& marks) {
 		jxmp::style::Knob* const k = createParam<jxmp::style::Knob>(math::Vec(), module, paramId);
 		k->setDiameter(diameterMm);
 		k->box.pos = mm2px(mm).minus(k->box.size.div(2));
@@ -214,8 +213,10 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 		default: k->cap = nvgRGB(0x26, 0x27, 0x2a); break;
 		}
 		addParam(k);
-		if (steps > 0)
-			decor->scales.push_back({mm2px(mm), k->box.size.x / 2, steps, numbers, diameterMm >= 14.f});
+		std::vector<jxmp::style::Mark> norm = marks;
+		for (jxmp::style::Mark& m : norm)
+			m.t = math::clamp((m.t - minValue) / (maxValue - minValue), 0.f, 1.f);
+		decor->scales.push_back({mm2px(mm), k->box.size.x / 2, norm});
 		return k;
 	}
 

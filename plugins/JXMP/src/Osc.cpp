@@ -144,51 +144,62 @@ struct OscWidget : JXMPModuleWidget {
 	OscWidget(Osc* const module) {
 		setup(module, "JX-OSC", nvgRGB(0xee, 0x7b, 0x1f), 14);
 
-		// Front: JXMP style, three framed sections
+		// Front: JXMP style, three framed sections. Scales show the real parameter values.
 		namespace st = jxmp::style;
 		styled();
-		const std::vector<std::string> zeroToTen = {"0", "", "2", "", "4", "", "6", "", "8", "", "10"};
 
-		section(3.f, 20.5f, 65.1f, 28.f, "PITCH");
-		knob(math::Vec(15.f, 33.5f), Osc::FREQ_PARAM, 16.f, st::CAP_MAIN, 10, zeroToTen);
-		label(math::Vec(15.f, 46.6f), "FREQ");
-		knob(math::Vec(34.f, 33.f), Osc::OCTAVE_PARAM, 9.f, st::CAP_BLACK, 4, {"-2", "-1", "0", "+1", "+2"});
-		label(math::Vec(34.f, 43.f), "OCTAVE");
-		knob(math::Vec(47.5f, 33.f), Osc::FM_PARAM, 7.f, st::CAP_GREY, 10);
-		label(math::Vec(47.5f, 43.f), "FM");
-		label(math::Vec(57.f, 26.f), "LIN", 6.f);
-		addParam(createParamCentered<CKSS>(mm2px(math::Vec(57.f, 33.f)), module, Osc::LINEAR_PARAM));
-		label(math::Vec(64.f, 26.f), "HARD", 6.f);
-		addParam(createParamCentered<CKSS>(mm2px(math::Vec(64.f, 33.f)), module, Osc::SYNC_PARAM));
-		label(math::Vec(60.5f, 43.f), "FM · SYNC", 6.f);
+		section(3.f, 20.5f, 65.1f, 29.f, "PITCH");
+		// FREQ: semitones around C4 (262 Hz); a tick per octave, labelled in Hz every second octave
+		std::vector<st::Mark> freqMarks;
+		const char* hz[9] = {"16", "", "65", "", "262", "", "1k", "", "4k"};
+		for (int o = 0; o <= 8; ++o)
+			freqMarks.push_back({-48.f + 12.f * o, hz[o]});
+		knob(math::Vec(15.f, 33.f), Osc::FREQ_PARAM, 15.f, st::CAP_MAIN, -54.f, 54.f, freqMarks);
+		label(math::Vec(15.f, 46.5f), "FREQ HZ");
+		knob(math::Vec(35.f, 32.f), Osc::OCTAVE_PARAM, 9.f, st::CAP_BLACK, -2.f, 2.f,
+		     st::marks(-2.f, 2.f, 1.f, 1, [](float v) { return v > 0.f ? string::f("+%d", (int) v) : string::f("%d", (int) v); }));
+		label(math::Vec(35.f, 43.5f), "OCTAVE");
+		knob(math::Vec(50.f, 32.f), Osc::FM_PARAM, 7.f, st::CAP_GREY, -1.f, 1.f, st::bipolar());
+		label(math::Vec(50.f, 43.5f), "FM");
+		label(math::Vec(59.5f, 25.5f), "LIN", 6.f);
+		addParam(createParamCentered<CKSS>(mm2px(math::Vec(59.5f, 32.f)), module, Osc::LINEAR_PARAM));
+		label(math::Vec(66.f, 25.5f), "HARD", 6.f);
+		addParam(createParamCentered<CKSS>(mm2px(math::Vec(66.f, 32.f)), module, Osc::SYNC_PARAM));
+		label(math::Vec(59.5f, 38.5f), "EXP", 6.f);
+		label(math::Vec(66.f, 38.5f), "SOFT", 6.f);
+		label(math::Vec(62.75f, 43.5f), "FM · SYNC", 6.f);
 
-		section(3.f, 52.5f, 65.1f, 28.f, "SHAPE");
-		knob(math::Vec(13.f, 65.f), Osc::PW_PARAM, 9.f, st::CAP_WHITE, 10);
-		label(math::Vec(13.f, 75.f), "PW");
-		knob(math::Vec(25.f, 65.f), Osc::PW_CV_PARAM, 7.f, st::CAP_GREY, 10);
-		label(math::Vec(25.f, 75.f), "PWM");
-		const math::Vec morphPos(43.f, 64.5f);
-		knob(morphPos, Osc::MORPH_PARAM, 10.f, st::CAP_MAIN, 3);
+		section(3.f, 53.5f, 65.1f, 28.f, "SHAPE");
+		knob(math::Vec(13.f, 65.5f), Osc::PW_PARAM, 9.f, st::CAP_WHITE, 0.01f, 0.99f,
+		     st::marks(0.1f, 0.9f, 0.1f, 4, [](float v) { return string::f("%d", (int) std::round(v * 100.f)); }));
+		label(math::Vec(13.f, 77.f), "PW %");
+		knob(math::Vec(26.f, 65.5f), Osc::PW_CV_PARAM, 7.f, st::CAP_GREY, -1.f, 1.f, st::bipolar());
+		label(math::Vec(26.f, 77.f), "PWM");
+		const math::Vec morphPos(43.f, 65.f);
+		knob(morphPos, Osc::MORPH_PARAM, 10.f, st::CAP_MAIN, 0.f, 3.f, {{0.f, ""}, {1.f, ""}, {2.f, ""}, {3.f, ""}});
 		const st::Icon waves[4] = {st::ICON_SIN, st::ICON_TRI, st::ICON_SAW, st::ICON_SQR};
 		for (int w = 0; w < 4; ++w) {
 			const float a = -0.83f * M_PI + 1.66f * M_PI * w / 3.f - M_PI / 2;
-			icon(waves[w], morphPos.plus(math::Vec(std::cos(a), std::sin(a)).mult(9.f)), 3.4f);
+			icon(waves[w], morphPos.plus(math::Vec(std::cos(a), std::sin(a)).mult(8.6f)), 3.2f);
 		}
-		label(math::Vec(43.f, 77.6f), "MORPH");
-		knob(math::Vec(60.f, 65.f), Osc::MORPH_CV_PARAM, 7.f, st::CAP_GREY, 10);
-		label(math::Vec(60.f, 75.f), "CV");
+		label(math::Vec(43.f, 77.f), "MORPH");
+		knob(math::Vec(60.f, 65.5f), Osc::MORPH_CV_PARAM, 7.f, st::CAP_GREY, -1.f, 1.f, st::bipolar());
+		label(math::Vec(60.f, 77.f), "CV");
 
-		section(3.f, 84.5f, 65.1f, 28.f, "UNISON · SUB");
-		knob(math::Vec(13.f, 97.f), Osc::VOICES_PARAM, 9.f, st::CAP_BLACK, 6, {"1", "2", "3", "4", "5", "6", "7"});
-		label(math::Vec(13.f, 107.f), "VOICES");
-		knob(math::Vec(29.f, 97.f), Osc::DETUNE_PARAM, 9.f, st::CAP_WHITE, 10);
-		label(math::Vec(29.f, 107.f), "DETUNE");
-		knob(math::Vec(45.f, 97.f), Osc::SUB_LEVEL_PARAM, 9.f, st::CAP_WHITE, 10);
-		label(math::Vec(45.f, 107.f), "SUB");
-		label(math::Vec(60.f, 90.5f), "-1", 6.f);
-		addParam(createParamCentered<CKSS>(mm2px(math::Vec(60.f, 97.f)), module, Osc::SUB_OCT_PARAM));
-		label(math::Vec(60.f, 103.5f), "-2", 6.f);
-		label(math::Vec(60.f, 107.f), "OCT", 6.f);
+		section(3.f, 85.5f, 65.1f, 27.f, "UNISON · SUB");
+		knob(math::Vec(13.f, 97.f), Osc::VOICES_PARAM, 9.f, st::CAP_BLACK, 1.f, 7.f,
+		     st::marks(1.f, 7.f, 1.f, 1, [](float v) { return string::f("%d", (int) v); }));
+		label(math::Vec(13.f, 108.5f), "VOICES");
+		knob(math::Vec(29.5f, 97.f), Osc::DETUNE_PARAM, 9.f, st::CAP_WHITE, 0.f, 50.f,
+		     st::marks(0.f, 50.f, 5.f, 5, [](float v) { return string::f("%d", (int) v); }));
+		label(math::Vec(29.5f, 108.5f), "DETUNE CT");
+		knob(math::Vec(46.f, 97.f), Osc::SUB_LEVEL_PARAM, 9.f, st::CAP_WHITE, 0.f, 1.f,
+		     st::marks(0.f, 1.f, 0.1f, 5, [](float v) { return string::f("%d", (int) std::round(v * 100.f)); }));
+		label(math::Vec(46.f, 108.5f), "SUB %");
+		label(math::Vec(61.f, 90.5f), "-2", 6.f);
+		addParam(createParamCentered<CKSS>(mm2px(math::Vec(61.f, 97.f)), module, Osc::SUB_OCT_PARAM));
+		label(math::Vec(61.f, 103.5f), "-1", 6.f);
+		label(math::Vec(61.f, 108.5f), "OCT", 6.f);
 
 		// Back: sockets
 		for (int i = 0; i < Osc::NUM_INPUTS; ++i)
