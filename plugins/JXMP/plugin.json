@@ -71,6 +71,15 @@
         "VCF",
         "Polyphonic"
       ]
+    },
+    {
+      "slug": "LFO",
+      "name": "LFO",
+      "description": "JX-LFO: low-frequency oscillator with sine, triangle, saw and square, clock sync, reset, offset and invert",
+      "tags": [
+        "LFO",
+        "Polyphonic"
+      ]
     }
   ]
 }
