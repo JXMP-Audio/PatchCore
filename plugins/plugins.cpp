@@ -1230,6 +1230,7 @@ static void initStatic__JXMP()
         p->addModel(modelJXMPPatchbay4);
         p->addModel(modelJXMPPatchbay8);
         p->addModel(modelJXMPPatchbay16);
+        p->addModel(modelJXMPVCA);
     }
 }
 

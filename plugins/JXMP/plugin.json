@@ -12,8 +12,38 @@
   "sourceUrl": "https://github.com/JXMP-Audio/PatchCore",
   "changelogUrl": "",
   "modules": [
-    {"slug": "Patchbay4", "name": "Patchbay 4", "description": "Passes 4 channels between the front and the back of the rack", "tags": ["Utility"]},
-    {"slug": "Patchbay8", "name": "Patchbay 8", "description": "Passes 8 channels between the front and the back of the rack", "tags": ["Utility"]},
-    {"slug": "Patchbay16", "name": "Patchbay 16", "description": "Passes 16 channels between the front and the back of the rack", "tags": ["Utility"]}
+    {
+      "slug": "Patchbay4",
+      "name": "Patchbay 4",
+      "description": "Passes 4 channels between the front and the back of the rack",
+      "tags": [
+        "Utility"
+      ]
+    },
+    {
+      "slug": "Patchbay8",
+      "name": "Patchbay 8",
+      "description": "Passes 8 channels between the front and the back of the rack",
+      "tags": [
+        "Utility"
+      ]
+    },
+    {
+      "slug": "Patchbay16",
+      "name": "Patchbay 16",
+      "description": "Passes 16 channels between the front and the back of the rack",
+      "tags": [
+        "Utility"
+      ]
+    },
+    {
+      "slug": "VCA",
+      "name": "VCA",
+      "description": "JX-AMP: two-channel VCA with linear or exponential response",
+      "tags": [
+        "VCA",
+        "Polyphonic"
+      ]
+    }
   ]
 }

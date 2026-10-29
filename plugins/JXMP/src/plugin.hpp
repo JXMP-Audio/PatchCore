@@ -15,3 +15,4 @@ extern Plugin* pluginInstance;
 extern Model* modelJXMPPatchbay4;
 extern Model* modelJXMPPatchbay8;
 extern Model* modelJXMPPatchbay16;
+extern Model* modelJXMPVCA;

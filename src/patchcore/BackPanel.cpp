@@ -58,6 +58,10 @@ static std::string jackLabel(app::PortWidget* const port) {
 	if (name.empty())
 		name = string::f("%s %d", port->type == engine::Port::INPUT ? "IN" : "OUT", port->portId + 1);
 
+	// Notes in parentheses are for tooltips only
+	const size_t paren = name.find(" (");
+	if (paren != std::string::npos)
+		name = name.substr(0, paren);
 	name = string::uppercase(name);
 	// Drop common suffixes that waste space on the back
 	for (const char* suffix : {" INPUT", " OUTPUT", " IN", " OUT", " CV"}) {
