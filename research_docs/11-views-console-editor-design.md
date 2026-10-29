@@ -25,6 +25,7 @@ PatchCore behaves differently as a plugin and as a standalone app:
 | Editor → rack | Through Cardinal's **Host MIDI** modules (one per channel / track) |
 | MIDI keyboard | Plays live into the selected track (and the rack); REC writes the notes into its loop, quantized |
 | Mixer | A JXMP module **JX-CONSOLE**, at most **one per project**; the Mixer view controls it |
+| JX-MIX | **Stays** as it is: a small 4-channel mixer for submixes anywhere in the patch (any number of them). JX-CONSOLE is the extra, bigger main mixer |
 | Console sizes | **4, 8, 16, 32** channels; the Mixer view adapts to the size |
 | Console channel | Mono input, pan, fader, mute, solo, 2 sends (pre/post), 3-band EQ (low, mid with frequency, high) |
 | Console buses | Stereo master out, 2 send outs, 2 stereo returns |
@@ -46,6 +47,7 @@ PatchCore behaves differently as a plugin and as a standalone app:
 
 ### Module
 
+- JX-CONSOLE does not replace JX-MIX; both exist side by side.
 - Models `Console4`, `Console8`, `Console16`, `Console32` (browser names "Console 4/8/16/32", panel
   `JX-CONSOLE`). JXMP style, its own colour.
 - All sockets on the back: N channel inputs, 2 stereo returns (A, B), stereo master out, 2 send outs.

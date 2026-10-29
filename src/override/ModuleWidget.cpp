@@ -615,20 +615,34 @@ void ModuleWidget::onHoverKey(const HoverKeyEvent& e) {
 void ModuleWidget::onButton(const ButtonEvent& e) {
 	bool selected = APP->scene->rack->isSelected(this);
 
-	// PatchCore: a right-click selects the module and opens its menu (the selection menu when several modules
-	// are selected and this is one of them). Shift+right-click adds it to or removes it from the selection.
-	if (patchcore::enabled() && e.button == GLFW_MOUSE_BUTTON_RIGHT && e.action == GLFW_PRESS) {
-		if ((e.mods & RACK_MOD_MASK) == GLFW_MOD_SHIFT) {
-			APP->scene->rack->select(this, !selected);
-			e.consume(this);
+	// PatchCore: the module itself only reacts with Shift held, so its knobs and jacks always work, even when
+	// it is selected. Shift+click selects it, Shift+drag moves it (or the selection), Shift+right-click selects
+	// it and opens its menu (the selection menu when several modules are selected and this is one of them).
+	// Without Shift a click on the bare panel goes on to the rack (right-click: quick search, drag: selection box).
+	if (patchcore::enabled()) {
+		if ((e.mods & RACK_MOD_MASK) != GLFW_MOD_SHIFT) {
+			Widget::onButton(e);
+			e.stopPropagating();
 			return;
 		}
-		if (!selected) {
-			APP->scene->rack->deselectAll();
-			APP->scene->rack->select(this);
+		if (e.action == GLFW_PRESS && (e.button == GLFW_MOUSE_BUTTON_LEFT || e.button == GLFW_MOUSE_BUTTON_RIGHT)) {
+			if (!selected) {
+				APP->scene->rack->deselectAll();
+				APP->scene->rack->select(this);
+			}
+			if (e.button == GLFW_MOUSE_BUTTON_RIGHT) {
+				if (APP->scene->rack->getSelected().size() == 1)
+					createContextMenu();
+				else
+					patchUtils::appendSelectionContextMenu(createMenu());
+			}
+			else if (!settings::lockModules) {
+				internal->dragOffset = e.pos;
+			}
 		}
-		if (APP->scene->rack->getSelected().size() == 1)
-			selected = false;  // a single selected module gets its own menu
+		if (e.button == GLFW_MOUSE_BUTTON_LEFT || e.button == GLFW_MOUSE_BUTTON_RIGHT)
+			e.consume(this);
+		return;
 	}
 
 	if (selected) {
@@ -678,12 +692,6 @@ void ModuleWidget::onButton(const ButtonEvent& e) {
 				APP->scene->rack->select(this, true);
 				e.consume(NULL);
 				return;
-			}
-
-			// PatchCore: a left click on the panel selects the module (and only it)
-			if (patchcore::enabled() && (e.mods & RACK_MOD_MASK) == 0) {
-				APP->scene->rack->deselectAll();
-				APP->scene->rack->select(this);
 			}
 
 			// If module positions are locked, don't consume left-click
