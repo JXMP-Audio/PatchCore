@@ -47,6 +47,7 @@ metal toggles with LEDs, outputs on light fields. No third-party names or logos.
 | JX-QNT (Quantizer) | magenta `#c94f9c` |
 | JX-RND (Random) | amber `#e0a43a` |
 | JX-SLW (Slew) | olive `#8fae3a` |
+| JX-ATT (Attenuverter) | slate `#6f86a8` |
 | future modules | a new colour each, not reused |
 
 ## Knob caps — what each colour means
@@ -99,9 +100,9 @@ inputs have light text. All JXMP sockets are on the back (Patchbay front jacks a
   3. [x] JX-MIX (Mixer, 14 HP) — colour red `#d8443a`: 4 channels level + mute, master, poly sum
   4. [x] JX-SEQ (8-step sequencer, 18 HP) — colour cyan `#2fb8c4`: 8 steps of CV + gate toggles, clock/reset/run, length
   5. [x] JX-DLY (Delay, 10 HP) — colour teal `#4ac0a0`: time, feedback, tone, mix, CV
-- [ ] Second set (2026-10-29), same procedure:
+- [x] Second set (2026-10-29), same procedure:
   1. [x] JX-QNT (Quantizer, 8 HP) — magenta `#c94f9c`: ten scales on any root, root CV, octave shift, trigger on note change, note LEDs
   2. [x] JX-RND (Random, 8 HP) — colour amber `#e0a43a`: sample & hold of noise or an input, smooth random, internal rate or clock, unipolar/bipolar
   3. [x] JX-SLW (Slew / glide, 8 HP) — colour olive `#8fae3a`: rise and fall times, linear/exponential, for portamento on V/OCT
-  4. JX-ATT (Attenuverters) — colour slate `#6f86a8`: four attenuverters with offsets, chained (an unpatched input is a constant)
+  4. [x] JX-ATT (Attenuverters, 10 HP) — colour slate `#6f86a8`: four attenuverters with offsets, chained (an unpatched input is a constant)
 - Cancelled: realistic cables (07/08) — the original cables stay

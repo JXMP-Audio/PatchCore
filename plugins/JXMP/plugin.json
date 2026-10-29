@@ -141,6 +141,15 @@
         "Slew limiter",
         "Polyphonic"
       ]
+    },
+    {
+      "slug": "Attenuverter",
+      "name": "Attenuverter",
+      "description": "JX-ATT: four attenuverters with offsets, chained inputs, a 10 V constant when nothing is patched",
+      "tags": [
+        "Attenuator",
+        "Polyphonic"
+      ]
     }
   ]
 }
