@@ -276,15 +276,15 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 		nvgFillColor(vg, decor->stripe);
 		nvgFill(vg);
 		st::patina(vg, box.size, patinaSeed() ^ 0x9e3779b9u);
-		const bool narrow = w < mm2px(60.f);
-		st::text(vg, narrow ? math::Vec(w / 2, mm2px(6.6f)) : math::Vec(mm2px(4.f), mm2px(6.6f)), code, narrow ? std::min(15.f, decor->titleSize(vg, w)) : 15.f, st::legend(), st::FONT_TITLE, (narrow ? NVG_ALIGN_CENTER : NVG_ALIGN_LEFT) | NVG_ALIGN_MIDDLE, 0.6f);
+		// Title centred, as on the front
+		st::text(vg, math::Vec(w / 2, mm2px(6.6f)), code, std::min(15.f, decor->titleSize(vg, w)), st::legend(), st::FONT_TITLE,
+		         NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.6f);
 
 		// Serial plate, top right
 		const std::string serial = "S/N " + jxmp::serialNumber(module ? module->id : -1);
-		// Wide modules: top right next to the title; narrow ones: under the stripe, so the title stays readable
+		// Serial plate centred under the stripe on every module
 		const float pw = std::min(mm2px(21.f), w - mm2px(2.f));
-		const math::Rect plate(narrow ? math::Vec((w - pw) / 2, mm2px(16.f)) : math::Vec(w - mm2px(25.f), mm2px(3.2f)),
-		                       math::Vec(pw, mm2px(6.6f)));
+		const math::Rect plate(math::Vec((w - pw) / 2, mm2px(16.f)), math::Vec(pw, mm2px(6.6f)));
 		nvgBeginPath(vg);
 		nvgRoundedRect(vg, RECT_ARGS(plate), 2.f);
 		nvgFillPaint(vg, nvgLinearGradient(vg, 0, plate.pos.y, 0, plate.pos.y + plate.size.y, nvgRGB(0xd9, 0xdb, 0xdf), nvgRGB(0x9c, 0xa0, 0xa7)));
