@@ -46,6 +46,15 @@ Built and the tests pass, only partly checked on screen.
 manifest"). After switching branches run `touch plugins/plugins.cpp` (or `make clean` in plugins) before
 `make`. Until `console` is merged, build and run from the `console` branch.
 
+### Console, later the same evening
+
+- MUTE/SOLO now light in the Mixer view (it draws the light layer): MUTE red, SOLO orange, channels
+  silenced by another channel's solo blink their MUTE red. Square rubber buttons that light as a whole.
+- Look: patina on the strips and the master, section titles cut into the dividers (EQ, SENDS, PAN,
+  SOURCE, RETURNS, SENDS, OUTPUT), knob scales, cream scribble strips "CH n", red master fader cap.
+- Editors: `compile_flags.txt` in `plugins/JXMP` and `src` (clangd finds the Rack headers; the
+  "undeclared identifier" errors were only the editor).
+
 ### Next
 
 1. Checked on screen (evening 2026-10-29): front, back and the Mixer view (opened from the top bar)
