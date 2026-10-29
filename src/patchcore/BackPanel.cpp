@@ -122,8 +122,44 @@ void drawBackPanel(app::ModuleWidget* const mw, NVGcontext* const vg) {
 	           string::uppercase(name), stencilSize * 0.3f);
 	nvgRestore(vg);
 
-	// Serial sticker
-	if (w >= app::RACK_GRID_WIDTH * 3) {
+	// Serial plate of JXMP modules, else the generic sticker
+	const SidedModuleWidget* const sided = dynamic_cast<const SidedModuleWidget*>(mw);
+	const std::string serial = sided != nullptr ? string::uppercase(sided->serialLabel()) : std::string();
+	if (!serial.empty()) {
+		// Two lines (model code, serial number) on a small metal plate where the generic sticker sits
+		const size_t dot = serial.find(" · ");
+		const std::string line1 = dot == std::string::npos ? serial : serial.substr(0, dot);
+		const std::string line2 = dot == std::string::npos ? std::string() : serial.substr(dot + std::strlen(" · "));
+		const float fs = 7.f;
+		const float tw = std::max(textWidth(monoFont(), fs, line1, 0.f), textWidth(monoFont(), fs, line2, 0.f));
+		const float pw = std::min(tw + 10.f, w - 4.f);
+		const float ph = line2.empty() ? 12.f : 21.f;
+		const math::Rect plate((w - pw) * 0.5f, 30.f, pw, ph);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg, plate.pos.x + 1.f, plate.pos.y + 1.5f, pw, ph, 2.f);
+		nvgFillColor(vg, nvgRGBAf(0, 0, 0, 0.5f));
+		nvgFill(vg);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg, RECT_ARGS(plate), 2.f);
+		nvgFillPaint(vg, nvgLinearGradient(vg, 0, plate.pos.y, 0, plate.pos.y + ph, nvgRGB(0xd9, 0xdb, 0xdf), nvgRGB(0x9c, 0xa0, 0xa7)));
+		nvgFill(vg);
+		nvgStrokeWidth(vg, 0.6f);
+		nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.55f));
+		nvgStroke(vg);
+		nvgSave(vg);
+		nvgScissor(vg, RECT_ARGS(plate));
+		const NVGcolor ink = nvgRGB(0x2a, 0x2c, 0x30);
+		const int align = NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE;
+		if (line2.empty()) {
+			draw::text(vg, monoFont(), fs, ink, plate.getCenter(), align, line1);
+		}
+		else {
+			draw::text(vg, monoFont(), fs, ink, math::Vec(w * 0.5f, plate.pos.y + 6.f), align, line1);
+			draw::text(vg, monoFont(), fs, ink, math::Vec(w * 0.5f, plate.pos.y + 15.f), align, line2);
+		}
+		nvgRestore(vg);
+	}
+	else if (w >= app::RACK_GRID_WIDTH * 3) {
 		std::string code = string::uppercase(name);
 		code.erase(std::remove(code.begin(), code.end(), ' '), code.end());
 		if (code.size() > 5)
