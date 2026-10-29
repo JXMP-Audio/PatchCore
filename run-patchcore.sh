@@ -2,8 +2,8 @@
 # PatchCore launcher.
 #
 #   ./run-patchcore.sh                 start PatchCore (empty rack)
-#   ./run-patchcore.sh demo            the JXMP ambient patch
-#   ./run-patchcore.sh showcase        the JXMP showcase voice
+#   ./run-patchcore.sh demo            the JXMP ambient patch (also --demo)
+#   ./run-patchcore.sh showcase        the JXMP showcase voice (also --showcase)
 #   ./run-patchcore.sh my-patch.vcv    open your own patch
 #   ./run-patchcore.sh --build         fetch the sources and build PatchCore first (also done
 #                                      automatically when it has not been built yet)
@@ -62,13 +62,17 @@ case "${1:-}" in
 		sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
 		exit 0
 		;;
-	demo)
+	demo|--demo)
 		patch="$core/patches/jxmp-ambient.vcv"
 		;;
-	showcase)
+	showcase|--showcase)
 		patch="$core/patches/jxmp-showcase.vcv"
 		;;
 	"")
+		;;
+	-*)
+		echo "Unknown option: $1 (try --help)" >&2
+		exit 1
 		;;
 	*)
 		patch="$(realpath -e "$1")" || { echo "Patch not found: $1" >&2; exit 1; }
