@@ -48,6 +48,19 @@ struct JXMPPanelDecor : widget::TransparentWidget {
 	std::vector<Scale> scales;
 	std::vector<IconMark> icons;
 
+	/** Title size: 21 px, smaller on narrow panels so the title always fits. */
+	float titleSize(NVGcontext* const vg, const float w) {
+		std::shared_ptr<window::Font> f = jxmp::style::font(jxmp::style::FONT_TITLE);
+		if (!f)
+			return 21.f;
+		nvgFontFaceId(vg, f->handle);
+		nvgFontSize(vg, 21.f);
+		nvgTextLetterSpacing(vg, 0.8f);
+		float bounds[4];
+		const float tw = nvgTextBounds(vg, 0, 0, title.c_str(), nullptr, bounds);
+		return tw > w - 8.f ? 21.f * (w - 8.f) / tw : 21.f;
+	}
+
 	void drawStyled(NVGcontext* const vg) {
 		namespace st = jxmp::style;
 		const float w = box.size.x, h = box.size.y;
@@ -75,8 +88,8 @@ struct JXMPPanelDecor : widget::TransparentWidget {
 		nvgFill(vg);
 
 		st::patina(vg, box.size, seed);
-		st::text(vg, math::Vec(w / 2, mm2px(6.6f)), title, 21.f, st::legend(), st::FONT_TITLE, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.8f);
-		st::text(vg, math::Vec(w / 2, h - mm2px(4.5f)), "JXMP AUDIO", 8.5f, st::legendDim(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 2.f);
+		st::text(vg, math::Vec(w / 2, mm2px(6.6f)), title, titleSize(vg, w), st::legend(), st::FONT_TITLE, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.8f);
+		st::text(vg, math::Vec(w / 2, h - mm2px(4.5f)), w < mm2px(30.f) ? "JXMP" : "JXMP AUDIO", 8.5f, st::legendDim(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 2.f);
 
 		// Sections: a divider line across the panel with the title cut into it
 		for (const Section& sec : sections) {
@@ -263,14 +276,15 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 		nvgFillColor(vg, decor->stripe);
 		nvgFill(vg);
 		st::patina(vg, box.size, patinaSeed() ^ 0x9e3779b9u);
-		st::text(vg, math::Vec(mm2px(4.f), mm2px(6.6f)), code, 15.f, st::legend(), st::FONT_TITLE, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, 0.6f);
+		const bool narrow = w < mm2px(60.f);
+		st::text(vg, narrow ? math::Vec(w / 2, mm2px(6.6f)) : math::Vec(mm2px(4.f), mm2px(6.6f)), code, narrow ? std::min(15.f, decor->titleSize(vg, w)) : 15.f, st::legend(), st::FONT_TITLE, (narrow ? NVG_ALIGN_CENTER : NVG_ALIGN_LEFT) | NVG_ALIGN_MIDDLE, 0.6f);
 
 		// Serial plate, top right
 		const std::string serial = "S/N " + jxmp::serialNumber(module ? module->id : -1);
 		// Wide modules: top right next to the title; narrow ones: under the stripe, so the title stays readable
-		const bool narrow = w < mm2px(60.f);
-		const math::Rect plate(narrow ? math::Vec((w - mm2px(21.f)) / 2, mm2px(16.f)) : math::Vec(w - mm2px(25.f), mm2px(3.2f)),
-		                       mm2px(math::Vec(21.f, 6.6f)));
+		const float pw = std::min(mm2px(21.f), w - mm2px(2.f));
+		const math::Rect plate(narrow ? math::Vec((w - pw) / 2, mm2px(16.f)) : math::Vec(w - mm2px(25.f), mm2px(3.2f)),
+		                       math::Vec(pw, mm2px(6.6f)));
 		nvgBeginPath(vg);
 		nvgRoundedRect(vg, RECT_ARGS(plate), 2.f);
 		nvgFillPaint(vg, nvgLinearGradient(vg, 0, plate.pos.y, 0, plate.pos.y + plate.size.y, nvgRGB(0xd9, 0xdb, 0xdf), nvgRGB(0x9c, 0xa0, 0xa7)));
@@ -278,10 +292,14 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 		nvgStrokeWidth(vg, 0.6f);
 		nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.55f));
 		nvgStroke(vg);
-		st::text(vg, plate.getCenter(), serial, 8.f, nvgRGB(0x26, 0x28, 0x2c), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.6f);
+		st::text(vg, plate.getCenter(), serial, pw < mm2px(20.f) ? 6.8f : 8.f, nvgRGB(0x26, 0x28, 0x2c), st::FONT_LABEL,
+		         NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, pw < mm2px(20.f) ? 0.1f : 0.6f);
 
 		// Jack legends; outputs on a light field like on hardware
 		for (app::PortWidget* const port : getPorts()) {
+			// Only sockets of the back, and only the active half of a Patchbay smart jack
+			if (portSide(port->type, port->portId) != patchcore::SIDE_BACK || port->box.size.x <= 0.f)
+				continue;
 			const math::Vec c = port->getRelativeOffset(port->box.size.div(2), this);
 			std::string name = port->getPortInfo() ? port->getPortInfo()->name : std::string();
 			const size_t paren = name.find(" (");
@@ -299,7 +317,7 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 			st::text(vg, c.plus(mm2px(math::Vec(0.f, 6.3f))), name, 7.f, out ? nvgRGB(0x22, 0x23, 0x26) : st::legend(), st::FONT_LABEL,
 			         NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.3f);
 		}
-		st::text(vg, math::Vec(w / 2, h - mm2px(4.5f)), "JXMP AUDIO", 8.5f, st::legendDim(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 2.f);
+		st::text(vg, math::Vec(w / 2, h - mm2px(4.5f)), w < mm2px(30.f) ? "JXMP" : "JXMP AUDIO", 8.5f, st::legendDim(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 2.f);
 		return true;
 	}
 

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include "plugin.hpp"
+#include "JXMPWidget.hpp"
 #include "PatchbayLogic.hpp"
 #include "Serial.hpp"
 
@@ -73,39 +73,19 @@ struct SmartPort : PJ301MPort {
 };
 
 
+/** Jack position of channel k (same on the front and the back). */
 template <int N>
-struct PatchbayLabels : widget::TransparentWidget {
-	void draw(const DrawArgs& args) override {
-		std::shared_ptr<window::Font> font = APP->window->loadFont(asset::system("res/fonts/DejaVuSans.ttf"));
-		if (!font)
-			return;
-		nvgFontFaceId(args.vg, font->handle);
-		nvgFillColor(args.vg, nvgRGB(0xd8, 0xdb, 0xe0));
-		nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
-		nvgFontSize(args.vg, 9.f);
-		nvgText(args.vg, box.size.x / 2, mm2px(8.f), string::f("JX-PB%d", N).c_str(), nullptr);
-		nvgFontSize(args.vg, 8.f);
-		nvgText(args.vg, box.size.x / 2, mm2px(123.f), "JXMP", nullptr);
-		nvgTextAlign(args.vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
-		nvgFontSize(args.vg, 7.f);
-		for (int k = 0; k < N; ++k) {
-			const math::Vec p = jackPos(k);
-			nvgText(args.vg, p.x - mm2px(7.8f), p.y, string::f("%d", k + 1).c_str(), nullptr);
-		}
-	}
-
-	static math::Vec jackPos(const int k) {
-		const int rows = N == 16 ? 8 : N;
-		const float pitch = N == 4 ? 22.f : 12.f;
-		const float top = N == 4 ? 30.f : 24.f;
-		const float x = (N == 16 && k >= 8) ? 29.32f : 9.f;
-		return mm2px(math::Vec(x, top + (k % rows) * pitch));
-	}
-};
+math::Vec patchbayJackPos(const int k) {
+	const int rows = N == 16 ? 8 : N;
+	const float pitch = N == 4 ? 22.f : 12.f;
+	const float top = N == 4 ? 34.f : 28.f;
+	const float x = (N == 16 && k >= 8) ? 29.32f : 9.f;
+	return mm2px(math::Vec(x, top + (k % rows) * pitch));
+}
 
 
 template <int N>
-struct PatchbayWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
+struct PatchbayWidget : JXMPModuleWidget {
 	typedef Patchbay<N> M;
 	SmartPort* frontIn[N];
 	SmartPort* frontOut[N];
@@ -117,15 +97,13 @@ struct PatchbayWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 	jxmp::Dir lastDir[N] = {};
 
 	PatchbayWidget(M* const module) {
-		setModule(module);
-		setPanel(createPanel(asset::plugin(pluginInstance, N == 16 ? "res/Panel8HP.svg" : "res/Panel4HP.svg")));
-
-		PatchbayLabels<N>* const labels = new PatchbayLabels<N>;
-		labels->box.size = box.size;
-		addChild(labels);
+		setup(module, string::f("JX-PB%d", N).c_str(), nvgRGB(0x8a, 0x8f, 0x98), N == 16 ? 8 : 4);
+		styled();
+		for (int k = 0; k < N; ++k)
+			label(mm2px(math::Vec(0, 0)).plus(patchbayJackPos<N>(k)).div(mm2px(1.f)).minus(math::Vec(6.6f, 0.f)), string::f("%d", k + 1).c_str(), 6.5f);
 
 		for (int k = 0; k < N; ++k) {
-			const math::Vec p = PatchbayLabels<N>::jackPos(k);
+			const math::Vec p = patchbayJackPos<N>(k);
 			frontIn[k] = addSmartInput(p, M::FRONT_INPUT + k);
 			frontOut[k] = addSmartOutput(p, M::FRONT_OUTPUT + k);
 			backIn[k] = addSmartInput(p, M::BACK_INPUT + k);
@@ -220,9 +198,6 @@ struct PatchbayWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 		out->setActive(role == jxmp::Role::Out);
 	}
 
-	std::string serialLabel() const override {
-		return string::f("JX-PB%d · S/N ", N) + jxmp::serialNumber(module ? module->id : -1);
-	}
 
 	patchcore::PortSide portSide(const engine::Port::Type, const int portId) const override {
 		// Front ids come first in both port enums
