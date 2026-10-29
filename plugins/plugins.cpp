@@ -1234,6 +1234,7 @@ static void initStatic__JXMP()
         p->addModel(modelJXMPADSR);
         p->addModel(modelJXMPVCO);
         p->addModel(modelJXMPVCF);
+        p->addModel(modelJXMPLFO);
     }
 }
 
