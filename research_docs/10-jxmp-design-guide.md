@@ -84,7 +84,7 @@ inputs have light text. All JXMP sockets are on the back (Patchbay front jacks a
 - [x] Sided modules, JXMP plugin, Patchbay 4/8/16
 - [x] Voice set: JX-AMP (8 HP), JX-ENV (14 HP), JX-OSC (18 HP), JX-FLT (14 HP), all in the JXMP style
 - [x] Patchbay in the JXMP style (front numbers/LEDs, styled back with only back jacks; skip zero-size SmartPort halves)
-- [ ] Voice check: VCO → VCF → VCA with ADSR through Patchbays, save/reload, plugins/JXMP/README.md
+- [x] Voice check: VCO → VCF → VCA with ADSR through Patchbays, save/reload, plugins/JXMP/README.md
 - [ ] Next modules, modelled on the basic Fundamental set (DSP may be adapted from plugins/Fundamental, GPL-3, with attribution), one at a time, each: spec section here → pure-logic tests → module → screenshot check → merge + bump:
   1. JX-LFO (LFO) — colour violet `#9a6bd6`: sin/tri/saw/sqr outputs, rate (Hz scale), fine/offset/invert, PW, reset/sync, poly
   2. JX-NSE (Noise) — colour white-grey `#c9cbd0`: white/pink/red/violet/blue/grey/black outputs, level
