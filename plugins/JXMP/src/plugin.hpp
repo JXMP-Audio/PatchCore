@@ -18,3 +18,4 @@ extern Model* modelJXMPPatchbay16;
 extern Model* modelJXMPVCA;
 extern Model* modelJXMPADSR;
 extern Model* modelJXMPVCO;
+extern Model* modelJXMPVCF;

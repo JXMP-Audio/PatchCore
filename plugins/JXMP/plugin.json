@@ -62,6 +62,15 @@
         "VCO",
         "Polyphonic"
       ]
+    },
+    {
+      "slug": "VCF",
+      "name": "VCF",
+      "description": "JX-FLT: ladder VCF with lowpass, bandpass, highpass and notch, 12/24 dB, keytracking and envelope input",
+      "tags": [
+        "VCF",
+        "Polyphonic"
+      ]
     }
   ]
 }
