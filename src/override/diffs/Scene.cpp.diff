@@ -1,5 +1,5 @@
---- ../Rack/src/app/Scene.cpp	2026-10-28 20:37:04.964417223 +0100
-+++ Scene.cpp	2026-10-28 22:08:41.123550626 +0100
+--- ../Rack/src/app/Scene.cpp	2026-10-28 23:11:03.964909203 +0100
++++ Scene.cpp	2026-10-29 13:44:20.114107493 +0100
 @@ -1,12 +1,25 @@
 -#include <thread>
 -
@@ -29,7 +29,7 @@
  #include <system.hpp>
  #include <network.hpp>
  #include <history.hpp>
-@@ -14,6 +27,15 @@
+@@ -14,6 +27,16 @@
  #include <patch.hpp>
  #include <asset.hpp>
  
@@ -39,13 +39,14 @@
 +
 +#include "../CardinalCommon.hpp"
 +#include "../CardinalRemote.hpp"
++#include "../WindowParameters.hpp"
 +#include "../patchcore/PatchCore.hpp"
 +
 +#include <algorithm>
  
  namespace rack {
  namespace app {
-@@ -23,32 +45,77 @@
+@@ -23,32 +46,79 @@
  	math::Vec size;
  
  	void draw(const DrawArgs& args) override {
@@ -121,7 +122,9 @@
  
 -	double lastAutosaveTime = 0.0;
 +	// PatchCore workspace chrome, null on the Mini variant
-+	widget::Widget* dockedBrowser = nullptr;
++	widget::Widget* quickSearch = nullptr;
++	/** Cardinal's full-screen browser, used by the Classic look */
++	widget::Widget* classicBrowser = nullptr;
 +	widget::Widget* navigator = nullptr;
 +	widget::Widget* transportBar = nullptr;
  
@@ -132,7 +135,7 @@
  };
  
  
-@@ -60,20 +127,34 @@
+@@ -60,20 +130,41 @@
  
  	rack = rackScroll->rackWidget;
  
@@ -140,6 +143,7 @@
 +	if (!patchcoreSettingsLoaded) {
 +		patchcore::loadSettings();
 +		patchcoreSettingsLoaded = true;
++
 +	}
 +	patchcore::createRackFrame(rack);
 +
@@ -147,8 +151,6 @@
  	addChild(menuBar);
  
 +	if (!isMini()) {
-+		internal->dockedBrowser = patchcore::createDockedBrowser();
-+		addChild(internal->dockedBrowser);
 +		internal->navigator = patchcore::createNavigator();
 +		addChild(internal->navigator);
 +		internal->transportBar = patchcore::createTransportBar();
@@ -158,13 +160,20 @@
  	browser = browserCreate();
  	browser->hide();
  	addChild(browser);
++	internal->classicBrowser = browser;
  
 -	if (settings::showTipsOnLaunch) {
 -		addChild(tipWindowCreate());
--	}
++	// PatchCore: right-click on the rack and Enter open the quick search instead of the full-screen browser
++	if (!isMini()) {
++		internal->quickSearch = patchcore::createQuickSearch();
++		internal->quickSearch->hide();
++		addChild(internal->quickSearch);
+ 	}
+ 
 +	if (isStandalone() || isMini())
 +		return;
- 
++
  	internal->resizeHandle = new ResizeHandle;
 -	internal->resizeHandle->box.size = math::Vec(15, 15);
 -	internal->resizeHandle->hide();
@@ -172,7 +181,7 @@
  	addChild(internal->resizeHandle);
  }
  
-@@ -89,6 +170,8 @@
+@@ -89,6 +180,8 @@
  
  
  void Scene::step() {
@@ -181,7 +190,7 @@
  	if (APP->window->isFullScreen()) {
  		// Expand RackScrollWidget to cover entire screen if fullscreen
  		rackScroll->box.pos.y = 0;
-@@ -99,22 +182,52 @@
+@@ -99,22 +192,61 @@
  		rackScroll->box.pos.y = menuBar->box.size.y;
  	}
  
@@ -202,6 +211,18 @@
 -			settings::save();
 +	// PatchCore workspace: navigator on the right, transport at the bottom, rack in the remaining space
 +	patchcore::stepFlip();
++
++	// PatchCore: knobs turn with the mouse wheel (View → PatchCore → "Mouse wheel turns knobs"). Cardinal restores
++	// its settings from the window parameters before every event, so the value is stored there as well.
++	static const float kWheelSensitivity[3] = {0.0002f, 0.0005f, 0.001f};  // fine, normal, coarse
++	const float wheelSensitivity = kWheelSensitivity[math::clamp(patchcore::settings.wheelSensitivity, 0, 2)];
++	if (patchcore::enabled() && (settings::knobScroll != patchcore::settings.wheelKnobs ||
++	                             settings::knobScrollSensitivity != wheelSensitivity)) {
++		settings::knobScroll = patchcore::settings.wheelKnobs;
++		settings::knobScrollSensitivity = wheelSensitivity;
++		if (APP->window != nullptr)
++			WindowParametersSave(APP->window);
++	}
 +	math::Rect rackRect(0, rackScroll->box.pos.y, box.size.x, box.size.y - rackScroll->box.pos.y);
 +	const bool patchcoreChrome = patchcore::enabled() && !APP->window->isFullScreen();
 +
@@ -226,15 +247,12 @@
  		}
  	}
  
-+	if (internal->dockedBrowser != nullptr) {
-+		const bool visible = patchcoreChrome && patchcore::settings.browserDocked;
-+		internal->dockedBrowser->setVisible(visible);
-+		if (visible) {
-+			const float w = internal->dockedBrowser->box.size.x;
-+			internal->dockedBrowser->box.pos = rackRect.pos;
-+			internal->dockedBrowser->box.size.y = rackRect.size.y;
-+			rackRect.pos.x += w;
-+			rackRect.size.x -= w;
++	// The rack asks the scene's browser to open: point it at the quick search in the PatchCore look
++	if (internal->quickSearch != nullptr) {
++		widget::Widget* const wanted = patchcore::enabled() ? internal->quickSearch : internal->classicBrowser;
++		if (browser != wanted) {
++			browser->hide();
++			browser = wanted;
 +		}
 +	}
 +
@@ -243,7 +261,7 @@
  	// Scroll RackScrollWidget with arrow keys
  	math::Vec arrowDelta;
  	if (internal->heldArrowKeys[0]) {
-@@ -143,12 +256,77 @@
+@@ -143,12 +275,77 @@
  		rackScroll->offset += arrowDelta * arrowSpeed;
  	}
  
@@ -322,7 +340,7 @@
  }
  
  
-@@ -172,7 +350,7 @@
+@@ -172,7 +369,7 @@
  	if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
  		// DEBUG("key '%d '%c' scancode %d '%c' keyName '%s'", e.key, e.key, e.scancode, e.scancode, e.keyName.c_str());
  		if (e.keyName == "n" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
@@ -331,7 +349,7 @@
  			e.consume(this);
  		}
  		if (e.keyName == "q" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
-@@ -180,19 +358,25 @@
+@@ -180,19 +377,25 @@
  			e.consume(this);
  		}
  		if (e.keyName == "o" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
@@ -361,7 +379,7 @@
  			e.consume(this);
  		}
  		if (e.keyName == "z" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
-@@ -220,24 +404,47 @@
+@@ -220,24 +423,47 @@
  			APP->scene->rackScroll->setZoom(std::pow(2.f, zoom));
  			e.consume(this);
  		}
@@ -411,7 +429,7 @@
  
  		// Module selections
  		if (e.keyName == "a" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
-@@ -326,13 +533,6 @@
+@@ -326,13 +552,6 @@
  
  	// Key commands that can be overridden by children
  	if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
@@ -425,7 +443,7 @@
  		if (e.keyName == "v" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
  			rack->pasteClipboardAction();
  			e.consume(this);
-@@ -341,6 +541,23 @@
+@@ -341,6 +560,19 @@
  			browser->show();
  			e.consume(this);
  		}
@@ -437,10 +455,6 @@
 +				                                                                           : patchcore::VIEW_FRONT);
 +				e.consume(this);
 +			}
-+			if (e.keyName == "b") {
-+				patchcore::toggleBrowser();
-+				e.consume(this);
-+			}
 +			if (e.key == GLFW_KEY_SPACE) {
 +				patchcore::transportTogglePlay();
 +				e.consume(this);
@@ -449,7 +463,7 @@
  	}
  }
  
-@@ -351,7 +568,7 @@
+@@ -351,7 +583,7 @@
  		std::string extension = system::getExtension(path);
  
  		if (extension == ".vcv") {

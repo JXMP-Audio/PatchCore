@@ -33,6 +33,7 @@
 
 #include "../CardinalCommon.hpp"
 #include "../CardinalRemote.hpp"
+#include "../WindowParameters.hpp"
 #include "../patchcore/PatchCore.hpp"
 
 #include <algorithm>
@@ -108,7 +109,9 @@ struct Scene::Internal {
 	ResizeHandle* resizeHandle = nullptr;
 
 	// PatchCore workspace chrome, null on the Mini variant
-	widget::Widget* dockedBrowser = nullptr;
+	widget::Widget* quickSearch = nullptr;
+	/** Cardinal's full-screen browser, used by the Classic look */
+	widget::Widget* classicBrowser = nullptr;
 	widget::Widget* navigator = nullptr;
 	widget::Widget* transportBar = nullptr;
 
@@ -131,6 +134,7 @@ Scene::Scene() {
 	if (!patchcoreSettingsLoaded) {
 		patchcore::loadSettings();
 		patchcoreSettingsLoaded = true;
+
 	}
 	patchcore::createRackFrame(rack);
 
@@ -138,8 +142,6 @@ Scene::Scene() {
 	addChild(menuBar);
 
 	if (!isMini()) {
-		internal->dockedBrowser = patchcore::createDockedBrowser();
-		addChild(internal->dockedBrowser);
 		internal->navigator = patchcore::createNavigator();
 		addChild(internal->navigator);
 		internal->transportBar = patchcore::createTransportBar();
@@ -149,6 +151,14 @@ Scene::Scene() {
 	browser = browserCreate();
 	browser->hide();
 	addChild(browser);
+	internal->classicBrowser = browser;
+
+	// PatchCore: right-click on the rack and Enter open the quick search instead of the full-screen browser
+	if (!isMini()) {
+		internal->quickSearch = patchcore::createQuickSearch();
+		internal->quickSearch->hide();
+		addChild(internal->quickSearch);
+	}
 
 	if (isStandalone() || isMini())
 		return;
@@ -190,6 +200,18 @@ void Scene::step() {
 
 	// PatchCore workspace: navigator on the right, transport at the bottom, rack in the remaining space
 	patchcore::stepFlip();
+
+	// PatchCore: knobs turn with the mouse wheel (View → PatchCore → "Mouse wheel turns knobs"). Cardinal restores
+	// its settings from the window parameters before every event, so the value is stored there as well.
+	static const float kWheelSensitivity[3] = {0.0002f, 0.0005f, 0.001f};  // fine, normal, coarse
+	const float wheelSensitivity = kWheelSensitivity[math::clamp(patchcore::settings.wheelSensitivity, 0, 2)];
+	if (patchcore::enabled() && (settings::knobScroll != patchcore::settings.wheelKnobs ||
+	                             settings::knobScrollSensitivity != wheelSensitivity)) {
+		settings::knobScroll = patchcore::settings.wheelKnobs;
+		settings::knobScrollSensitivity = wheelSensitivity;
+		if (APP->window != nullptr)
+			WindowParametersSave(APP->window);
+	}
 	math::Rect rackRect(0, rackScroll->box.pos.y, box.size.x, box.size.y - rackScroll->box.pos.y);
 	const bool patchcoreChrome = patchcore::enabled() && !APP->window->isFullScreen();
 
@@ -214,15 +236,12 @@ void Scene::step() {
 		}
 	}
 
-	if (internal->dockedBrowser != nullptr) {
-		const bool visible = patchcoreChrome && patchcore::settings.browserDocked;
-		internal->dockedBrowser->setVisible(visible);
-		if (visible) {
-			const float w = internal->dockedBrowser->box.size.x;
-			internal->dockedBrowser->box.pos = rackRect.pos;
-			internal->dockedBrowser->box.size.y = rackRect.size.y;
-			rackRect.pos.x += w;
-			rackRect.size.x -= w;
+	// The rack asks the scene's browser to open: point it at the quick search in the PatchCore look
+	if (internal->quickSearch != nullptr) {
+		widget::Widget* const wanted = patchcore::enabled() ? internal->quickSearch : internal->classicBrowser;
+		if (browser != wanted) {
+			browser->hide();
+			browser = wanted;
 		}
 	}
 
@@ -547,10 +566,6 @@ void Scene::onHoverKey(const HoverKeyEvent& e) {
 			if (e.key == GLFW_KEY_TAB) {
 				patchcore::setViewSide(patchcore::targetViewSide() == patchcore::VIEW_FRONT ? patchcore::VIEW_BACK
 				                                                                           : patchcore::VIEW_FRONT);
-				e.consume(this);
-			}
-			if (e.keyName == "b") {
-				patchcore::toggleBrowser();
 				e.consume(this);
 			}
 			if (e.key == GLFW_KEY_SPACE) {
