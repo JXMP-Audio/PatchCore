@@ -131,7 +131,7 @@ struct ViewSegment : widget::OpaqueWidget {
 	std::vector<Item> items = {
 		{"Rack", "Tab"},
 		{"Back", ""},
-		{"Browser", "B"},
+		{"Search", "Enter"},
 		{"Mixer", ""},
 	};
 
@@ -139,7 +139,7 @@ struct ViewSegment : widget::OpaqueWidget {
 		switch (i) {
 			case 0: return targetViewSide() == VIEW_FRONT;
 			case 1: return targetViewSide() == VIEW_BACK;
-			case 2: return settings.browserDocked;
+			case 2: return APP->scene->browser->isVisible();
 			default: return false;
 		}
 	}
@@ -180,7 +180,7 @@ struct ViewSegment : widget::OpaqueWidget {
 		switch (i) {
 			case 0: setViewSide(VIEW_FRONT); break;
 			case 1: setViewSide(VIEW_BACK); break;
-			case 2: toggleBrowser(); break;
+			case 2: APP->scene->browser->show(); break;
 		}
 		e.consume(this);
 	}

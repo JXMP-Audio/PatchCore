@@ -57,9 +57,12 @@ struct Settings {
 	float sheen = 0.6f;
 	/** Draw mount screws on modules whose panel has no screw widgets */
 	bool mountScrews = true;
-	bool browserDocked = true;
 	bool navigatorVisible = true;
 	bool transportVisible = true;
+	/** Mouse wheel turns knobs (drives Rack's "scroll wheel knob control" in the PatchCore look) */
+	bool wheelKnobs = true;
+	/** Wheel sensitivity on knobs: 0 fine (one notch ≈ 1 %), 1 normal, 2 coarse (Rack's default) */
+	int wheelSensitivity = 0;
 };
 
 extern Settings settings;
@@ -123,9 +126,6 @@ void lcdText(NVGcontext* vg, float size, math::Vec pos, int align, const std::st
 /** Switch the rack between front and back, starting the flip animation. */
 void setViewSide(ViewSide side);
 
-/** Show or hide the docked module browser. */
-void toggleBrowser();
-
 /** Side the rack is flipping to (equals viewSide when no flip is running). */
 ViewSide targetViewSide();
 
@@ -170,9 +170,10 @@ void drawModuleBack(app::ModuleWidget* mw, const widget::Widget::DrawArgs& args)
 bool panelColorAt(app::ModuleWidget* mw, math::Vec point, float minArea, NVGcolor* color);
 
 
-// Docked browser (DockedBrowser.cpp, with module creation helpers in custom/Browser.cpp)
+// Quick search (QuickSearch.cpp, with module creation helpers in custom/Browser.cpp)
 
-widget::Widget* createDockedBrowser();
+/** Compact module finder opened at the mouse (QuickSearch.cpp). */
+widget::Widget* createQuickSearch();
 /** Fuzzy search over brand, plugin, name, description and tags; best matches first. */
 std::vector<plugin::Model*> searchModels(const std::string& search);
 /** Adds a module at the mouse position, like clicking it in the modal browser. */

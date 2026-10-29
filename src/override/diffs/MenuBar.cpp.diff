@@ -1,5 +1,5 @@
 --- ../Rack/src/app/MenuBar.cpp	2026-10-28 23:11:03.964293103 +0100
-+++ MenuBar.cpp	2026-10-28 23:52:04.211326074 +0100
++++ MenuBar.cpp	2026-10-29 13:44:20.114495985 +0100
 @@ -1,8 +1,33 @@
 +/*
 + * DISTRHO Cardinal Plugin
@@ -179,15 +179,15 @@
 +#endif
 +		menu->addChild(createMenuItem("New", NewShortcut, []() {
 +			patchUtils::loadTemplateDialog(false);
-+		}));
-+
+ 		}));
+ 
+-		menu->addChild(createMenuItem("Open", RACK_MOD_CTRL_NAME "+O", []() {
+-			APP->patch->loadDialog();
 +#if DISTRHO_PLUGIN_WANT_DIRECT_ACCESS
 +		menu->addChild(createMenuItem("New (factory template)", "", []() {
 +			patchUtils::loadTemplateDialog(true);
  		}));
  
--		menu->addChild(createMenuItem("Open", RACK_MOD_CTRL_NAME "+O", []() {
--			APP->patch->loadDialog();
 +#ifndef DISTRHO_OS_WASM
 +		constexpr const char* const OpenName = "Open...";
 +#else
@@ -195,8 +195,8 @@
 +#endif
 +		menu->addChild(createMenuItem(OpenName, RACK_MOD_CTRL_NAME "+O", []() {
 +			patchUtils::loadDialog();
- 		}));
- 
++		}));
++
 +		const std::string patchesDir = asset::user("patches");
 +		const std::vector<std::string> patches = system::isDirectory(patchesDir) ? system::getEntries(patchesDir) : std::vector<std::string>();
 +		menu->addChild(createSubmenuItem("Open local patch", "", [patches](ui::Menu* menu) {
@@ -236,7 +236,7 @@
 +				}
 +
 +				menu->addChild(new ui::MenuSeparator);
-+
+ 
 +				menu->addChild(createMenuItem("Open patchstorage.com for more patches", "", []() {
 +					patchUtils::openBrowser("https://patchstorage.com/platform/cardinal/");
 +				}));
@@ -249,7 +249,7 @@
 +		}, false, true));
 +
 +		menu->addChild(new ui::MenuSeparator);
- 
++
 +#ifndef DISTRHO_OS_WASM
  		menu->addChild(createMenuItem("Save", RACK_MOD_CTRL_NAME "+S", []() {
 -			APP->patch->saveDialog();
@@ -266,26 +266,26 @@
 +				wasmSaveAs();
 +			else
 +				patchUtils::saveDialog(APP->patch->path);
-+		}));
-+
-+		menu->addChild(createMenuItem("Save as...", "", []() {
-+			wasmSaveAs();
  		}));
  
 -		menu->addChild(createMenuItem("Save as", RACK_MOD_CTRL_NAME "+Shift+S", []() {
 -			APP->patch->saveAsDialog();
-+		menu->addChild(createMenuItem("Save and download compressed", "", []() {
-+			patchUtils::saveAsDialog();
++		menu->addChild(createMenuItem("Save as...", "", []() {
++			wasmSaveAs();
  		}));
  
 -		menu->addChild(createMenuItem("Save a copy", "", []() {
 -			APP->patch->saveAsDialog(false);
++		menu->addChild(createMenuItem("Save and download compressed", "", []() {
++			patchUtils::saveAsDialog();
+ 		}));
+ 
 +		menu->addChild(createMenuItem("Save and download uncompressed", "", []() {
 +			patchUtils::saveAsDialogUncompressed();
- 		}));
++		}));
 +#endif
 +#endif
- 
++
  		menu->addChild(createMenuItem("Revert", RACK_MOD_CTRL_NAME "+" RACK_MOD_SHIFT_NAME "+O", []() {
 -			APP->patch->revertDialog();
 -		}, APP->patch->path == ""));
@@ -458,7 +458,7 @@
  
  		menu->addChild(createBoolPtrMenuItem("Show tooltips", "", &settings::tooltips));
  
-@@ -459,10 +663,55 @@
+@@ -459,10 +663,65 @@
  		haloBrightnessSlider->box.size.x = 250.0;
  		menu->addChild(haloBrightnessSlider);
  
@@ -481,11 +481,21 @@
 +				[]() {patchcore::settings.mountScrews ^= true; patchcore::saveSettings();},
 +				!patchcore::enabled()
 +			));
-+			menu->addChild(createCheckMenuItem("Docked browser", "B",
-+				[]() {return patchcore::settings.browserDocked;},
-+				[]() {patchcore::toggleBrowser();},
++			menu->addChild(createCheckMenuItem("Mouse wheel turns knobs", "",
++				[]() {return patchcore::settings.wheelKnobs;},
++				[]() {patchcore::settings.wheelKnobs ^= true; patchcore::saveSettings();},
 +				!patchcore::enabled()
 +			));
++			{
++				static const char* const names[3] = {"Fine", "Normal", "Coarse"};
++				for (int i = 0; i < 3; ++i) {
++					menu->addChild(createCheckMenuItem(std::string("Wheel sensitivity: ") + names[i], "",
++						[=]() {return patchcore::settings.wheelSensitivity == i;},
++						[=]() {patchcore::settings.wheelSensitivity = i; patchcore::saveSettings();},
++						!patchcore::enabled() || !patchcore::settings.wheelKnobs
++					));
++				}
++			}
 +			menu->addChild(createCheckMenuItem("Navigator", "",
 +				[]() {return patchcore::settings.navigatorVisible;},
 +				[]() {patchcore::settings.navigatorVisible ^= true; patchcore::saveSettings();},
@@ -514,7 +524,7 @@
  
  		static const std::vector<std::string> knobModeLabels = {
  			"Linear",
-@@ -487,13 +736,34 @@
+@@ -487,13 +746,34 @@
  		menu->addChild(knobScrollSensitivitySlider);
  
  		menu->addChild(new ui::MenuSeparator);
@@ -553,7 +563,7 @@
  	}
  };
  
-@@ -503,48 +773,11 @@
+@@ -503,48 +783,11 @@
  ////////////////////
  
  
@@ -606,7 +616,7 @@
  	void onAction(const ActionEvent& e) override {
  		ui::Menu* menu = createMenu();
  		menu->cornerFlags = BND_CORNER_TOP;
-@@ -557,292 +790,87 @@
+@@ -557,292 +800,87 @@
  			settings::cpuMeter ^= true;
  		}));
  
@@ -963,7 +973,7 @@
  };
  
  
-@@ -852,63 +880,30 @@
+@@ -852,63 +890,30 @@
  
  
  struct HelpButton : MenuButton {
@@ -1035,7 +1045,7 @@
  	}
  };
  
-@@ -951,15 +946,19 @@
+@@ -951,15 +956,19 @@
  
  		text = "";
  
@@ -1058,7 +1068,7 @@
  
  		Label::step();
  	}
-@@ -967,18 +966,34 @@
+@@ -967,18 +976,34 @@
  
  
  struct MenuBar : widget::OpaqueWidget {
@@ -1097,7 +1107,7 @@
  		fileButton->text = "File";
  		layout->addChild(fileButton);
  
-@@ -990,15 +1005,13 @@
+@@ -990,15 +1015,13 @@
  		viewButton->text = "View";
  		layout->addChild(viewButton);
  
@@ -1116,7 +1126,7 @@
  		helpButton->text = "Help";
  		layout->addChild(helpButton);
  
-@@ -1009,6 +1022,12 @@
+@@ -1009,6 +1032,12 @@
  	}
  
  	void draw(const DrawArgs& args) override {
@@ -1129,7 +1139,7 @@
  		bndMenuBackground(args.vg, 0.0, 0.0, box.size.x, box.size.y, BND_CORNER_ALL);
  		bndBevel(args.vg, 0.0, 0.0, box.size.x, box.size.y);
  
-@@ -1016,7 +1035,35 @@
+@@ -1016,7 +1045,35 @@
  	}
  
  	void step() override {
@@ -1165,7 +1175,7 @@
  		infoLabel->box.size.x = box.size.x - infoLabel->box.pos.x - 5;
  		// Setting 50% alpha prevents Label from using the default UI theme color, so set the color manually here.
  		infoLabel->color = color::alpha(bndGetTheme()->regularTheme.textColor, 0.5);
-@@ -1028,7 +1075,7 @@
+@@ -1028,7 +1085,7 @@
  
  
  widget::Widget* createMenuBar() {

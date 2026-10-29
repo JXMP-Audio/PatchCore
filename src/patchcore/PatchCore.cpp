@@ -132,12 +132,14 @@ void loadSettings() {
 		settings.sheen = math::clamp((float) json_number_value(j), 0.f, 1.f);
 	if (json_t* const j = json_object_get(rootJ, "mountScrews"))
 		settings.mountScrews = json_boolean_value(j);
-	if (json_t* const j = json_object_get(rootJ, "browserDocked"))
-		settings.browserDocked = json_boolean_value(j);
 	if (json_t* const j = json_object_get(rootJ, "navigatorVisible"))
 		settings.navigatorVisible = json_boolean_value(j);
 	if (json_t* const j = json_object_get(rootJ, "transportVisible"))
 		settings.transportVisible = json_boolean_value(j);
+	if (json_t* const j = json_object_get(rootJ, "wheelKnobs"))
+		settings.wheelKnobs = json_boolean_value(j);
+	if (json_t* const j = json_object_get(rootJ, "wheelSensitivity"))
+		settings.wheelSensitivity = math::clamp((int) json_integer_value(j), 0, 2);
 
 	json_decref(rootJ);
 }
@@ -148,9 +150,10 @@ void saveSettings() {
 	json_object_set_new(rootJ, "theme", json_string(settings.theme == THEME_CLASSIC ? "classic" : "dark"));
 	json_object_set_new(rootJ, "sheen", json_real(settings.sheen));
 	json_object_set_new(rootJ, "mountScrews", json_boolean(settings.mountScrews));
-	json_object_set_new(rootJ, "browserDocked", json_boolean(settings.browserDocked));
 	json_object_set_new(rootJ, "navigatorVisible", json_boolean(settings.navigatorVisible));
 	json_object_set_new(rootJ, "transportVisible", json_boolean(settings.transportVisible));
+	json_object_set_new(rootJ, "wheelKnobs", json_boolean(settings.wheelKnobs));
+	json_object_set_new(rootJ, "wheelSensitivity", json_integer(settings.wheelSensitivity));
 
 	const std::string path = settingsPath();
 	if (json_dump_file(rootJ, path.c_str(), JSON_INDENT(2)) != 0)
@@ -219,10 +222,6 @@ ViewSide targetViewSide() {
 }
 
 
-void toggleBrowser() {
-	settings.browserDocked = !settings.browserDocked;
-	saveSettings();
-}
 
 
 double timeSinceFlip() {

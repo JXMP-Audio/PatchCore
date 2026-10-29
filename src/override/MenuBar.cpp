@@ -682,11 +682,21 @@ struct ViewButton : MenuButton {
 				[]() {patchcore::settings.mountScrews ^= true; patchcore::saveSettings();},
 				!patchcore::enabled()
 			));
-			menu->addChild(createCheckMenuItem("Docked browser", "B",
-				[]() {return patchcore::settings.browserDocked;},
-				[]() {patchcore::toggleBrowser();},
+			menu->addChild(createCheckMenuItem("Mouse wheel turns knobs", "",
+				[]() {return patchcore::settings.wheelKnobs;},
+				[]() {patchcore::settings.wheelKnobs ^= true; patchcore::saveSettings();},
 				!patchcore::enabled()
 			));
+			{
+				static const char* const names[3] = {"Fine", "Normal", "Coarse"};
+				for (int i = 0; i < 3; ++i) {
+					menu->addChild(createCheckMenuItem(std::string("Wheel sensitivity: ") + names[i], "",
+						[=]() {return patchcore::settings.wheelSensitivity == i;},
+						[=]() {patchcore::settings.wheelSensitivity = i; patchcore::saveSettings();},
+						!patchcore::enabled() || !patchcore::settings.wheelKnobs
+					));
+				}
+			}
 			menu->addChild(createCheckMenuItem("Navigator", "",
 				[]() {return patchcore::settings.navigatorVisible;},
 				[]() {patchcore::settings.navigatorVisible ^= true; patchcore::saveSettings();},
