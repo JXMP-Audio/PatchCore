@@ -267,7 +267,10 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 
 		// Serial plate, top right
 		const std::string serial = "S/N " + jxmp::serialNumber(module ? module->id : -1);
-		const math::Rect plate(math::Vec(w - mm2px(25.f), mm2px(3.2f)), mm2px(math::Vec(21.f, 6.6f)));
+		// Wide modules: top right next to the title; narrow ones: under the stripe, so the title stays readable
+		const bool narrow = w < mm2px(60.f);
+		const math::Rect plate(narrow ? math::Vec((w - mm2px(21.f)) / 2, mm2px(16.f)) : math::Vec(w - mm2px(25.f), mm2px(3.2f)),
+		                       mm2px(math::Vec(21.f, 6.6f)));
 		nvgBeginPath(vg);
 		nvgRoundedRect(vg, RECT_ARGS(plate), 2.f);
 		nvgFillPaint(vg, nvgLinearGradient(vg, 0, plate.pos.y, 0, plate.pos.y + plate.size.y, nvgRGB(0xd9, 0xdb, 0xdf), nvgRGB(0x9c, 0xa0, 0xa7)));

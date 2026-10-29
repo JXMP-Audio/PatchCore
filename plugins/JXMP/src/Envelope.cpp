@@ -104,34 +104,54 @@ struct Adsr : engine::Module {
 
 struct AdsrWidget : JXMPModuleWidget {
 	AdsrWidget(Adsr* const module) {
-		setup(module, "JX-ENV", nvgRGB(0xf2, 0xc2, 0x30), 10);
+		setup(module, "JX-ENV", nvgRGB(0xf2, 0xc2, 0x30), 14);
 
-		// Front: controls
-		const float xs[4] = {7.5f, 19.f, 31.5f, 43.3f};
-		const char* names[4] = {"A", "D", "S", "R"};
+		// Front: JXMP style (research_docs/10-jxmp-design-guide.md)
+		namespace st = jxmp::style;
+		styled();
+		const float nameSize = 7.5f;
+		const float xs[4] = {12.f, 27.f, 42.f, 57.f};
+		const char* names[4] = {"ATTACK", "DECAY", "SUSTAIN", "RELEASE"};
+		// Times follow MIN_TIME * LAMBDA_BASE^param: 1 ms, 100 ms in the middle, 10 s
+		const std::vector<st::Mark> timeMarks = {{0.f, "1ms"}, {0.25f, ""}, {0.5f, "100ms"}, {0.75f, ""}, {1.f, "10s"}};
+		const std::vector<st::Mark> levelMarks =
+			st::marks(0.f, 1.f, 0.1f, 5, [](float v) { return string::f("%d", (int) std::round(v * 100.f)); });
+
+		// ENVELOPE
+		section(4.f, 20.5f, 63.12f, 31.f, "ENVELOPE");
 		for (int i = 0; i < 4; ++i) {
-			label(math::Vec(xs[i], 24.f), names[i], 9.f);
-			addParam(createParamCentered<RoundBlackKnob>(mm2px(math::Vec(xs[i], 33.f)), module, Adsr::ATTACK_PARAM + i));
-			addChild(createLightCentered<SmallLight<YellowLight>>(mm2px(math::Vec(xs[i], 42.f)), module, Adsr::ATTACK_LIGHT + i));
-			addParam(createParamCentered<Trimpot>(mm2px(math::Vec(xs[i], 52.f)), module, Adsr::ATTACK_CV_PARAM + i));
+			label(math::Vec(xs[i], 25.5f), names[i], 6.8f);
+			knob(math::Vec(xs[i], 40.f), Adsr::ATTACK_PARAM + i, 9.f, st::CAP_WHITE, 0.f, 1.f, i == 2 ? levelMarks : timeMarks);
+			addChild(createLightCentered<TinyLight<YellowLight>>(mm2px(math::Vec(xs[i] + 6.2f, 25.5f)), module, Adsr::ATTACK_LIGHT + i));
 		}
-		label(math::Vec(25.4f, 58.5f), "CV AMOUNT", 6.f);
 
-		label(math::Vec(13.f, 70.f), "CURVE");
-		addParam(createParamCentered<RoundBigBlackKnob>(mm2px(math::Vec(13.f, 82.f)), module, Adsr::CURVE_PARAM));
-		label(math::Vec(36.f, 70.f), "ADSR · AD · LOOP", 6.f);
-		addParam(createParamCentered<CKSSThreeHorizontal>(mm2px(math::Vec(36.f, 78.f)), module, Adsr::MODE_PARAM));
-		label(math::Vec(36.f, 90.f), "PUSH");
-		addParam(createLightParamCentered<VCVLightBezel<WhiteLight>>(mm2px(math::Vec(36.f, 99.f)), module, Adsr::PUSH_PARAM, Adsr::PUSH_LIGHT));
+		// CV AMOUNT
+		section(4.f, 55.f, 63.12f, 24.f, "CV AMOUNT");
+		const char* cvNames[4] = {"A CV", "D CV", "S CV", "R CV"};
+		for (int i = 0; i < 4; ++i) {
+			label(math::Vec(xs[i], 60.f), cvNames[i], 6.8f);
+			knob(math::Vec(xs[i], 70.5f), Adsr::ATTACK_CV_PARAM + i, 7.f, st::CAP_GREY, -1.f, 1.f, st::bipolar());
+		}
+
+		// SHAPE · MODE
+		section(4.f, 83.f, 63.12f, 34.5f, "SHAPE · MODE");
+		label(math::Vec(15.f, 88.f), "CURVE", nameSize);
+		knob(math::Vec(15.f, 103.f), Adsr::CURVE_PARAM, 10.f, st::CAP_MAIN, -1.f, 1.f,
+		     {{-1.f, "LIN"}, {-0.5f, ""}, {0.f, "0"}, {0.5f, ""}, {1.f, "EXP"}});
+		icon(st::ICON_ENV, math::Vec(24.f, 88.f), 4.f);
+		label(math::Vec(38.f, 88.f), "MODE", nameSize);
+		toggle(math::Vec(38.f, 103.f), Adsr::MODE_PARAM, 3, {"LOOP", "AD", "ADSR"});
+		label(math::Vec(57.f, 88.f), "PUSH", nameSize);
+		addParam(createLightParamCentered<VCVLightBezel<WhiteLight>>(mm2px(math::Vec(57.f, 103.f)), module, Adsr::PUSH_PARAM, Adsr::PUSH_LIGHT));
 
 		// Back: sockets
-		addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(9.f, 32.f)), module, Adsr::GATE_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(9.f, 48.f)), module, Adsr::RETRIG_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(15.f, 30.f)), module, Adsr::GATE_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(15.f, 45.f)), module, Adsr::RETRIG_INPUT));
 		for (int i = 0; i < 4; ++i)
-			addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(25.4f, 32.f + i * 16.f)), module, Adsr::ATTACK_INPUT + i));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(41.8f, 32.f)), module, Adsr::ENV_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(41.8f, 48.f)), module, Adsr::INV_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(41.8f, 64.f)), module, Adsr::EOC_OUTPUT));
+			addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(33.f, 30.f + i * 15.f)), module, Adsr::ATTACK_INPUT + i));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(55.f, 30.f)), module, Adsr::ENV_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(55.f, 45.f)), module, Adsr::INV_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(55.f, 60.f)), module, Adsr::EOC_OUTPUT));
 	}
 };
 
