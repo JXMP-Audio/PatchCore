@@ -90,6 +90,10 @@ static void collectPorts(widget::Widget* const w, app::ModuleWidget* const mw, s
 
 
 void drawBackPanel(app::ModuleWidget* const mw, NVGcontext* const vg) {
+	if (SidedModuleWidget* const sided = dynamic_cast<SidedModuleWidget*>(mw)) {
+		if (sided->drawStyledBack(vg))
+			return;
+	}
 	const Theme& t = theme();
 	const float w = mw->box.size.x;
 	const float h = mw->box.size.y;

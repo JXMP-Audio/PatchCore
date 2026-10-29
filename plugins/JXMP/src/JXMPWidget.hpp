@@ -9,6 +9,7 @@
 #include "Serial.hpp"
 #include "JXMPStyle.hpp"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -41,6 +42,8 @@ struct JXMPPanelDecor : widget::TransparentWidget {
 		float width;    // px
 	};
 	bool styled = false;
+	/** Patina seed: the unit's serial, so every unit wears a little differently */
+	uint32_t seed = 1;
 	std::vector<Section> sections;
 	std::vector<Scale> scales;
 	std::vector<IconMark> icons;
@@ -71,34 +74,34 @@ struct JXMPPanelDecor : widget::TransparentWidget {
 		nvgFillColor(vg, stripe);
 		nvgFill(vg);
 
-		st::text(vg, math::Vec(w / 2, mm2px(6.6f)), title, 15.f, st::legend(), true, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 1.5f);
-		st::text(vg, math::Vec(w / 2, h - mm2px(4.5f)), "JXMP AUDIO", 9.f, st::legendDim(), true, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 2.f);
+		st::patina(vg, box.size, seed);
+		st::text(vg, math::Vec(w / 2, mm2px(6.6f)), title, 21.f, st::legend(), st::FONT_TITLE, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.8f);
+		st::text(vg, math::Vec(w / 2, h - mm2px(4.5f)), "JXMP AUDIO", 8.5f, st::legendDim(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 2.f);
 
-		// Framed sections with the title cut into the top line
+		// Sections: a divider line across the panel with the title cut into it
 		for (const Section& sec : sections) {
 			const math::Rect& r = sec.rect;
+			const float y = r.pos.y;
+			float tw = 0.f;
+			std::shared_ptr<window::Font> f = st::font(st::FONT_LABEL);
+			if (f && !sec.title.empty()) {
+				nvgFontFaceId(vg, f->handle);
+				nvgFontSize(vg, 8.5f);
+				nvgTextLetterSpacing(vg, 1.2f);
+				float bounds[4];
+				tw = nvgTextBounds(vg, 0, 0, sec.title.c_str(), nullptr, bounds);
+			}
+			const float tx = r.pos.x + mm2px(2.f);
 			nvgBeginPath(vg);
-			nvgRoundedRect(vg, RECT_ARGS(r), mm2px(1.2f));
-			nvgStrokeWidth(vg, 1.f);
+			nvgMoveTo(vg, r.pos.x, y);
+			nvgLineTo(vg, tx - 3.f, y);
+			nvgMoveTo(vg, tx + tw + 3.f, y);
+			nvgLineTo(vg, r.pos.x + r.size.x, y);
+			nvgStrokeWidth(vg, 0.9f);
 			nvgStrokeColor(vg, st::line());
 			nvgStroke(vg);
-			if (!sec.title.empty()) {
-				std::shared_ptr<window::Font> f = st::font(true);
-				float tw = 30.f;
-				if (f) {
-					nvgFontFaceId(vg, f->handle);
-					nvgFontSize(vg, 9.f);
-					nvgTextLetterSpacing(vg, 1.f);
-					float bounds[4];
-					tw = nvgTextBounds(vg, 0, 0, sec.title.c_str(), nullptr, bounds);
-				}
-				const float tx = r.pos.x + mm2px(3.f);
-				nvgBeginPath(vg);
-				nvgRect(vg, tx - 3.f, r.pos.y - 5.f, tw + 6.f, 10.f);
-				nvgFillColor(vg, st::panel());
-				nvgFill(vg);
-				st::text(vg, math::Vec(tx, r.pos.y), sec.title, 9.f, stripe, true, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, 1.f);
-			}
+			if (!sec.title.empty())
+				st::text(vg, math::Vec(tx, y), sec.title, 8.5f, stripe, st::FONT_LABEL, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, 1.2f);
 		}
 
 		// Knob scales: a tick at every mark, longer with a label at labelled marks
@@ -117,8 +120,8 @@ struct JXMPPanelDecor : widget::TransparentWidget {
 				nvgStroke(vg);
 				if (major) {
 					const float rn = r1 + mm2px(1.9f);
-					st::text(vg, math::Vec(sc.center.x + std::cos(a) * rn, sc.center.y + std::sin(a) * rn), m.label, 7.f,
-					         st::legendDim(), false, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.2f);
+					st::text(vg, math::Vec(sc.center.x + std::cos(a) * rn, sc.center.y + std::sin(a) * rn), m.label, 6.5f,
+					         st::legendDim(), st::FONT_NUMBER, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.1f);
 				}
 			}
 		}
@@ -127,7 +130,7 @@ struct JXMPPanelDecor : widget::TransparentWidget {
 			st::icon(vg, ic.type, ic.pos, ic.width, st::legend());
 
 		for (const Label& l : labels)
-			st::text(vg, l.pos, l.text, l.size + 2.f, st::legend(), true, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.8f);
+			st::text(vg, l.pos, l.text, l.size + 0.5f, st::legend(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.5f);
 	}
 
 	void draw(const DrawArgs& args) override {
@@ -186,6 +189,7 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 	/** Switches this module to the JXMP style and adds the panel screws. */
 	void styled() {
 		decor->styled = true;
+		decor->seed = patinaSeed();
 		addChild(createWidget<ScrewBlack>(math::Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(math::Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		if (box.size.x > 8 * RACK_GRID_WIDTH) {
@@ -208,9 +212,9 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 		k->box.pos = mm2px(mm).minus(k->box.size.div(2));
 		switch (cap) {
 		case jxmp::style::CAP_MAIN: k->cap = decor->stripe; break;
-		case jxmp::style::CAP_WHITE: k->cap = nvgRGB(0xe8, 0xe6, 0xe0); break;
-		case jxmp::style::CAP_GREY: k->cap = nvgRGB(0x7c, 0x80, 0x88); break;
-		default: k->cap = nvgRGB(0x26, 0x27, 0x2a); break;
+		case jxmp::style::CAP_WHITE: k->cap = nvgRGB(0x16, 0x16, 0x18); break;
+		case jxmp::style::CAP_GREY: k->cap = nvgRGB(0x5a, 0x6c, 0x84); break;
+		default: k->cap = nvgRGB(0xf2, 0xf2, 0xf2); k->blackCap = true; break;
 		}
 		addParam(k);
 		std::vector<jxmp::style::Mark> norm = marks;
@@ -218,6 +222,82 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 			m.t = math::clamp((m.t - minValue) / (maxValue - minValue), 0.f, 1.f);
 		decor->scales.push_back({mm2px(mm), k->box.size.x / 2, norm});
 		return k;
+	}
+
+	uint32_t patinaSeed() const {
+		uint32_t h = 2166136261u;
+		for (char ch : (module ? jxmp::serialNumber(module->id) : code))
+			h = (h ^ (uint8_t) ch) * 16777619u;
+		return h;
+	}
+
+	/** Chrome toggle centred at `mm` with `positions` (2 or 3) and legends from the top position down. */
+	void toggle(math::Vec mm, int paramId, int positions, const std::vector<std::string>& legends) {
+		jxmp::style::Toggle* const t = createParam<jxmp::style::Toggle>(math::Vec(), module, paramId);
+		t->positions = positions;
+		t->box.pos = mm2px(mm).minus(t->box.size.div(2));
+		addParam(t);
+		for (size_t i = 0; i < legends.size(); ++i) {
+			const float dy = positions == 3 ? (i == 0 ? -6.6f : i == 1 ? 0.f : 6.6f) : (i == 0 ? -6.6f : 6.6f);
+			label(mm.plus(math::Vec(positions == 3 && i == 1 ? -5.f : 0.f, dy)), legends[i].c_str(), 6.f);
+		}
+	}
+
+	/** Back plate in the same style as the front: anthracite with patina, title, serial plate, jack legends,
+	outputs on a light field. */
+	bool drawStyledBack(NVGcontext* const vg) override {
+		if (!decor->styled)
+			return false;
+		namespace st = jxmp::style;
+		const float w = box.size.x, h = box.size.y;
+		nvgBeginPath(vg);
+		nvgRect(vg, 0, 0, w, h);
+		nvgFillColor(vg, st::panel());
+		nvgFill(vg);
+		nvgBeginPath(vg);
+		nvgRect(vg, 0, 0, w, mm2px(12.5f));
+		nvgFillColor(vg, st::panelDark());
+		nvgFill(vg);
+		nvgBeginPath(vg);
+		nvgRect(vg, 0, mm2px(12.5f), w, mm2px(1.2f));
+		nvgFillColor(vg, decor->stripe);
+		nvgFill(vg);
+		st::patina(vg, box.size, patinaSeed() ^ 0x9e3779b9u);
+		st::text(vg, math::Vec(mm2px(4.f), mm2px(6.6f)), code, 15.f, st::legend(), st::FONT_TITLE, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, 0.6f);
+
+		// Serial plate, top right
+		const std::string serial = "S/N " + jxmp::serialNumber(module ? module->id : -1);
+		const math::Rect plate(math::Vec(w - mm2px(25.f), mm2px(3.2f)), mm2px(math::Vec(21.f, 6.6f)));
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg, RECT_ARGS(plate), 2.f);
+		nvgFillPaint(vg, nvgLinearGradient(vg, 0, plate.pos.y, 0, plate.pos.y + plate.size.y, nvgRGB(0xd9, 0xdb, 0xdf), nvgRGB(0x9c, 0xa0, 0xa7)));
+		nvgFill(vg);
+		nvgStrokeWidth(vg, 0.6f);
+		nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.55f));
+		nvgStroke(vg);
+		st::text(vg, plate.getCenter(), serial, 8.f, nvgRGB(0x26, 0x28, 0x2c), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.6f);
+
+		// Jack legends; outputs on a light field like on hardware
+		for (app::PortWidget* const port : getPorts()) {
+			const math::Vec c = port->getRelativeOffset(port->box.size.div(2), this);
+			std::string name = port->getPortInfo() ? port->getPortInfo()->name : std::string();
+			const size_t paren = name.find(" (");
+			if (paren != std::string::npos)
+				name = name.substr(0, paren);
+			name = string::uppercase(name);
+			const bool out = port->type == engine::Port::OUTPUT;
+			if (out) {
+				const math::Rect field(c.minus(mm2px(math::Vec(5.f, 5.f))), mm2px(math::Vec(10.f, 13.5f)));
+				nvgBeginPath(vg);
+				nvgRoundedRect(vg, RECT_ARGS(field), 2.f);
+				nvgFillColor(vg, nvgRGB(0xc9, 0xcb, 0xcf));
+				nvgFill(vg);
+			}
+			st::text(vg, c.plus(mm2px(math::Vec(0.f, 6.3f))), name, 7.f, out ? nvgRGB(0x22, 0x23, 0x26) : st::legend(), st::FONT_LABEL,
+			         NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.3f);
+		}
+		st::text(vg, math::Vec(w / 2, h - mm2px(4.5f)), "JXMP AUDIO", 8.5f, st::legendDim(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 2.f);
+		return true;
 	}
 
 	void icon(jxmp::style::Icon type, math::Vec mm, float widthMm = 4.f) {

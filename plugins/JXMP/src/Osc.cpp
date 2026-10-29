@@ -163,14 +163,10 @@ struct OscWidget : JXMPModuleWidget {
 		     {{-2.f, "-2"}, {-1.f, ""}, {0.f, "0"}, {1.f, ""}, {2.f, "+2"}});
 		label(math::Vec(56.f, pName), "FM", nameSize);
 		knob(math::Vec(56.f, pRow), Osc::FM_PARAM, 7.f, st::CAP_GREY, -1.f, 1.f, st::bipolar());
-		label(math::Vec(70.f, pName), "FM MODE", nameSize);
-		label(math::Vec(70.f, pRow - 6.2f), "LIN", 6.f);
-		addParam(createParamCentered<CKSS>(mm2px(math::Vec(70.f, pRow)), module, Osc::LINEAR_PARAM));
-		label(math::Vec(70.f, pRow + 6.2f), "EXP", 6.f);
-		label(math::Vec(81.f, pName), "SYNC", nameSize);
-		label(math::Vec(81.f, pRow - 6.2f), "HARD", 6.f);
-		addParam(createParamCentered<CKSS>(mm2px(math::Vec(81.f, pRow)), module, Osc::SYNC_PARAM));
-		label(math::Vec(81.f, pRow + 6.2f), "SOFT", 6.f);
+		label(math::Vec(68.f, pName), "FM MODE", nameSize);
+		toggle(math::Vec(68.f, pRow), Osc::LINEAR_PARAM, 2, {"LIN", "EXP"});
+		label(math::Vec(79.f, pName), "SYNC", nameSize);
+		toggle(math::Vec(79.f, pRow), Osc::SYNC_PARAM, 2, {"HARD", "SOFT"});
 
 		// SHAPE
 		section(4.f, 57.f, 83.44f, 31.f, "SHAPE");
@@ -203,10 +199,8 @@ struct OscWidget : JXMPModuleWidget {
 		label(math::Vec(54.f, uName), "SUB LEVEL", nameSize);
 		knob(math::Vec(54.f, uRow), Osc::SUB_LEVEL_PARAM, 9.f, st::CAP_WHITE, 0.f, 1.f,
 		     st::marks(0.f, 1.f, 0.1f, 5, [](float v) { return string::f("%d", (int) std::round(v * 100.f)); }));
-		label(math::Vec(74.f, uName), "SUB OCT", nameSize);
-		label(math::Vec(74.f, uRow - 6.2f), "-2", 6.f);
-		addParam(createParamCentered<CKSS>(mm2px(math::Vec(74.f, uRow)), module, Osc::SUB_OCT_PARAM));
-		label(math::Vec(74.f, uRow + 6.2f), "-1", 6.f);
+		label(math::Vec(72.f, uName), "SUB OCT", nameSize);
+		toggle(math::Vec(72.f, uRow), Osc::SUB_OCT_PARAM, 2, {"-2", "-1"});
 
 		// Back: sockets
 		for (int i = 0; i < Osc::NUM_INPUTS; ++i)

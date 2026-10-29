@@ -10,6 +10,7 @@
 
 #include "plugin.hpp"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -22,22 +23,28 @@ inline NVGcolor line() { return nvgRGB(0x5c, 0x5f, 0x66); }
 inline NVGcolor legend() { return nvgRGB(0xe6, 0xe7, 0xea); }
 inline NVGcolor legendDim() { return nvgRGB(0x9a, 0x9d, 0xa4); }
 
-/** Cap colours by function, the same in every module */
+/** Pointer colours by function, the same in every module (caps are polished aluminium) */
 enum Cap {
 	CAP_MAIN,    // the module colour: the main parameter
-	CAP_WHITE,   // times, levels, amounts of sound
-	CAP_GREY,    // CV / modulation amounts
-	CAP_BLACK,   // selectors and stepped knobs
+	CAP_WHITE,   // times, levels, amounts of sound: black pointer
+	CAP_GREY,    // CV / modulation amounts: grey pointer
+	CAP_BLACK,   // selectors and stepped knobs: black cap, white pointer
 };
 
-inline std::shared_ptr<window::Font> font(bool semibold = true) {
-	return APP->window->loadFont(asset::plugin(pluginInstance,
-		semibold ? "res/fonts/BarlowCondensed-SemiBold.ttf" : "res/fonts/BarlowCondensed-Medium.ttf"));
+enum FontId { FONT_LABEL, FONT_NUMBER, FONT_TITLE };
+
+inline std::shared_ptr<window::Font> font(FontId id) {
+	const char* const files[3] = {"res/fonts/Barlow-SemiBold.ttf", "res/fonts/Barlow-Medium.ttf", "res/fonts/Barlow-BoldItalic.ttf"};
+	return APP->window->loadFont(asset::plugin(pluginInstance, files[id]));
 }
 
-inline void text(NVGcontext* vg, math::Vec pos, const std::string& s, float size, NVGcolor color, bool semibold = true,
-                 int align = NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, float spacing = 0.6f) {
-	std::shared_ptr<window::Font> f = font(semibold);
+inline std::shared_ptr<window::Font> font(bool semibold = true) {
+	return font(semibold ? FONT_LABEL : FONT_NUMBER);
+}
+
+inline void text(NVGcontext* vg, math::Vec pos, const std::string& s, float size, NVGcolor color, FontId fontId,
+                 int align = NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, float spacing = 0.4f) {
+	std::shared_ptr<window::Font> f = font(fontId);
 	if (!f)
 		return;
 	nvgFontFaceId(vg, f->handle);
@@ -48,6 +55,60 @@ inline void text(NVGcontext* vg, math::Vec pos, const std::string& s, float size
 	nvgText(vg, pos.x, pos.y, s.c_str(), nullptr);
 }
 
+inline void text(NVGcontext* vg, math::Vec pos, const std::string& s, float size, NVGcolor color, bool semibold = true,
+                 int align = NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, float spacing = 0.4f) {
+	text(vg, pos, s, size, color, semibold ? FONT_LABEL : FONT_NUMBER, align, spacing);
+}
+
+
+/** Small deterministic random generator for the per-unit patina */
+struct Rng {
+	uint32_t state;
+	explicit Rng(uint32_t seed) : state(seed * 2654435761u + 1u) {}
+	float next() {
+		state ^= state << 13;
+		state ^= state >> 17;
+		state ^= state << 5;
+		return (state & 0xffffff) / float(0x1000000);
+	}
+};
+
+/** Subtle wear: worn lighter edges and faint scratches, different for every unit (`seed`). */
+inline void patina(NVGcontext* vg, math::Vec size, uint32_t seed) {
+	// Worn edges
+	const float e = mm2px(2.5f);
+	nvgBeginPath(vg);
+	nvgRect(vg, 0, 0, size.x, size.y);
+	nvgPathWinding(vg, NVG_CCW);
+	nvgRect(vg, e, e, size.x - 2 * e, size.y - 2 * e);
+	nvgPathWinding(vg, NVG_CW);
+	nvgFillPaint(vg, nvgBoxGradient(vg, 0, 0, size.x, size.y, e, e * 1.5f, nvgRGBAf(1, 1, 1, 0), nvgRGBAf(1, 1, 1, 0.05f)));
+	nvgFill(vg);
+
+	Rng rng(seed);
+	const int count = 26 + (int) (rng.next() * 18);
+	nvgLineCap(vg, NVG_ROUND);
+	for (int i = 0; i < count; ++i) {
+		const float x = rng.next() * size.x, y = rng.next() * size.y;
+		const float a = rng.next() * 2.f * M_PI;
+		const float len = mm2px(0.8f + rng.next() * rng.next() * 7.f);
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, x, y);
+		nvgQuadTo(vg, x + std::cos(a) * len * 0.5f + (rng.next() - 0.5f) * 3.f, y + std::sin(a) * len * 0.5f,
+		          x + std::cos(a) * len, y + std::sin(a) * len);
+		nvgStrokeWidth(vg, 0.4f + rng.next() * 0.5f);
+		nvgStrokeColor(vg, nvgRGBAf(1, 1, 1, 0.025f + rng.next() * 0.045f));
+		nvgStroke(vg);
+	}
+	// A few faint rub marks
+	for (int i = 0; i < 4; ++i) {
+		const float x = rng.next() * size.x, y = rng.next() * size.y, r = mm2px(2.f + rng.next() * 5.f);
+		nvgBeginPath(vg);
+		nvgCircle(vg, x, y, r);
+		nvgFillPaint(vg, nvgRadialGradient(vg, x, y, 0, r, nvgRGBAf(1, 1, 1, 0.025f), nvgRGBAf(1, 1, 1, 0)));
+		nvgFill(vg);
+	}
+}
 
 /** One scale position: `t` = the parameter value (normalised by JXMPModuleWidget::knob), a label for major marks. */
 struct Mark {
@@ -76,7 +137,9 @@ inline std::vector<Mark> bipolar() {
 /** Knob with a ridged black body, a coloured cap and a white pointer. `diameterMm` sets its size. */
 struct Knob : app::Knob {
 	float diameterMm = 10.f;
-	NVGcolor cap = nvgRGB(0xee, 0xee, 0xee);
+	/** Pointer colour */
+	NVGcolor cap = nvgRGB(0x18, 0x18, 0x1a);
+	bool blackCap = false;
 
 	Knob() {
 		minAngle = -0.83f * M_PI;
@@ -121,28 +184,132 @@ struct Knob : app::Knob {
 			nvgStroke(vg);
 		}
 
-		// Cap
+		// Cap: polished aluminium (black for selectors) with concentric machining rings
 		const float cr = r * 0.72f;
 		nvgBeginPath(vg);
 		nvgCircle(vg, c.x, c.y, cr);
-		nvgFillPaint(vg, nvgLinearGradient(vg, c.x, c.y - cr, c.x, c.y + cr, color::plus(cap, nvgRGBf(0.12f, 0.12f, 0.12f)), color::mult(cap, 0.78f)));
+		if (blackCap)
+			nvgFillPaint(vg, nvgLinearGradient(vg, c.x, c.y - cr, c.x, c.y + cr, nvgRGB(0x3a, 0x3b, 0x3f), nvgRGB(0x16, 0x16, 0x18)));
+		else
+			nvgFillPaint(vg, nvgLinearGradient(vg, c.x - cr, c.y - cr, c.x + cr, c.y + cr, nvgRGB(0xf2, 0xf3, 0xf5), nvgRGB(0x8a, 0x8e, 0x95)));
 		nvgFill(vg);
+		if (!blackCap) {
+			nvgStrokeWidth(vg, 0.5f);
+			for (int i = 1; i <= 3; ++i) {
+				nvgBeginPath(vg);
+				nvgCircle(vg, c.x, c.y, cr * (0.3f + 0.22f * i));
+				nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.07f));
+				nvgStroke(vg);
+			}
+			// Specular sweep
+			nvgBeginPath(vg);
+			nvgCircle(vg, c.x, c.y, cr);
+			nvgFillPaint(vg, nvgRadialGradient(vg, c.x - cr * 0.35f, c.y - cr * 0.4f, 0, cr * 0.9f, nvgRGBAf(1, 1, 1, 0.45f), nvgRGBAf(1, 1, 1, 0)));
+			nvgFill(vg);
+		}
+		nvgBeginPath(vg);
+		nvgCircle(vg, c.x, c.y, cr);
 		nvgStrokeWidth(vg, 0.6f);
-		nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.5f));
+		nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.55f));
 		nvgStroke(vg);
 
-		// Pointer
+		// Pointer line in the function colour
 		const float a = angle() - M_PI / 2;
-		const bool lightCap = (cap.r + cap.g + cap.b) / 3.f > 0.6f;
 		nvgBeginPath(vg);
-		nvgMoveTo(vg, c.x + std::cos(a) * r * 0.2f, c.y + std::sin(a) * r * 0.2f);
+		nvgMoveTo(vg, c.x + std::cos(a) * r * 0.15f, c.y + std::sin(a) * r * 0.15f);
 		nvgLineTo(vg, c.x + std::cos(a) * r * 0.92f, c.y + std::sin(a) * r * 0.92f);
-		nvgStrokeWidth(vg, std::max(1.2f, r * 0.13f));
+		nvgStrokeWidth(vg, std::max(1.3f, r * 0.14f));
 		nvgLineCap(vg, NVG_ROUND);
-		nvgStrokeColor(vg, lightCap ? nvgRGB(0x18, 0x18, 0x1a) : nvgRGB(0xf4, 0xf4, 0xf4));
+		nvgStrokeColor(vg, cap);
 		nvgStroke(vg);
 
 		app::Knob::draw(args);
+	}
+};
+
+
+/** Chrome bat-handle toggle with an LED next to every position (top = highest value).
+`positions` is 2 or 3; the LEDs sit to the right at the lever's end positions. */
+struct Toggle : app::Switch {
+	int positions = 2;
+
+	Toggle() {
+		box.size = mm2px(math::Vec(7.f, 10.f));
+	}
+
+	int index() {
+		engine::ParamQuantity* const pq = getParamQuantity();
+		if (!pq)
+			return 0;
+		return (int) std::round(pq->getValue() - pq->getMinValue());
+	}
+
+	void draw(const DrawArgs& args) override {
+		NVGcontext* const vg = args.vg;
+		const math::Vec c = box.size.div(2);
+		const float nut = mm2px(2.2f);
+		const int idx = index();
+		// -1 = up (highest value), 0 = centre, 1 = down
+		const float dir = positions == 3 ? (idx == 2 ? -1.f : idx == 1 ? 0.f : 1.f) : (idx >= 1 ? -1.f : 1.f);
+
+		// LEDs
+		for (int p = 0; p < positions; ++p) {
+			const float py = positions == 3 ? (p == 2 ? -1.f : p == 1 ? 0.f : 1.f) : (p >= 1 ? -1.f : 1.f);
+			const math::Vec lp(c.x + mm2px(4.6f), c.y + py * mm2px(3.6f));
+			const bool on = p == idx;
+			nvgBeginPath(vg);
+			nvgCircle(vg, lp.x, lp.y, mm2px(0.85f));
+			nvgFillColor(vg, on ? nvgRGB(0x5d, 0xf0, 0x6a) : nvgRGB(0x1d, 0x2a, 0x1f));
+			nvgFill(vg);
+			nvgStrokeWidth(vg, 0.5f);
+			nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.6f));
+			nvgStroke(vg);
+			if (on) {
+				nvgBeginPath(vg);
+				nvgCircle(vg, lp.x, lp.y, mm2px(2.2f));
+				nvgFillPaint(vg, nvgRadialGradient(vg, lp.x, lp.y, mm2px(0.5f), mm2px(2.2f), nvgRGBAf(0.36f, 0.94f, 0.42f, 0.35f), nvgRGBAf(0.36f, 0.94f, 0.42f, 0)));
+				nvgFill(vg);
+			}
+		}
+
+		// Hex nut and washer
+		nvgBeginPath(vg);
+		nvgCircle(vg, c.x + 0.6f, c.y + 1.2f, nut * 1.1f);
+		nvgFillColor(vg, nvgRGBAf(0, 0, 0, 0.45f));
+		nvgFill(vg);
+		nvgBeginPath(vg);
+		for (int i = 0; i < 6; ++i) {
+			const float a = M_PI / 6 + i * M_PI / 3;
+			if (i == 0) nvgMoveTo(vg, c.x + std::cos(a) * nut, c.y + std::sin(a) * nut);
+			else nvgLineTo(vg, c.x + std::cos(a) * nut, c.y + std::sin(a) * nut);
+		}
+		nvgClosePath(vg);
+		nvgFillPaint(vg, nvgLinearGradient(vg, c.x - nut, c.y - nut, c.x + nut, c.y + nut, nvgRGB(0xe4, 0xe6, 0xe9), nvgRGB(0x6a, 0x6e, 0x75)));
+		nvgFill(vg);
+		nvgStrokeWidth(vg, 0.6f);
+		nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.6f));
+		nvgStroke(vg);
+
+		// Lever, seen from the front: a tapered chrome bat pointing up, down or straight out
+		const float len = mm2px(3.8f) * std::fabs(dir);
+		const math::Vec tip(c.x, c.y + dir * len);
+		if (dir != 0.f) {
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, c.x - mm2px(0.55f), c.y);
+			nvgLineTo(vg, tip.x - mm2px(0.85f), tip.y);
+			nvgLineTo(vg, tip.x + mm2px(0.85f), tip.y);
+			nvgLineTo(vg, c.x + mm2px(0.55f), c.y);
+			nvgClosePath(vg);
+			nvgFillPaint(vg, nvgLinearGradient(vg, c.x - mm2px(0.9f), 0, c.x + mm2px(0.9f), 0, nvgRGB(0x9a, 0x9e, 0xa5), nvgRGB(0xf6, 0xf7, 0xf9)));
+			nvgFill(vg);
+		}
+		nvgBeginPath(vg);
+		nvgCircle(vg, tip.x, tip.y, mm2px(1.05f));
+		nvgFillPaint(vg, nvgRadialGradient(vg, tip.x - mm2px(0.3f), tip.y - mm2px(0.3f), 0, mm2px(1.1f), nvgRGB(0xff, 0xff, 0xff), nvgRGB(0x80, 0x84, 0x8b)));
+		nvgFill(vg);
+		nvgStrokeWidth(vg, 0.5f);
+		nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.5f));
+		nvgStroke(vg);
 	}
 };
 
