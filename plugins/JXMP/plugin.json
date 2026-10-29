@@ -132,6 +132,15 @@
         "Random",
         "Sample and hold"
       ]
+    },
+    {
+      "slug": "Slew",
+      "name": "Slew",
+      "description": "JX-SLW: slew limiter and glide with separate rise and fall times, linear or exponential",
+      "tags": [
+        "Slew limiter",
+        "Polyphonic"
+      ]
     }
   ]
 }
