@@ -15,6 +15,7 @@ A Reason-inspired, realistic frontend for Cardinal (a VCV Rack fork).
 | [09-plan-jxmp-voice-modules.md](09-plan-jxmp-voice-modules.md) | Implementation plan for 06, task by task |
 | [10-jxmp-design-guide.md](10-jxmp-design-guide.md) | JXMP design guide: cap colours, panel, scales, switches, wear, plan |
 | [11-views-console-editor-design.md](11-views-console-editor-design.md) | Draft: plugin vs standalone views, JX-CONSOLE + Mixer view, piano-roll Editor |
+| [STATUS.md](STATUS.md) | Handoff: what is done, what is in progress, what comes next (kept current every session) |
 | [mockups/index.html](mockups/index.html) | Interactive HTML mockup. Open it in a browser |
 | [mockups/screens/](mockups/screens/) | `front.png`, `back.png`, `play.png` captures at 1600×940 |
 
