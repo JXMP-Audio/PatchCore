@@ -1,5 +1,5 @@
 --- ../Rack/src/app/ModuleWidget.cpp	2026-10-28 23:11:03.964573611 +0100
-+++ ModuleWidget.cpp	2026-10-29 13:52:56.302236388 +0100
++++ ModuleWidget.cpp	2026-10-29 14:00:00.949008260 +0100
 @@ -1,8 +1,37 @@
 +/*
 + * DISTRHO Cardinal Plugin
@@ -297,19 +297,30 @@
  		nvgBeginPath(args.vg);
  		float r = 20; // Blur radius
  		float c = 20; // Corner radius
-@@ -370,12 +615,23 @@
+@@ -370,12 +615,34 @@
  void ModuleWidget::onButton(const ButtonEvent& e) {
  	bool selected = APP->scene->rack->isSelected(this);
  
-+	// PatchCore: a right-click selects the module (like a drag selection), so it is clearly the target and Delete
-+	// removes it. A module that is the only selected one gets its own menu, not the selection menu.
-+	if (patchcore::enabled() && e.button == GLFW_MOUSE_BUTTON_RIGHT && e.action == GLFW_PRESS
-+	    && (!selected || APP->scene->rack->getSelected().size() == 1)) {
-+		if (!selected) {
-+			APP->scene->rack->deselectAll();
-+			APP->scene->rack->select(this);
++	// PatchCore: a right-click only selects the module (like a drag selection), so Delete removes it.
++	// Shift+right-click adds or removes it from the selection; Ctrl+right-click opens the menu.
++	if (patchcore::enabled() && e.button == GLFW_MOUSE_BUTTON_RIGHT) {
++		const int mods = e.mods & RACK_MOD_MASK;
++		if (mods != RACK_MOD_CTRL) {
++			if (e.action == GLFW_PRESS) {
++				if (mods == GLFW_MOD_SHIFT) {
++					APP->scene->rack->select(this, !selected);
++				}
++				else {
++					APP->scene->rack->deselectAll();
++					APP->scene->rack->select(this);
++				}
++			}
++			e.consume(this);
++			return;
 +		}
-+		selected = false;
++		// Ctrl+right-click: the module's own menu, or the selection menu when several modules are selected
++		if (selected && APP->scene->rack->getSelected().size() == 1)
++			selected = false;
 +	}
 +
  	if (selected) {
@@ -322,7 +333,7 @@
  			}
  			e.consume(this);
  		}
-@@ -629,6 +885,9 @@
+@@ -629,6 +896,9 @@
  	std::string presetDir = model->getUserPresetDirectory();
  	system::createDirectories(presetDir);
  
@@ -332,7 +343,7 @@
  	// Delete directories if empty
  	DEFER({
  		try {
-@@ -640,10 +899,8 @@
+@@ -640,10 +910,8 @@
  		}
  	});
  
@@ -345,7 +356,7 @@
  	if (!pathC) {
  		// No path selected
  		return;
-@@ -651,11 +908,13 @@
+@@ -651,11 +919,13 @@
  	DEFER({std::free(pathC);});
  
  	try {
@@ -361,7 +372,7 @@
  }
  
  void ModuleWidget::save(std::string filename) {
-@@ -670,7 +929,7 @@
+@@ -670,7 +940,7 @@
  	FILE* file = std::fopen(filename.c_str(), "w");
  	if (!file) {
  		std::string message = string::f("Could not save preset to file %s", filename.c_str());
@@ -370,7 +381,7 @@
  		return;
  	}
  	DEFER({std::fclose(file);});
-@@ -688,10 +947,12 @@
+@@ -688,10 +958,12 @@
  void ModuleWidget::saveTemplateDialog() {
  	if (hasTemplate()) {
  		std::string message = string::f("Overwrite default preset for %s?", model->getFullName().c_str());
@@ -386,7 +397,7 @@
  }
  
  bool ModuleWidget::hasTemplate() {
-@@ -708,15 +969,20 @@
+@@ -708,15 +980,20 @@
  
  void ModuleWidget::clearTemplateDialog() {
  	std::string message = string::f("Delete default preset for %s?", model->getFullName().c_str());
@@ -410,7 +421,7 @@
  	// Delete directories if empty
  	DEFER({
  		try {
-@@ -728,10 +994,8 @@
+@@ -728,10 +1005,8 @@
  		}
  	});
  
@@ -423,7 +434,7 @@
  	if (!pathC) {
  		// No path selected
  		return;
-@@ -743,7 +1007,8 @@
+@@ -743,7 +1018,8 @@
  	if (system::getExtension(path) != ".vcvm")
  		path += ".vcvm";
  
@@ -433,7 +444,7 @@
  }
  
  void ModuleWidget::disconnect() {
-@@ -965,7 +1230,7 @@
+@@ -965,7 +1241,7 @@
  						moduleWidget->loadAction(path);
  					}
  					catch (Exception& e) {
@@ -442,7 +453,7 @@
  					}
  				}));
  			}
-@@ -990,12 +1255,6 @@
+@@ -990,12 +1266,6 @@
  	// Info
  	menu->addChild(createSubmenuItem("Info", "", [=](ui::Menu* menu) {
  		model->appendContextMenu(menu);
@@ -455,7 +466,7 @@
  	}));
  
  	// Preset
-@@ -1135,4 +1394,4 @@
+@@ -1135,4 +1405,4 @@
  
  
  } // namespace app

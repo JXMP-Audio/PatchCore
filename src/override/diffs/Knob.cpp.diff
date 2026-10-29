@@ -1,0 +1,41 @@
+--- ../Rack/src/app/Knob.cpp	2026-10-28 23:11:03.963948052 +0100
++++ Knob.cpp	2026-10-29 13:59:11.855900221 +0100
+@@ -1,3 +1,18 @@
++/*
++ * DISTRHO Cardinal Plugin
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++/**
++ * This file is an edited version of VCVRack's app/Knob.cpp
++ * Copyright (C) 2016-2023 VCV.
++ *
++ * This program is free software: you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 3 of
++ * the License, or (at your option) any later version.
++ */
++
+ #include <app/Knob.hpp>
+ #include <context.hpp>
+ #include <app/Scene.hpp>
+@@ -6,6 +21,8 @@
+ #include <history.hpp>
+ #include <settings.hpp>
+ 
++#include "../patchcore/PatchCore.hpp"
++
+ 
+ namespace rack {
+ namespace app {
+@@ -277,6 +294,10 @@
+ 
+ 	// Handle value snapping
+ 	if (pq->snapEnabled) {
++		// PatchCore: one wheel notch (50 units) is one step, whatever the wheel sensitivity, so stepped knobs
++		// and selectors move at once
++		if (patchcore::enabled())
++			delta = e.scrollDelta.y / 50.f;
+ 		// Replace delta with an accumulated delta since the last integer knob.
+ 		internal->snapDelta += delta;
+ 		delta = std::trunc(internal->snapDelta);

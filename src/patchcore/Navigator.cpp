@@ -154,10 +154,11 @@ struct Navigator : widget::OpaqueWidget {
 		// Shortcut legend
 		static const std::vector<std::pair<std::string, std::string>> keys = {
 			{"Tab", "flip rack"},
-			{"B", "browser"},
+			{"Enter", "find module"},
 			{"Space", "play/stop"},
-			{"", "back: drag jack to jack"},
-			{"", "front: drag knob to turn"},
+			{"", "right-click: select"},
+			{"", "ctrl+right: module menu"},
+			{"", "wheel: turn knobs"},
 		};
 		float y = box.size.y - 14.f - (keys.size() - 1) * 19.f;
 		for (const std::pair<std::string, std::string>& k : keys) {
