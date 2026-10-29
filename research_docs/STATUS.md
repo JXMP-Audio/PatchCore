@@ -41,10 +41,10 @@ Built and the tests pass, only partly checked on screen.
 
 ### Next
 
-1. Check the console on screen: the Mixer view (double-click the console, top bar Mixer, Esc/Tab back),
-   that the VU needles move with audio (in the first capture the master needle stayed at rest — check
-   the meter source / level), fader drag and wheel, front layout (the "DOUBLE-CLICK…" hint is cut at
-   the right edge), back labels. Fix, then merge `console` into `main`, push, bump the collection.
+1. Checked on screen (evening 2026-10-29): front, back and the Mixer view (opened from the top bar)
+   render without text collisions, VU needles and the LED meters move. Still to check: double-click on
+   the module, fader drag and wheel, Esc/Tab, a second console; in the test the channel 2 LED meter
+   (square wave from JX-OSC) looked dark — check. Then merge `console` into `main`, push, bump.
 2. Add JX-CONSOLE to the design guide (colour indigo `#5b6ee1`), plugins/JXMP/README.md, the module
    list in the README, and a demo patch that uses it.
 3. Open points from [11](11-views-console-editor-design.md): channel names/colours in the Mixer view,

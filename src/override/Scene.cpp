@@ -255,9 +255,7 @@ void Scene::step() {
 	if (internal->mixerView != nullptr) {
 		if (patchcore::mixerShown())
 			internal->mixerView->show();
-		internal->mixerView->box = rackRect;
-		if (internal->navigator != nullptr && internal->navigator->isVisible())
-			internal->mixerView->box.size.x -= internal->navigator->box.size.x;
+		internal->mixerView->box = rackRect;  // already without the navigator
 	}
 
 	// Scroll RackScrollWidget with arrow keys

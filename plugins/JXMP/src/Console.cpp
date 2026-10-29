@@ -227,8 +227,8 @@ struct VuMeter : widget::TransparentWidget {
 
 		// Scale on an arc around the pivot below the face
 		const math::Vec pivot(w / 2, h * 1.02f);
-		const float radius = h * 0.78f;
-		const float a0 = -0.88f, a1 = 0.88f;  // radians from straight up
+		const float radius = h * 0.7f;
+		const float a0 = -0.8f, a1 = 0.8f;  // radians from straight up
 		const NVGcolor ink = nvgRGB(0x2a, 0x24, 0x1c), red = nvgRGB(0xc8, 0x30, 0x28);
 		auto at = [&](float t, float r) {
 			const float a = a0 + (a1 - a0) * t - (float) M_PI / 2;
@@ -249,7 +249,8 @@ struct VuMeter : widget::TransparentWidget {
 		const float fs = std::max(5.f, h * 0.12f);
 		for (const float m : marks) {
 			const float t = cs::vuNeedle(m);
-			const bool labelled = m == -20.f || m == -10.f || m == -5.f || m == -3.f || m == 0.f || m == 3.f;
+			// Numbers where they have room: the low end is compressed on a voltage-linear scale
+			const bool labelled = m == -20.f || m == -10.f || m == -5.f || m == 0.f || m == 3.f;
 			nvgBeginPath(vg);
 			const math::Vec p0 = at(t, radius), p1 = at(t, radius + h * (labelled ? 0.1f : 0.06f));
 			nvgMoveTo(vg, p0.x, p0.y);
@@ -326,13 +327,16 @@ struct Fader : app::SliderKnob {
 		const float fs = math::clamp(w * 0.12f, 5.5f, 8.f);
 		for (const float db : dbs) {
 			const float y = yOf(cs::faderPos(db));
+			// A short fader shows the numbers at +6, 0, −20 and off only; the other marks are ticks
+			const bool number = travel() >= 150.f || db == 6.f || db == 0.f || db == -20.f;
 			nvgBeginPath(vg);
 			nvgMoveTo(vg, slotX - w * 0.2f, y);
 			nvgLineTo(vg, slotX - w * 0.1f, y);
 			nvgStrokeWidth(vg, db == 0.f ? 1.2f : 0.8f);
 			nvgStrokeColor(vg, db == 0.f ? st::legend() : st::legendDim());
 			nvgStroke(vg);
-			st::text(vg, math::Vec(slotX - w * 0.26f, y), db > 0.f ? string::f("+%d", (int) db) : string::f("%d", (int) db), fs,
+			if (number)
+				st::text(vg, math::Vec(slotX - w * 0.26f, y), db > 0.f ? string::f("+%d", (int) db) : string::f("%d", (int) db), fs,
 			         db == 0.f ? st::legend() : st::legendDim(), st::FONT_NUMBER, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, 0.f);
 		}
 		st::text(vg, math::Vec(slotX - w * 0.26f, yOf(0.f)), "\xE2\x88\x9E", fs, st::legendDim(), st::FONT_NUMBER, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, 0.f);
@@ -493,12 +497,12 @@ struct MasterSection : widget::Widget {
 		nvgFill(vg);
 		const struct { float x, y; const char* text; } labels[] = {
 		    {55.f, 150.f, "METER"}, {55.f, 228.f, "RET A"}, {125.f, 228.f, "RET B"}, {55.f, 300.f, "SEND A"},
-		    {125.f, 300.f, "SEND B"}, {55.f, 372.f, "PRE"}, {125.f, 372.f, "PRE"}, {55.f, 412.f, "POST"}, {125.f, 412.f, "POST"},
-		    {90.f, 450.f, "MUTE"}, {236.f, 212.f, "MASTER"},
+		    {125.f, 300.f, "SEND B"}, {55.f, 318.f, "PRE"}, {125.f, 318.f, "PRE"}, {55.f, 362.f, "POST"}, {125.f, 362.f, "POST"},
+		    {90.f, 400.f, "MUTE"}, {236.f, 212.f, "MASTER"},
 		};
 		for (const auto& l : labels)
 			st::text(vg, math::Vec(l.x, l.y), l.text, 8.f, st::legend(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.6f);
-		for (const float y : {136.f, 212.f, 286.f, 436.f}) {
+		for (const float y : {136.f, 212.f, 286.f, 386.f}) {
 			nvgBeginPath(vg);
 			nvgMoveTo(vg, 12.f, y);
 			nvgLineTo(vg, 170.f, y);
@@ -576,10 +580,10 @@ struct ConsoleView : widget::Widget {
 		s->addChild(makeKnob(module, module->global(G_RETURN_B), math::Vec(125.f, 254.f), 9.f, kCapWhite));
 		for (int r = 0; r < 2; ++r) {
 			st::Toggle* const t = createParam<st::Toggle>(math::Vec(), module, module->global(r == 0 ? G_SEND_A_PRE : G_SEND_B_PRE));
-			t->box.pos = math::Vec(55.f + r * 70.f, 392.f).minus(t->box.size.div(2));
+			t->box.pos = math::Vec(55.f + r * 70.f, 340.f).minus(t->box.size.div(2));
 			s->addChild(t);
 		}
-		s->addChild(createLightParamCentered<VCVLightLatch<MediumSimpleLight<RedLight>>>(math::Vec(90.f, 474.f), module,
+		s->addChild(createLightParamCentered<VCVLightLatch<MediumSimpleLight<RedLight>>>(math::Vec(90.f, 424.f), module,
 		                                                                                  module->global(G_MASTER_MUTE), module->masterMuteLight()));
 		Fader* const f = createParam<Fader>(math::Vec(196.f, 226.f), module, module->global(G_MASTER));
 		f->box.size = math::Vec(64.f, 390.f);

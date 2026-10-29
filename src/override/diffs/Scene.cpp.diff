@@ -1,5 +1,5 @@
 --- ../Rack/src/app/Scene.cpp	2026-10-28 23:11:03.964909203 +0100
-+++ Scene.cpp	2026-10-29 14:32:33.824999834 +0100
++++ Scene.cpp	2026-10-29 19:26:52.127245740 +0100
 @@ -1,12 +1,25 @@
 -#include <thread>
 -
@@ -194,7 +194,7 @@
  	if (APP->window->isFullScreen()) {
  		// Expand RackScrollWidget to cover entire screen if fullscreen
  		rackScroll->box.pos.y = 0;
-@@ -99,22 +196,70 @@
+@@ -99,22 +196,68 @@
  		rackScroll->box.pos.y = menuBar->box.size.y;
  	}
  
@@ -266,15 +266,13 @@
 +	if (internal->mixerView != nullptr) {
 +		if (patchcore::mixerShown())
 +			internal->mixerView->show();
-+		internal->mixerView->box = rackRect;
-+		if (internal->navigator != nullptr && internal->navigator->isVisible())
-+			internal->mixerView->box.size.x -= internal->navigator->box.size.x;
++		internal->mixerView->box = rackRect;  // already without the navigator
 +	}
 +
  	// Scroll RackScrollWidget with arrow keys
  	math::Vec arrowDelta;
  	if (internal->heldArrowKeys[0]) {
-@@ -143,12 +288,77 @@
+@@ -143,12 +286,77 @@
  		rackScroll->offset += arrowDelta * arrowSpeed;
  	}
  
@@ -353,7 +351,7 @@
  }
  
  
-@@ -172,7 +382,7 @@
+@@ -172,7 +380,7 @@
  	if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
  		// DEBUG("key '%d '%c' scancode %d '%c' keyName '%s'", e.key, e.key, e.scancode, e.scancode, e.keyName.c_str());
  		if (e.keyName == "n" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
@@ -362,7 +360,7 @@
  			e.consume(this);
  		}
  		if (e.keyName == "q" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
-@@ -180,19 +390,25 @@
+@@ -180,19 +388,25 @@
  			e.consume(this);
  		}
  		if (e.keyName == "o" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
@@ -392,7 +390,7 @@
  			e.consume(this);
  		}
  		if (e.keyName == "z" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
-@@ -220,24 +436,47 @@
+@@ -220,24 +434,47 @@
  			APP->scene->rackScroll->setZoom(std::pow(2.f, zoom));
  			e.consume(this);
  		}
@@ -442,7 +440,7 @@
  
  		// Module selections
  		if (e.keyName == "a" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
-@@ -326,13 +565,6 @@
+@@ -326,13 +563,6 @@
  
  	// Key commands that can be overridden by children
  	if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
@@ -456,7 +454,7 @@
  		if (e.keyName == "v" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
  			rack->pasteClipboardAction();
  			e.consume(this);
-@@ -341,6 +573,23 @@
+@@ -341,6 +571,23 @@
  			browser->show();
  			e.consume(this);
  		}
@@ -480,7 +478,7 @@
  	}
  }
  
-@@ -351,7 +600,7 @@
+@@ -351,7 +598,7 @@
  		std::string extension = system::getExtension(path);
  
  		if (extension == ".vcv") {
