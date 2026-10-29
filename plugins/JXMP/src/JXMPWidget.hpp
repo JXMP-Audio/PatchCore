@@ -212,9 +212,9 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 		k->box.pos = mm2px(mm).minus(k->box.size.div(2));
 		switch (cap) {
 		case jxmp::style::CAP_MAIN: k->cap = decor->stripe; break;
-		case jxmp::style::CAP_WHITE: k->cap = nvgRGB(0x16, 0x16, 0x18); break;
-		case jxmp::style::CAP_GREY: k->cap = nvgRGB(0x5a, 0x6c, 0x84); break;
-		default: k->cap = nvgRGB(0xf2, 0xf2, 0xf2); k->blackCap = true; break;
+		case jxmp::style::CAP_WHITE: k->cap = nvgRGB(0xe8, 0xe6, 0xe0); break;
+		case jxmp::style::CAP_GREY: k->cap = nvgRGB(0x7c, 0x80, 0x88); break;
+		default: k->cap = nvgRGB(0x26, 0x27, 0x2a); break;
 		}
 		addParam(k);
 		std::vector<jxmp::style::Mark> norm = marks;
@@ -238,7 +238,7 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 		t->box.pos = mm2px(mm).minus(t->box.size.div(2));
 		addParam(t);
 		for (size_t i = 0; i < legends.size(); ++i) {
-			const float dy = positions == 3 ? (i == 0 ? -6.6f : i == 1 ? 0.f : 6.6f) : (i == 0 ? -6.6f : 6.6f);
+			const float dy = positions == 3 ? (i == 0 ? -7.6f : i == 1 ? 0.f : 7.6f) : (i == 0 ? -7.6f : 7.6f);
 			label(mm.plus(math::Vec(positions == 3 && i == 1 ? -5.f : 0.f, dy)), legends[i].c_str(), 6.f);
 		}
 	}

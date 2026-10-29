@@ -137,9 +137,7 @@ inline std::vector<Mark> bipolar() {
 /** Knob with a ridged black body, a coloured cap and a white pointer. `diameterMm` sets its size. */
 struct Knob : app::Knob {
 	float diameterMm = 10.f;
-	/** Pointer colour */
-	NVGcolor cap = nvgRGB(0x18, 0x18, 0x1a);
-	bool blackCap = false;
+	NVGcolor cap = nvgRGB(0xe8, 0xe6, 0xe0);
 
 	Knob() {
 		minAngle = -0.83f * M_PI;
@@ -184,43 +182,38 @@ struct Knob : app::Knob {
 			nvgStroke(vg);
 		}
 
-		// Cap: polished aluminium (black for selectors) with concentric machining rings
+		// Coloured cap, semi-matt plastic with machining rings and a soft gloss
 		const float cr = r * 0.72f;
 		nvgBeginPath(vg);
 		nvgCircle(vg, c.x, c.y, cr);
-		if (blackCap)
-			nvgFillPaint(vg, nvgLinearGradient(vg, c.x, c.y - cr, c.x, c.y + cr, nvgRGB(0x3a, 0x3b, 0x3f), nvgRGB(0x16, 0x16, 0x18)));
-		else
-			nvgFillPaint(vg, nvgLinearGradient(vg, c.x - cr, c.y - cr, c.x + cr, c.y + cr, nvgRGB(0xf2, 0xf3, 0xf5), nvgRGB(0x8a, 0x8e, 0x95)));
+		nvgFillPaint(vg, nvgLinearGradient(vg, c.x, c.y - cr, c.x, c.y + cr, color::plus(cap, nvgRGBf(0.10f, 0.10f, 0.10f)), color::mult(cap, 0.72f)));
 		nvgFill(vg);
-		if (!blackCap) {
-			nvgStrokeWidth(vg, 0.5f);
-			for (int i = 1; i <= 3; ++i) {
-				nvgBeginPath(vg);
-				nvgCircle(vg, c.x, c.y, cr * (0.3f + 0.22f * i));
-				nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.07f));
-				nvgStroke(vg);
-			}
-			// Specular sweep
+		nvgStrokeWidth(vg, 0.45f);
+		for (int i = 1; i <= 3; ++i) {
 			nvgBeginPath(vg);
-			nvgCircle(vg, c.x, c.y, cr);
-			nvgFillPaint(vg, nvgRadialGradient(vg, c.x - cr * 0.35f, c.y - cr * 0.4f, 0, cr * 0.9f, nvgRGBAf(1, 1, 1, 0.45f), nvgRGBAf(1, 1, 1, 0)));
-			nvgFill(vg);
+			nvgCircle(vg, c.x, c.y, cr * (0.3f + 0.22f * i));
+			nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.06f));
+			nvgStroke(vg);
 		}
+		nvgBeginPath(vg);
+		nvgCircle(vg, c.x, c.y, cr);
+		nvgFillPaint(vg, nvgRadialGradient(vg, c.x - cr * 0.35f, c.y - cr * 0.45f, 0, cr * 0.95f, nvgRGBAf(1, 1, 1, 0.32f), nvgRGBAf(1, 1, 1, 0)));
+		nvgFill(vg);
 		nvgBeginPath(vg);
 		nvgCircle(vg, c.x, c.y, cr);
 		nvgStrokeWidth(vg, 0.6f);
 		nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.55f));
 		nvgStroke(vg);
 
-		// Pointer line in the function colour
+		// Pointer: dark on light caps, white on dark ones
 		const float a = angle() - M_PI / 2;
+		const bool lightCap = (cap.r + cap.g + cap.b) / 3.f > 0.6f;
 		nvgBeginPath(vg);
 		nvgMoveTo(vg, c.x + std::cos(a) * r * 0.15f, c.y + std::sin(a) * r * 0.15f);
 		nvgLineTo(vg, c.x + std::cos(a) * r * 0.92f, c.y + std::sin(a) * r * 0.92f);
-		nvgStrokeWidth(vg, std::max(1.3f, r * 0.14f));
+		nvgStrokeWidth(vg, std::max(1.3f, r * 0.13f));
 		nvgLineCap(vg, NVG_ROUND);
-		nvgStrokeColor(vg, cap);
+		nvgStrokeColor(vg, lightCap ? nvgRGB(0x18, 0x18, 0x1a) : nvgRGB(0xf4, 0xf4, 0xf4));
 		nvgStroke(vg);
 
 		app::Knob::draw(args);
@@ -234,7 +227,7 @@ struct Toggle : app::Switch {
 	int positions = 2;
 
 	Toggle() {
-		box.size = mm2px(math::Vec(7.f, 10.f));
+		box.size = mm2px(math::Vec(8.f, 12.f));
 	}
 
 	int index() {
@@ -247,7 +240,7 @@ struct Toggle : app::Switch {
 	void draw(const DrawArgs& args) override {
 		NVGcontext* const vg = args.vg;
 		const math::Vec c = box.size.div(2);
-		const float nut = mm2px(2.2f);
+		const float nut = mm2px(2.6f);
 		const int idx = index();
 		// -1 = up (highest value), 0 = centre, 1 = down
 		const float dir = positions == 3 ? (idx == 2 ? -1.f : idx == 1 ? 0.f : 1.f) : (idx >= 1 ? -1.f : 1.f);
@@ -255,7 +248,7 @@ struct Toggle : app::Switch {
 		// LEDs
 		for (int p = 0; p < positions; ++p) {
 			const float py = positions == 3 ? (p == 2 ? -1.f : p == 1 ? 0.f : 1.f) : (p >= 1 ? -1.f : 1.f);
-			const math::Vec lp(c.x + mm2px(4.6f), c.y + py * mm2px(3.6f));
+			const math::Vec lp(c.x + mm2px(5.2f), c.y + py * mm2px(4.2f));
 			const bool on = p == idx;
 			nvgBeginPath(vg);
 			nvgCircle(vg, lp.x, lp.y, mm2px(0.85f));
@@ -272,40 +265,98 @@ struct Toggle : app::Switch {
 			}
 		}
 
-		// Hex nut and washer
+		// Lever geometry: from the bushing the bat handle leans towards its position, seen slightly from above,
+		// so an upward lever is long and a downward one foreshortened
+		const float len = dir < 0.f ? mm2px(4.6f) : dir > 0.f ? mm2px(3.4f) : 0.f;
+		const math::Vec tip(c.x, c.y + dir * len);
+		const float baseW = mm2px(0.55f), tipW = mm2px(1.05f);
+
+		// Shadow of the lever on the panel
+		if (dir != 0.f) {
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, c.x + 1.5f, c.y + 2.f);
+			nvgLineTo(vg, tip.x + 2.5f + dir * 0.f, tip.y + 3.5f);
+			nvgStrokeWidth(vg, tipW * 1.6f);
+			nvgLineCap(vg, NVG_ROUND);
+			nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.35f));
+			nvgStroke(vg);
+		}
+
+		// Washer
 		nvgBeginPath(vg);
-		nvgCircle(vg, c.x + 0.6f, c.y + 1.2f, nut * 1.1f);
-		nvgFillColor(vg, nvgRGBAf(0, 0, 0, 0.45f));
+		nvgCircle(vg, c.x + 0.6f, c.y + 1.4f, nut * 1.25f);
+		nvgFillColor(vg, nvgRGBAf(0, 0, 0, 0.4f));
 		nvgFill(vg);
 		nvgBeginPath(vg);
+		nvgCircle(vg, c.x, c.y, nut * 1.18f);
+		nvgFillPaint(vg, nvgLinearGradient(vg, c.x, c.y - nut, c.x, c.y + nut, nvgRGB(0x8d, 0x91, 0x98), nvgRGB(0x3c, 0x3f, 0x45)));
+		nvgFill(vg);
+
+		// Hex nut
+		nvgBeginPath(vg);
 		for (int i = 0; i < 6; ++i) {
-			const float a = M_PI / 6 + i * M_PI / 3;
+			const float a = i * M_PI / 3;
 			if (i == 0) nvgMoveTo(vg, c.x + std::cos(a) * nut, c.y + std::sin(a) * nut);
 			else nvgLineTo(vg, c.x + std::cos(a) * nut, c.y + std::sin(a) * nut);
 		}
 		nvgClosePath(vg);
-		nvgFillPaint(vg, nvgLinearGradient(vg, c.x - nut, c.y - nut, c.x + nut, c.y + nut, nvgRGB(0xe4, 0xe6, 0xe9), nvgRGB(0x6a, 0x6e, 0x75)));
+		nvgFillPaint(vg, nvgLinearGradient(vg, c.x - nut, c.y - nut, c.x + nut, c.y + nut, nvgRGB(0xee, 0xef, 0xf1), nvgRGB(0x6c, 0x70, 0x77)));
 		nvgFill(vg);
 		nvgStrokeWidth(vg, 0.6f);
 		nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.6f));
 		nvgStroke(vg);
+		// Facet highlights
+		for (int i = 0; i < 6; ++i) {
+			const float a = i * M_PI / 3 + M_PI / 6;
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, c.x + std::cos(a) * nut * 0.62f, c.y + std::sin(a) * nut * 0.62f);
+			nvgLineTo(vg, c.x + std::cos(a) * nut * 0.86f, c.y + std::sin(a) * nut * 0.86f);
+			nvgStrokeWidth(vg, 0.5f);
+			nvgStrokeColor(vg, std::sin(a) < 0 ? nvgRGBAf(1, 1, 1, 0.35f) : nvgRGBAf(0, 0, 0, 0.25f));
+			nvgStroke(vg);
+		}
 
-		// Lever, seen from the front: a tapered chrome bat pointing up, down or straight out
-		const float len = mm2px(3.8f) * std::fabs(dir);
-		const math::Vec tip(c.x, c.y + dir * len);
+		// Threaded bushing
+		const float bush = nut * 0.58f;
+		nvgBeginPath(vg);
+		nvgCircle(vg, c.x, c.y, bush);
+		nvgFillPaint(vg, nvgRadialGradient(vg, c.x - bush * 0.3f, c.y - bush * 0.3f, 0, bush, nvgRGB(0xd8, 0xda, 0xde), nvgRGB(0x5a, 0x5e, 0x65)));
+		nvgFill(vg);
+		nvgStrokeWidth(vg, 0.4f);
+		for (int i = 1; i <= 2; ++i) {
+			nvgBeginPath(vg);
+			nvgCircle(vg, c.x, c.y, bush * (0.45f + 0.25f * i));
+			nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.3f));
+			nvgStroke(vg);
+		}
+
+		// Bat handle: tapered body with a cylindrical highlight, ending in a rounded tip
 		if (dir != 0.f) {
 			nvgBeginPath(vg);
-			nvgMoveTo(vg, c.x - mm2px(0.55f), c.y);
-			nvgLineTo(vg, tip.x - mm2px(0.85f), tip.y);
-			nvgLineTo(vg, tip.x + mm2px(0.85f), tip.y);
-			nvgLineTo(vg, c.x + mm2px(0.55f), c.y);
+			nvgMoveTo(vg, c.x - baseW, c.y);
+			nvgLineTo(vg, tip.x - tipW, tip.y);
+			nvgLineTo(vg, tip.x + tipW, tip.y);
+			nvgLineTo(vg, c.x + baseW, c.y);
 			nvgClosePath(vg);
-			nvgFillPaint(vg, nvgLinearGradient(vg, c.x - mm2px(0.9f), 0, c.x + mm2px(0.9f), 0, nvgRGB(0x9a, 0x9e, 0xa5), nvgRGB(0xf6, 0xf7, 0xf9)));
+			NVGpaint body = nvgLinearGradient(vg, c.x - tipW, 0, c.x + tipW, 0, nvgRGB(0x70, 0x74, 0x7b), nvgRGB(0xfa, 0xfb, 0xfc));
+			nvgFillPaint(vg, body);
 			nvgFill(vg);
+			nvgStrokeWidth(vg, 0.45f);
+			nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.45f));
+			nvgStroke(vg);
+			// Highlight line along the body
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, c.x + baseW * 0.25f, c.y + dir * mm2px(0.4f));
+			nvgLineTo(vg, tip.x + tipW * 0.35f, tip.y - dir * mm2px(0.3f));
+			nvgStrokeWidth(vg, 0.7f);
+			nvgStrokeColor(vg, nvgRGBAf(1, 1, 1, 0.7f));
+			nvgStroke(vg);
 		}
+		// Rounded tip (seen end-on when centred)
+		const float tr = dir == 0.f ? mm2px(1.15f) : tipW * 1.08f;
 		nvgBeginPath(vg);
-		nvgCircle(vg, tip.x, tip.y, mm2px(1.05f));
-		nvgFillPaint(vg, nvgRadialGradient(vg, tip.x - mm2px(0.3f), tip.y - mm2px(0.3f), 0, mm2px(1.1f), nvgRGB(0xff, 0xff, 0xff), nvgRGB(0x80, 0x84, 0x8b)));
+		nvgCircle(vg, tip.x, tip.y, tr);
+		nvgFillPaint(vg, nvgRadialGradient(vg, tip.x - tr * 0.35f, tip.y - tr * 0.4f, 0, tr * 1.1f, nvgRGB(0xff, 0xff, 0xff), nvgRGB(0x76, 0x7a, 0x81)));
 		nvgFill(vg);
 		nvgStrokeWidth(vg, 0.5f);
 		nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.5f));
