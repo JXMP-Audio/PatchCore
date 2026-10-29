@@ -73,7 +73,8 @@ struct Rng {
 	}
 };
 
-/** Subtle wear: worn lighter edges and faint scratches, different for every unit (`seed`). */
+/** Wear: worn lighter edges, scratches, grime, chipped paint, different for every unit (`seed`). Drawn under
+the legends and controls, so the text stays readable. */
 inline void patina(NVGcontext* vg, math::Vec size, uint32_t seed) {
 	// Worn edges
 	const float e = mm2px(2.5f);
@@ -82,11 +83,11 @@ inline void patina(NVGcontext* vg, math::Vec size, uint32_t seed) {
 	nvgPathWinding(vg, NVG_CCW);
 	nvgRect(vg, e, e, size.x - 2 * e, size.y - 2 * e);
 	nvgPathWinding(vg, NVG_CW);
-	nvgFillPaint(vg, nvgBoxGradient(vg, 0, 0, size.x, size.y, e, e * 1.5f, nvgRGBAf(1, 1, 1, 0), nvgRGBAf(1, 1, 1, 0.05f)));
+	nvgFillPaint(vg, nvgBoxGradient(vg, 0, 0, size.x, size.y, e, e * 1.5f, nvgRGBAf(1, 1, 1, 0), nvgRGBAf(1, 1, 1, 0.07f)));
 	nvgFill(vg);
 
 	Rng rng(seed);
-	const int count = 26 + (int) (rng.next() * 18);
+	const int count = 44 + (int) (rng.next() * 26);
 	nvgLineCap(vg, NVG_ROUND);
 	for (int i = 0; i < count; ++i) {
 		const float x = rng.next() * size.x, y = rng.next() * size.y;
@@ -97,12 +98,12 @@ inline void patina(NVGcontext* vg, math::Vec size, uint32_t seed) {
 		nvgQuadTo(vg, x + std::cos(a) * len * 0.5f + (rng.next() - 0.5f) * 3.f, y + std::sin(a) * len * 0.5f,
 		          x + std::cos(a) * len, y + std::sin(a) * len);
 		nvgStrokeWidth(vg, 0.4f + rng.next() * 0.5f);
-		nvgStrokeColor(vg, nvgRGBAf(1, 1, 1, 0.025f + rng.next() * 0.045f));
+		nvgStrokeColor(vg, nvgRGBAf(1, 1, 1, 0.03f + rng.next() * 0.06f));
 		nvgStroke(vg);
 	}
 	// Chipped paint along the edges, more near the corners: irregular flakes of bare aluminium with a dark
 	// rim where the paint breaks
-	const int chips = 10 + (int) (rng.next() * 10);
+	const int chips = 18 + (int) (rng.next() * 14);
 	for (int i = 0; i < chips; ++i) {
 		const int edge = (int) (rng.next() * 4.f) % 4;
 		float t = rng.next();
@@ -116,7 +117,7 @@ inline void patina(NVGcontext* vg, math::Vec size, uint32_t seed) {
 		case 2: cpos = math::Vec(t * size.x, size.y - inset); break;
 		default: cpos = math::Vec(inset, t * size.y); break;
 		}
-		const float rad = mm2px(0.35f + rng.next() * rng.next() * 1.9f);
+		const float rad = mm2px(0.35f + rng.next() * rng.next() * 2.4f);
 		const int verts = 7 + (int) (rng.next() * 4);
 		nvgBeginPath(vg);
 		for (int v = 0; v < verts; ++v) {
@@ -154,6 +155,49 @@ inline void patina(NVGcontext* vg, math::Vec size, uint32_t seed) {
 			}
 			pos += seg;
 		}
+	}
+
+	// Grime: soft darker smudges, more towards the bottom where hands rest
+	const int smudges = 5 + (int) (rng.next() * 4);
+	for (int i = 0; i < smudges; ++i) {
+		const float x = rng.next() * size.x, y = (0.3f + 0.7f * rng.next()) * size.y, r = mm2px(3.f + rng.next() * 7.f);
+		nvgBeginPath(vg);
+		nvgCircle(vg, x, y, r);
+		nvgFillPaint(vg, nvgRadialGradient(vg, x, y, 0, r, nvgRGBAf(0, 0, 0, 0.06f + rng.next() * 0.05f), nvgRGBAf(0, 0, 0, 0)));
+		nvgFill(vg);
+	}
+
+	// A few deeper scratches: a dark groove with a light lip
+	const int deep = 2 + (int) (rng.next() * 3);
+	for (int i = 0; i < deep; ++i) {
+		const float x = rng.next() * size.x, y = rng.next() * size.y;
+		const float a = rng.next() * 2.f * M_PI;
+		const float len = mm2px(3.f + rng.next() * 9.f);
+		const float bend = (rng.next() - 0.5f) * mm2px(2.f);
+		for (int layer = 0; layer < 2; ++layer) {
+			const float o = layer ? 0.7f : 0.f;
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, x + o, y + o);
+			nvgQuadTo(vg, x + std::cos(a) * len * 0.5f - std::sin(a) * bend + o, y + std::sin(a) * len * 0.5f + std::cos(a) * bend + o,
+			          x + std::cos(a) * len + o, y + std::sin(a) * len + o);
+			nvgStrokeWidth(vg, layer ? 0.5f : 0.8f);
+			nvgStrokeColor(vg, layer ? nvgRGBAf(1, 1, 1, 0.10f) : nvgRGBAf(0, 0, 0, 0.35f));
+			nvgStroke(vg);
+		}
+	}
+
+	// Small paint chips inside the panel
+	const int dots = 3 + (int) (rng.next() * 5);
+	for (int i = 0; i < dots; ++i) {
+		const float x = mm2px(2.f) + rng.next() * (size.x - mm2px(4.f)), y = mm2px(2.f) + rng.next() * (size.y - mm2px(4.f));
+		const float r = mm2px(0.2f + rng.next() * 0.45f);
+		nvgBeginPath(vg);
+		nvgEllipse(vg, x, y, r * (0.8f + rng.next() * 0.6f), r * (0.6f + rng.next() * 0.5f));
+		nvgFillColor(vg, nvgRGBA(0xa8, 0xac, 0xb2, 190));
+		nvgFill(vg);
+		nvgStrokeWidth(vg, 0.5f);
+		nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.4f));
+		nvgStroke(vg);
 	}
 
 	// A few faint rub marks
