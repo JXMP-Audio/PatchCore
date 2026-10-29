@@ -81,10 +81,14 @@ inputs have light text. All JXMP sockets are on the back (Patchbay front jacks a
 
 ## Plan (as of 2026-10-29)
 
-- [x] Sided modules, JXMP plugin, Patchbay 4/8/16 (merged to main)
-- [x] Voice set DSP: JX-AMP, JX-ENV, JX-OSC, JX-FLT (branch `jxmp-voice`)
-- [x] JXMP style, first on JX-OSC (branch `jxmp-voice`)
-- [ ] Style the other modules: JX-FLT, JX-ENV, JX-AMP, Patchbay
-- [ ] Voice check (whole voice patched through Patchbays), save/reload check, docs → merge to main
-- [ ] Later: more modules (LFO, Noise, Mixer, effects), each with its own colour
+- [x] Sided modules, JXMP plugin, Patchbay 4/8/16
+- [x] Voice set: JX-AMP (8 HP), JX-ENV (14 HP), JX-OSC (18 HP), JX-FLT (14 HP), all in the JXMP style
+- [ ] Patchbay in the JXMP style (front numbers/LEDs, styled back with only back jacks; skip zero-size SmartPort halves)
+- [ ] Voice check: VCO → VCF → VCA with ADSR through Patchbays, save/reload, plugins/JXMP/README.md
+- [ ] Next modules, modelled on the basic Fundamental set (DSP may be adapted from plugins/Fundamental, GPL-3, with attribution), one at a time, each: spec section here → pure-logic tests → module → screenshot check → merge + bump:
+  1. JX-LFO (LFO) — colour violet `#9a6bd6`: sin/tri/saw/sqr outputs, rate (Hz scale), fine/offset/invert, PW, reset/sync, poly
+  2. JX-NSE (Noise) — colour white-grey `#c9cbd0`: white/pink/red/violet/blue/grey/black outputs, level
+  3. JX-MIX (Mixer) — colour red `#d8443a`: 4 channels level + mute, master, poly sum
+  4. JX-SEQ (8-step sequencer) — colour cyan `#2fb8c4`: 8 steps of CV + gate toggles, clock/reset/run, length
+  5. JX-DLY (Delay) — colour teal `#4ac0a0`: time, feedback, tone, mix, CV
 - Cancelled: realistic cables (07/08) — the original cables stay
