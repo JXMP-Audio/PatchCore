@@ -61,24 +61,27 @@ struct Vca : engine::Module {
 
 struct VcaWidget : JXMPModuleWidget {
 	VcaWidget(Vca* const module) {
-		setup(module, "JX-AMP", nvgRGB(0x3c, 0xb4, 0x6e), 6);
+		setup(module, "JX-AMP", nvgRGB(0x3c, 0xb4, 0x6e), 8);
 
-		// Front: controls
+		// Front: JXMP style (research_docs/10-jxmp-design-guide.md)
+		namespace st = jxmp::style;
+		styled();
 		for (int ch = 0; ch < 2; ++ch) {
-			const float y = ch == 0 ? 0.f : 50.f;
-			addParam(createParamCentered<RoundBigBlackKnob>(mm2px(math::Vec(15.24f, 34.f + y)), module, Vca::LEVEL1_PARAM + ch));
-			addParam(createParamCentered<CKSS>(mm2px(math::Vec(11.f, 52.f + y)), module, Vca::RESPONSE1_PARAM + ch));
-			addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(math::Vec(22.f, 52.f + y)), module, Vca::LEVEL1_LIGHT + ch));
-			label(math::Vec(15.24f, 23.5f + y), ch == 0 ? "LEVEL 1" : "LEVEL 2");
-			label(math::Vec(11.f, 59.f + y), "LIN · EXP", 6.f);
+			const float y = ch * 47.f;
+			section(4.f, 20.5f + y, 32.64f, 43.f, ch == 0 ? "CH 1" : "CH 2");
+			label(math::Vec(14.f, 26.f + y), "LEVEL", 7.5f);
+			knob(math::Vec(14.f, 42.f + y), Vca::LEVEL1_PARAM + ch, 15.f, st::CAP_MAIN, 0.f, 1.f,
+			     st::marks(0.f, 1.f, 0.1f, 5, [](float v) { return string::f("%d", (int) std::round(v * 100.f)); }));
+			addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(math::Vec(31.f, 26.f + y)), module, Vca::LEVEL1_LIGHT + ch));
+			toggle(math::Vec(30.f, 44.f + y), Vca::RESPONSE1_PARAM + ch, 2, {"EXP", "LIN"});
 		}
 
 		// Back: sockets
 		for (int ch = 0; ch < 2; ++ch) {
-			const float y = ch == 0 ? 0.f : 50.f;
-			addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(8.f, 32.f + y)), module, Vca::IN1_INPUT + ch * 2));
-			addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(8.f, 47.f + y)), module, Vca::CV1_INPUT + ch * 2));
-			addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(22.5f, 40.f + y)), module, Vca::OUT1_OUTPUT + ch));
+			const float y = ch * 47.f;
+			addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(11.f, 32.f + y)), module, Vca::IN1_INPUT + ch * 2));
+			addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(11.f, 48.f + y)), module, Vca::CV1_INPUT + ch * 2));
+			addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(29.f, 40.f + y)), module, Vca::OUT1_OUTPUT + ch));
 		}
 	}
 };
