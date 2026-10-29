@@ -20,10 +20,10 @@ struct Patchbay : engine::Module {
 	Patchbay() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		for (int k = 0; k < N; ++k) {
-			configInput(FRONT_INPUT + k, string::f("Ch %d", k + 1));
-			configInput(BACK_INPUT + k, string::f("Ch %d", k + 1));
-			configOutput(FRONT_OUTPUT + k, string::f("Ch %d", k + 1));
-			configOutput(BACK_OUTPUT + k, string::f("Ch %d", k + 1));
+			configInput(FRONT_INPUT + k, string::f("Ch %d", k + 1))->description = "Front jack of this channel. Plug a basic module's output here and it comes out of the same channel on the back (or the other way round).";
+			configInput(BACK_INPUT + k, string::f("Ch %d", k + 1))->description = "Back jack of this channel. A JXMP output plugged here comes out of the same channel on the front.";
+			configOutput(FRONT_OUTPUT + k, string::f("Ch %d", k + 1))->description = "Front jack of this channel, sending what arrives on the back jack of the same channel.";
+			configOutput(BACK_OUTPUT + k, string::f("Ch %d", k + 1))->description = "Back jack of this channel, sending what arrives on the front jack of the same channel.";
 		}
 	}
 

@@ -71,14 +71,14 @@ struct Nse : engine::Module {
 	Nse() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(LEVEL_PARAM, 0.f, 1.f, 1.f, "Level", "%", 0.f, 100.f);
-		configInput(LEVEL_INPUT, "Level CV");
-		configOutput(WHITE_OUTPUT, "White");
-		configOutput(PINK_OUTPUT, "Pink");
-		configOutput(RED_OUTPUT, "Red");
-		configOutput(VIOLET_OUTPUT, "Violet");
-		configOutput(BLUE_OUTPUT, "Blue");
-		configOutput(GRAY_OUTPUT, "Gray");
-		configOutput(BLACK_OUTPUT, "Black");
+		configInput(LEVEL_INPUT, "Level CV")->description = "Level CV: 0 V silent, 10 V full (times the LEVEL knob).";
+		configOutput(WHITE_OUTPUT, "White")->description = "White noise: equal energy at every frequency, bright hiss.";
+		configOutput(PINK_OUTPUT, "Pink")->description = "Pink noise (−3 dB/octave): equal energy per octave, a natural rushing sound.";
+		configOutput(RED_OUTPUT, "Red")->description = "Red noise (−6 dB/octave): deep rumble, also good as a slow random CV.";
+		configOutput(VIOLET_OUTPUT, "Violet")->description = "Violet noise (+6 dB/octave): very thin and bright.";
+		configOutput(BLUE_OUTPUT, "Blue")->description = "Blue noise (+3 dB/octave): bright, thinner than white.";
+		configOutput(GRAY_OUTPUT, "Gray")->description = "Gray noise: shaped so every frequency sounds equally loud to the ear.";
+		configOutput(BLACK_OUTPUT, "Black")->description = "Black noise: random values spread evenly over ±5 V, useful as random CV.";
 		// Butterworth lowpass, cutoff 20 Hz @ 44.1 kHz (as in Fundamental)
 		const float b[] = {0.00425611, 0.00425611};
 		const float a[] = {-0.99148778};

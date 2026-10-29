@@ -21,11 +21,11 @@ struct Mix : engine::Module {
 		for (int i = 0; i < 4; ++i) {
 			configParam(LEVEL_PARAM + i, 0.f, 1.f, 0.8f, string::f("Channel %d level", i + 1), "%", 0.f, 100.f);
 			configSwitch(MUTE_PARAM + i, 0.f, 1.f, 0.f, string::f("Channel %d mute", i + 1), {"On", "Muted"});
-			configInput(IN_INPUT + i, string::f("In %d", i + 1));
-			configInput(CV_INPUT + i, string::f("CV %d", i + 1));
+			configInput(IN_INPUT + i, string::f("In %d", i + 1))->description = "Channel input (audio or CV). Polyphonic; a mono input is spread over all channels of the mix.";
+			configInput(CV_INPUT + i, string::f("CV %d", i + 1))->description = "Channel level CV: 0 V closed, 10 V open (times the channel knob).";
 		}
 		configParam(MASTER_PARAM, 0.f, 2.f, 1.f, "Master", "%", 0.f, 100.f);
-		configOutput(MIX_OUTPUT, "Mix");
+		configOutput(MIX_OUTPUT, "Mix")->description = "Sum of the unmuted channels × their levels × MASTER.";
 	}
 
 	void process(const ProcessArgs& args) override {

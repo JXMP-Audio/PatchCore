@@ -23,10 +23,10 @@ struct Slw : engine::Module {
 		configParam(RISE_PARAM, 0.f, 1.f, 0.f, "Rise time", " ms", 10000.f, 1.f);
 		configParam(FALL_PARAM, 0.f, 1.f, 0.f, "Fall time", " ms", 10000.f, 1.f);
 		configSwitch(SHAPE_PARAM, 0.f, 1.f, 0.f, "Shape", {"Linear", "Exponential"});
-		configInput(IN_INPUT, "In");
-		configInput(RISE_INPUT, "Rise CV");
-		configInput(FALL_INPUT, "Fall CV");
-		configOutput(OUT_OUTPUT, "Out");
+		configInput(IN_INPUT, "In")->description = "Signal to slow down. On a pitch CV this makes a glide (portamento). Polyphonic.";
+		configInput(RISE_INPUT, "Rise CV")->description = "Rise time CV (10 V = full range).";
+		configInput(FALL_INPUT, "Fall CV")->description = "Fall time CV (10 V = full range).";
+		configOutput(OUT_OUTPUT, "Out")->description = "The input, limited to the RISE and FALL times.";
 		configBypass(IN_INPUT, OUT_OUTPUT);
 	}
 

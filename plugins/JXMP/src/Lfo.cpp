@@ -31,14 +31,14 @@ struct Lfo : engine::Module {
 		configParam(PWM_PARAM, -1.f, 1.f, 0.f, "Pulse width modulation", "%", 0.f, 100.f);
 		configSwitch(OFFSET_PARAM, 0.f, 1.f, 0.f, "Offset", {"Bipolar", "Unipolar"});
 		configSwitch(INVERT_PARAM, 0.f, 1.f, 0.f, "Invert", {"Normal", "Inverted"});
-		configInput(FM_INPUT, "Rate CV");
-		configInput(CLOCK_INPUT, "Clock");
-		configInput(RESET_INPUT, "Reset");
-		configInput(PW_INPUT, "PWM");
-		configOutput(SIN_OUTPUT, "Sin");
-		configOutput(TRI_OUTPUT, "Tri");
-		configOutput(SAW_OUTPUT, "Saw");
-		configOutput(SQR_OUTPUT, "Sqr");
+		configInput(FM_INPUT, "Rate CV")->description = "Rate CV in octaves per volt, scaled by the RATE CV knob. Polyphonic: one LFO per channel.";
+		configInput(CLOCK_INPUT, "Clock")->description = "Clock: the rate follows the clock (RATE then multiplies or divides it).";
+		configInput(RESET_INPUT, "Reset")->description = "Reset: a trigger restarts the cycle from the beginning.";
+		configInput(PW_INPUT, "PWM")->description = "Pulse width CV for the square, scaled by the PWM knob.";
+		configOutput(SIN_OUTPUT, "Sin")->description = "Sine: ±5 V, or 0–10 V in UNI.";
+		configOutput(TRI_OUTPUT, "Tri")->description = "Triangle: ±5 V, or 0–10 V in UNI.";
+		configOutput(SAW_OUTPUT, "Saw")->description = "Sawtooth: ±5 V, or 0–10 V in UNI.";
+		configOutput(SQR_OUTPUT, "Sqr")->description = "Square: ±5 V, or 0–10 V in UNI; width set by PW.";
 	}
 
 	void process(const ProcessArgs& args) override {
