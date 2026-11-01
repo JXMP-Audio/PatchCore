@@ -97,9 +97,9 @@ struct Console : engine::Module {
 		configParam(global(G_RETURN_B), 0.f, 1.f, 1.f, "Return B level", "%", 0.f, 100.f);
 		configSwitch(global(G_SEND_A_PRE), 0.f, 1.f, 0.f, "Send A", {"Post-fader", "Pre-fader"});
 		configSwitch(global(G_SEND_B_PRE), 0.f, 1.f, 0.f, "Send B", {"Post-fader", "Pre-fader"});
-		std::vector<std::string> sources = {"Master"};
+		std::vector<std::string> sources = {"Master (post-fader)"};
 		for (int i = 0; i < n; ++i)
-			sources.push_back(string::f("Channel %d", i + 1));
+			sources.push_back(string::f("Channel %d (post-fader)", i + 1));
 		configSwitch(global(G_METER), 0.f, (float) n, 0.f, "VU meter source", sources);
 		for (int r = 0; r < 2; ++r) {
 			const char ab = 'A' + r;
@@ -192,9 +192,11 @@ struct Console : engine::Module {
 				right += post * pr;
 			}
 			channelPeak[i].process(post, dt);
+			// VU source = this channel: its own post-fader signal (after EQ, mute and fader, before the pan and
+			// the master) on both needles
 			if (meter == i + 1) {
-				vuL.process(post * pl, dt);
-				vuR.process(post * pr, dt);
+				vuL.process(post, dt);
+				vuR.process(post, dt);
 			}
 		}
 
@@ -214,6 +216,7 @@ struct Console : engine::Module {
 		outputs[OUT_MAIN_R].setVoltage(outR);
 		outputs[OUT_SEND_A].setVoltage(math::clamp(sendA, -12.f, 12.f));
 		outputs[OUT_SEND_B].setVoltage(math::clamp(sendB, -12.f, 12.f));
+		// VU source = master: the stereo master after the master fader and mute
 		if (meter == 0) {
 			vuL.process(outL, dt);
 			vuR.process(outR, dt);
