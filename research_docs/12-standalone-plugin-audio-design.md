@@ -1,6 +1,8 @@
 # 12 — Standalone vs. plugin, audio device settings
 
-Status: draft for review (2026-11-01). Extends sub-project A of [11](11-views-console-editor-design.md).
+Status: implemented on branch `standalone-audio` (2026-11-01, not built yet — builds only on request). A driver
+change restarts the app (device, rate and buffer change live); ASIO waits for the SDK sources (see
+`dpf/distrho/src/jackbridge/rtaudio/asio/README.md`). Extends sub-project A of [11](11-views-console-editor-design.md).
 The Editor (sub-project C) gets its own spec later.
 
 ## Goal

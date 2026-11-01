@@ -3,6 +3,37 @@
 Handoff notes, updated at the end of every work session (rule: keep this file current before a session
 or weekly limit ends). Newest first.
 
+## 2026-11-01 (evening) — standalone vs VST3, audio settings
+
+### In progress: branch `standalone-audio` (pushed, NOT merged, NOT BUILT)
+
+Spec [12](12-standalone-plugin-audio-design.md), plan [13](13-plan-standalone-plugin-audio.md); all 12 tasks
+written. The user said: **no builds, no tests, no GitHub Actions until they ask for a build** — so everything
+after Task 6 is uncompiled. Tasks 1–6 were built and checked (layout test, standalone + VST3 build, ALSA and JACK
+start paths).
+
+- Plugin: thin read-only bar (`TransportLayout.hpp`), names PatchCore / PatchCore FX by JXMP Audio, new IDs,
+  `make vst3` builds only those two. F1/F2/F4 keys.
+- DPF vendored (`dpf/` is a normal folder, `pugl` a submodule). `AudioDeviceSettings.hpp` (tested) holds
+  setup, config file `PatchCoreAudio.conf` next to `PatchCore.json` (`PATCHCORE_AUDIO_CONFIG` overrides),
+  fallback decisions.
+- The main variant keeps DPF's native RtAudio fallback now (ALSA); the saved driver decides at start.
+- RtAudioBridge: device by name, rate, buffer, live `reopen()` with revert, sample-rate callback, error →
+  "Audio stopped". Utils: `getAudioDevices/getAudioSetup/getAudioNotice/requestAudioSetup/isAudioRunning/showAsioPanel`.
+- JACK: the app connects its outputs to the default sink (pactl), `run-patchcore.sh` only launches.
+- `src/patchcore/AudioSettings.cpp` (per variant): dialog, test tone, notice strip, `restartApp()`.
+- Windows ASIO: wiring only; the SDK sources are added with the first Windows build.
+
+### Next
+
+1. When the user asks for a build: `make -j12 jack && make -j12 vst3`, fix compile errors, run
+   `src/patchcore/tests/run.sh` and `plugins/JXMP/tests/run.sh`, then the GUI checks with the user
+   watching workspace 3: standalone bar, top bar F-keys labels, Audio Settings dialog, ALSA device switch,
+   rate change (pitch), driver switch restart (patch path + unsaved kept), missing-card notice; VST3 in a host.
+2. Final whole-branch review, merge `standalone-audio` into `main`, push, bump the collection.
+3. Then the Editor (sub-project C of doc 11) — needs its own spec.
+4. JX-CONSOLE docs (design guide colour, plugins/JXMP/README.md, module list, demo patch).
+
 ## 2026-11-01
 
 ### Done (on `main`, pushed, collection bumped)

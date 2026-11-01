@@ -15,6 +15,15 @@ with Shift: Shift+click selects it (Delete removes it), Shift+drag moves it, Shi
 its menu. Without Shift knobs and jacks always work, even on a selected module. The mouse wheel turns knobs. Design notes and plans:
 [research_docs/](research_docs/).
 
+PatchCore comes as a **standalone app** (`make jack` → `bin/Cardinal`) and as two **VST3 plugins** by JXMP Audio
+(`make vst3`): **PatchCore** (instrument, MIDI in) and **PatchCore FX** (stereo effect). The standalone chooses its
+sound card in **Engine → Audio Settings…** (PipeWire/JACK or ALSA on Linux, WASAPI or ASIO on Windows; a driver
+change restarts the app with the patch) and connects its outputs to the default output by itself. In a DAW the
+bottom bar is a thin read-only display of the host's tempo and position; MIDI always goes through the Host MIDI
+modules. F1 rack, F2 back, F4 mixer.
+
+`dpf/` is DPF vendored into this repo (PatchCore changes are marked `// PatchCore:`); its `pugl` stays a submodule.
+
 ---
 
 # DISTRHO Cardinal
