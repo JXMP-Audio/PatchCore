@@ -62,8 +62,10 @@ struct Trigger {
 };
 
 /**
- * One sweep of both channels: starts on a trigger (AUTO also by itself when none came for a short while — two
- * sweep lengths, at most 0.15 s, as lab scopes do — so a steady voltage still shows; NORM only on a trigger), then takes kPoints samples spread over
+ * One sweep of both channels: starts on a trigger. AUTO also starts by itself when no trigger came for a while,
+ * so a steady voltage still shows: normally after two sweep lengths (at most 0.15 s); while triggers keep coming
+ * (a slow LFO) it waits 1.5 times their spacing (up to 3 s), so the picture stands still instead of drifting.
+ * NORM starts only on a trigger., then takes kPoints samples spread over
  * kDivisions × time/div. A finished sweep is copied to `shown` and `sweeps` counts up, which the display reads.
  */
 struct Capture {
@@ -74,6 +76,15 @@ struct Capture {
 	int index = kPoints;      // kPoints = waiting for a trigger
 	float sinceTake = 0.f;    // seconds since the last point
 	float waiting = 0.f;      // seconds without a trigger
+	float sinceTrigger = 0.f; // seconds since the last trigger, running or not
+	float triggerSpacing = 0.f;  // seconds between the last two triggers (0 = none seen lately)
+
+	/** How long AUTO waits for a trigger before it starts a sweep by itself */
+	float autoTimeout(float sweepTime) const {
+		if (triggerSpacing > 0.f)
+			return std::min(std::max(1.5f * triggerSpacing, kAutoTimeout), 3.f);
+		return std::min(2.f * sweepTime + 0.05f, kAutoTimeout);
+	}
 
 	bool running() const {
 		return index < kPoints;
@@ -84,9 +95,17 @@ struct Capture {
 	void process(float a, float b, bool trigger, float dt, float secondsPerDiv, bool freeRun = false, bool autoRun = true) {
 		const float sweepTime = secondsPerDiv * kDivisions;
 		const float step = sweepTime / kPoints;
+		// Spacing of the triggers (also those during a sweep); forgotten when they stop for 3 s
+		sinceTrigger += dt;
+		if (trigger) {
+			triggerSpacing = sinceTrigger;
+			sinceTrigger = 0.f;
+		}
+		else if (sinceTrigger > 3.f)
+			triggerSpacing = 0.f;
 		if (!running()) {
 			waiting += dt;
-			if (trigger || freeRun || (autoRun && waiting > std::min(2.f * sweepTime + 0.05f, kAutoTimeout))) {
+			if (trigger || freeRun || (autoRun && waiting > autoTimeout(sweepTime))) {
 				index = 0;
 				waiting = 0.f;
 				sinceTake = step;  // the first point is the trigger sample

@@ -34,3 +34,4 @@ extern Model* modelJXMPConsole16;
 extern Model* modelJXMPConsole32;
 extern Model* modelJXMPScope;
 extern Model* modelJXMPClock;
+extern Model* modelJXMPEuclid;

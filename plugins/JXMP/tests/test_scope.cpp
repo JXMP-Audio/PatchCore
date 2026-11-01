@@ -63,6 +63,20 @@ int main() {
 		slowAuto.process(1.f, 0.f, false, dt, 1.f);
 	assert(slowAuto.running());
 
+	// A slow LFO (1 Hz) at 10 ms/div in AUTO: every sweep starts on the trigger, the picture stands still
+	Capture lfo;
+	Trigger lt;
+	int firstSweeps = 0;
+	for (int i = 0; i < 4 * 48000; ++i) {
+		const float x = 5.f * std::sin(2.f * float(M_PI) * 1.f * i / fs);
+		lfo.process(x, 0.f, lt.process(x, 0.f, true), dt, 0.01f);
+		if (i == 48000)
+			firstSweeps = lfo.sweeps;
+	}
+	// After the first second: about one sweep per LFO period, each starting at the rising zero crossing
+	assert(lfo.sweeps - firstSweeps >= 2 && lfo.sweeps - firstSweeps <= 4);
+	assert(std::fabs(lfo.shown[0][0]) < 0.1f && lfo.shown[0][50] > lfo.shown[0][0]);
+
 	// NORM: no trigger, no sweep (the screen stays dark); a trigger starts one
 	Capture norm;
 	for (int i = 0; i < 4800; ++i)

@@ -198,6 +198,14 @@
       "tags": [
         "Clock generator"
       ]
+    },
+    {
+      "slug": "Euclid",
+      "name": "Euclid",
+      "description": "JX-EUC: four Euclidean rhythm tracks with steps, hits, rotate, gate and accent outputs",
+      "tags": [
+        "Sequencer"
+      ]
     }
   ]
 }

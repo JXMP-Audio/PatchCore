@@ -307,6 +307,17 @@
     42,
     2
    ]
+  },
+  {
+   "id": 16,
+   "plugin": "JXMP",
+   "model": "Euclid",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    54,
+    2
+   ]
   }
  ],
  "cables": [
@@ -445,6 +456,22 @@
    "inputModuleId": 14,
    "inputId": 1,
    "color": "#ffbe55"
+  },
+  {
+   "id": 39,
+   "outputModuleId": 15,
+   "outputId": 0,
+   "inputModuleId": 16,
+   "inputId": 0,
+   "color": "#ff7f6a"
+  },
+  {
+   "id": 40,
+   "outputModuleId": 15,
+   "outputId": 7,
+   "inputModuleId": 16,
+   "inputId": 1,
+   "color": "#ff7f6a"
   }
  ]
 }
