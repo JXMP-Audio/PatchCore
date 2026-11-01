@@ -27,6 +27,7 @@ struct Scp : engine::Module {
 		TRIG_SLOPE_PARAM,
 		TRIG_SOURCE_PARAM,
 		MODE_PARAM,
+		TRIG_MODE_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds { IN1_INPUT, IN2_INPUT, TRIG_INPUT, NUM_INPUTS };
@@ -39,17 +40,28 @@ struct Scp : engine::Module {
 
 	Scp() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		// Every control explains itself in its tooltip, for players who never used a scope
 		configSwitch(TIME_PARAM, 0.f, sc::kTimeSteps - 1, 6.f, "Time / div",
-		             {"0.1 ms", "0.2 ms", "0.5 ms", "1 ms", "2 ms", "5 ms", "10 ms", "20 ms", "50 ms", "0.1 s", "0.2 s", "0.5 s", "1 s"});
-		configSwitch(VOLT1_PARAM, 0.f, sc::kVoltSteps - 1, 4.f, "CH 1 volts / div", {"0.1 V", "0.2 V", "0.5 V", "1 V", "2 V", "5 V"});
-		configParam(POS1_PARAM, -4.f, 4.f, 0.f, "CH 1 position", " div");
-		configSwitch(VOLT2_PARAM, 0.f, sc::kVoltSteps - 1, 4.f, "CH 2 volts / div", {"0.1 V", "0.2 V", "0.5 V", "1 V", "2 V", "5 V"});
-		configParam(POS2_PARAM, -4.f, 4.f, 0.f, "CH 2 position", " div");
-		configParam(TRIG_LEVEL_PARAM, -10.f, 10.f, 0.f, "Trigger level", " V");
+		             {"0.1 ms", "0.2 ms", "0.5 ms", "1 ms", "2 ms", "5 ms", "10 ms", "20 ms", "50 ms", "0.1 s", "0.2 s", "0.5 s", "1 s"})
+		    ->description = "How much time one square across is. Short for audio waves, long for slow LFOs and envelopes.";
+		configSwitch(VOLT1_PARAM, 0.f, sc::kVoltSteps - 1, 4.f, "CH 1 volts / div", {"0.1 V", "0.2 V", "0.5 V", "1 V", "2 V", "5 V"})
+		    ->description = "How many volts one square up is for the green trace. Smaller = the wave is drawn taller.";
+		configParam(POS1_PARAM, -4.f, 4.f, 0.f, "CH 1 position", " div")->description = "Moves the green trace up or down.";
+		configSwitch(VOLT2_PARAM, 0.f, sc::kVoltSteps - 1, 4.f, "CH 2 volts / div", {"0.1 V", "0.2 V", "0.5 V", "1 V", "2 V", "5 V"})
+		    ->description = "How many volts one square up is for the amber trace. Smaller = the wave is drawn taller.";
+		configParam(POS2_PARAM, -4.f, 4.f, 0.f, "CH 2 position", " div")->description = "Moves the amber trace up or down.";
+		configParam(TRIG_LEVEL_PARAM, -10.f, 10.f, 0.f, "Trigger level", " V")
+		    ->description = "The voltage the wave must cross to start a drawing. Set it inside the wave to make it stand still.";
 		// Toggles: lever up = the highest value, so the default (top) choice is the highest value
-		configSwitch(TRIG_SLOPE_PARAM, 0.f, 1.f, 1.f, "Trigger slope", {"Falling", "Rising"});
-		configSwitch(TRIG_SOURCE_PARAM, 0.f, 2.f, 2.f, "Trigger source", {"External", "CH 2", "CH 1"});
-		configSwitch(MODE_PARAM, 0.f, 1.f, 1.f, "Mode", {"X–Y (CH 1 across, CH 2 up)", "Y–T (time)"});
+		configSwitch(TRIG_SLOPE_PARAM, 0.f, 1.f, 1.f, "Trigger slope", {"Falling", "Rising"})
+		    ->description = "Start the drawing when the wave crosses the level going up (RISE) or going down (FALL).";
+		configSwitch(TRIG_SOURCE_PARAM, 0.f, 2.f, 2.f, "Trigger source", {"External", "CH 2", "CH 1"})
+		    ->description = "Which signal starts the drawing: the green input, the amber input, or the TRIG input on the back.";
+		configSwitch(MODE_PARAM, 0.f, 1.f, 1.f, "Display", {"X–Y (CH 1 across, CH 2 up)", "Y–T (time)"})
+		    ->description = "Y-T draws the waves over time. X-Y draws CH 1 against CH 2 (Lissajous figures, stereo width).";
+		configSwitch(TRIG_MODE_PARAM, 0.f, 1.f, 1.f, "Trigger mode", {"Normal: only on a trigger", "Auto: draws even without a trigger"})
+		    ->description = "AUTO always shows something (it draws by itself when no trigger comes, then the picture runs). "
+		                    "NORM draws only on a trigger: no trigger, the screen goes dark. TRIG'D lights when the trigger works.";
 		configInput(IN1_INPUT, "In 1")->description = "Channel 1, the green trace (X in X–Y mode). Polyphonic: the first voice is drawn.";
 		configInput(IN2_INPUT, "In 2")->description = "Channel 2, the amber trace (Y in X–Y mode).";
 		configInput(TRIG_INPUT, "Trig")->description = "External trigger, used when the trigger source is EXT.";
@@ -63,9 +75,10 @@ struct Scp : engine::Module {
 		const float t = source == 2 ? a : source == 1 ? b : inputs[TRIG_INPUT].getVoltage();
 		const bool fired = trigger.process(t, params[TRIG_LEVEL_PARAM].getValue(), params[TRIG_SLOPE_PARAM].getValue() > 0.5f);
 		const bool xy = params[MODE_PARAM].getValue() < 0.5f;
+		const bool autoRun = params[TRIG_MODE_PARAM].getValue() > 0.5f;
 		if (fired && !capture.running() && !xy)
 			trigLight = 1.f;
-		capture.process(a, b, fired, args.sampleTime, sc::timeDiv((int) std::round(params[TIME_PARAM].getValue())), xy);
+		capture.process(a, b, fired, args.sampleTime, sc::timeDiv((int) std::round(params[TIME_PARAM].getValue())), xy, autoRun);
 		trigLight = std::max(0.f, trigLight - args.sampleTime * 5.f);
 		lights[TRIG_LIGHT].setBrightness(trigLight);
 	}
@@ -154,9 +167,13 @@ struct CrtScreen : widget::TransparentWidget {
 		}
 
 		const double now = system::getTime();
+		// NORM: without new triggers the last trace stays a moment, then fades out (the screen goes dark)
+		const bool norm = module->params[Scp::TRIG_MODE_PARAM].getValue() < 0.5f && !xy;
 		for (const Frame& f : frames) {
 			const float age = (float) (now - f.time);
-			const float alpha = &f == &frames.back() ? 1.f : std::max(0.f, 1.f - age / kAfterglow) * 0.6f;
+			float alpha = std::max(0.f, 1.f - age / kAfterglow) * 0.6f;
+			if (&f == &frames.back())
+				alpha = norm ? math::clamp(1.f - (age - 1.f) / 0.5f, 0.f, 1.f) : 1.f;
 			if (alpha <= 0.f)
 				continue;
 			std::vector<math::Vec> pts(sc::kPoints);
@@ -297,10 +314,11 @@ struct ScpWidget : JXMPModuleWidget {
 		     st::marks(-10.f, 10.f, 2.f, 5, [](float v) { return v == 0.f ? std::string() : string::f("%+d", (int) v); }));
 		toggle(math::Vec(110.f, 66.f), Scp::TRIG_SLOPE_PARAM, 2, {"RISE", "FALL"});
 
-		// Source and mode
+		// Trigger source, AUTO / NORM, display mode
 		section(83.f, 82.f, 35.f, 18.f, "SOURCE · MODE");
-		toggle(math::Vec(95.f, 93.f), Scp::TRIG_SOURCE_PARAM, 3, {"CH1", "CH2", "EXT"});
-		toggle(math::Vec(111.f, 93.f), Scp::MODE_PARAM, 2, {"Y-T", "X-Y"});
+		toggle(math::Vec(90.f, 93.f), Scp::TRIG_SOURCE_PARAM, 3, {"CH1", "CH2", "EXT"});
+		toggle(math::Vec(102.f, 93.f), Scp::TRIG_MODE_PARAM, 2, {"AUTO", "NORM"});
+		toggle(math::Vec(113.5f, 93.f), Scp::MODE_PARAM, 2, {"Y-T", "X-Y"});
 
 		// Channels, under the tube
 		const std::vector<st::Mark> volts = {{0.f, ".1"}, {1.f, ""}, {2.f, ""}, {3.f, ""}, {4.f, ""}, {5.f, "5"}};

@@ -57,6 +57,14 @@ int main() {
 		dc.process(2.f, 0.f, false, dt, 0.001f);
 	assert(dc.sweeps >= 1 && near(dc.shown[0][100], 2.f));
 
+	// NORM: no trigger, no sweep (the screen stays dark); a trigger starts one
+	Capture norm;
+	for (int i = 0; i < 4800; ++i)
+		norm.process(2.f, 0.f, false, dt, 0.001f, false, false);
+	assert(norm.sweeps == 0 && !norm.running());
+	norm.process(2.f, 0.f, true, dt, 0.001f, false, false);
+	assert(norm.running());
+
 	// X–Y: free-run sweeps back to back
 	Capture xy;
 	for (int i = 0; i < 4800; ++i)

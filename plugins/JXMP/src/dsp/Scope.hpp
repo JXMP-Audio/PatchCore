@@ -56,9 +56,9 @@ struct Trigger {
 };
 
 /**
- * One sweep of both channels: starts on a trigger (or by itself after two sweep lengths without one, so a
- * steady voltage still shows), then takes kPoints samples spread over kDivisions × time/div. A finished sweep
- * is copied to `shown` and `sweeps` counts up, which the display reads.
+ * One sweep of both channels: starts on a trigger (AUTO also by itself after two sweep lengths without one, so
+ * a steady voltage still shows; NORM only on a trigger), then takes kPoints samples spread over
+ * kDivisions × time/div. A finished sweep is copied to `shown` and `sweeps` counts up, which the display reads.
  */
 struct Capture {
 	float buffer[2][kPoints] = {};
@@ -73,13 +73,14 @@ struct Capture {
 		return index < kPoints;
 	}
 
-	/** One audio sample. `freeRun` = take sweeps back to back, no trigger (X–Y mode). */
-	void process(float a, float b, bool trigger, float dt, float secondsPerDiv, bool freeRun = false) {
+	/** One audio sample. `freeRun` = take sweeps back to back, no trigger (X–Y mode). `autoRun` = AUTO: start
+	without a trigger after a while; off = NORM. */
+	void process(float a, float b, bool trigger, float dt, float secondsPerDiv, bool freeRun = false, bool autoRun = true) {
 		const float sweepTime = secondsPerDiv * kDivisions;
 		const float step = sweepTime / kPoints;
 		if (!running()) {
 			waiting += dt;
-			if (trigger || freeRun || waiting > 2.f * sweepTime + 0.05f) {
+			if (trigger || freeRun || (autoRun && waiting > 2.f * sweepTime + 0.05f)) {
 				index = 0;
 				waiting = 0.f;
 				sinceTake = step;  // the first point is the trigger sample
