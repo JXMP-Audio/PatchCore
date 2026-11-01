@@ -16,6 +16,7 @@
 #include "../CardinalCommon.hpp"
 #include "../CardinalPluginContext.hpp"
 #include "../patchcore/PatchCore.hpp"
+#include "../patchcore/TransportLayout.hpp"
 #include "DistrhoPluginUtils.hpp"
 
 namespace rack {
@@ -61,7 +62,9 @@ enum TransportIcon {
 
 
 struct TransportBar : widget::OpaqueWidget {
-	math::Rect tempoRect, tempoUpRect, tempoDownRect, sigRect, buttonsRect, posRect, timeRect, dspRect, masterRect;
+	math::Rect tempoRect, tempoUpRect, tempoDownRect, sigRect, buttonsRect, posRect, timeRect, dspRect, masterRect, playRect;
+	/** Standalone: full transport; plugin: thin read-only bar (the DAW owns transport and audio) */
+	const TransportLayout layout = transportLayout(rack::isStandalone());
 	math::Rect buttonRects[5];
 	bool draggingTempo = false;
 	bool showDsp = true, showMaster = true;
@@ -94,6 +97,10 @@ struct TransportBar : widget::OpaqueWidget {
 	}
 
 	void step() override {
+		if (!layout.buttons) {
+			stepThin();
+			return;
+		}
 		const float cy = box.size.y * 0.5f + 6.f;
 		float x = 16.f;
 		tempoRect = math::Rect(x, cy - 16.f, 120.f, 32.f);
@@ -126,8 +133,32 @@ struct TransportBar : widget::OpaqueWidget {
 		OpaqueWidget::step();
 	}
 
+	/** One row, everything centred: tempo, signature, position, playing lamp; DSP and MASTER on the right */
+	void stepThin() {
+		const float cy = box.size.y * 0.5f;
+		float x = 16.f;
+		tempoRect = math::Rect(x, cy - 11.f, 108.f, 22.f);
+		x += 108.f + 10.f;
+		sigRect = math::Rect(x, cy - 11.f, 64.f, 22.f);
+		x += 64.f + 10.f;
+		posRect = math::Rect(x, cy - 11.f, 136.f, 22.f);
+		x += 136.f + 12.f;
+		playRect = math::Rect(x, cy - 6.f, 12.f, 12.f);
+		const float right = box.size.x - 16.f;
+		masterRect = math::Rect(right - 130.f - kMasterW, cy - 10.f, kMasterW, 20.f);
+		dspRect = math::Rect(masterRect.pos.x - 150.f, cy - 5.f, 82.f, 10.f);
+		const float minX = playRect.pos.x + playRect.size.x + 70.f;
+		showMaster = masterRect.pos.x >= minX;
+		showDsp = showMaster && dspRect.pos.x >= minX;
+		updateMeters();
+		OpaqueWidget::step();
+	}
+
 	void onButton(const ButtonEvent& e) override {
 		OpaqueWidget::onButton(e);
+		// Plugin: read-only, the host starts and stops
+		if (!layout.buttons)
+			return;
 		if (e.button != GLFW_MOUSE_BUTTON_LEFT || e.action != GLFW_PRESS)
 			return;
 
@@ -242,10 +273,15 @@ struct TransportBar : widget::OpaqueWidget {
 
 	void drawMaster(NVGcontext* const vg, const Theme& t) {
 		const int count = 24;
-		draw::text(vg, labelFont(), 9.f, t.textDim, math::Vec(masterRect.pos.x, masterRect.pos.y - 3.f),
-		           NVG_ALIGN_LEFT | NVG_ALIGN_BOTTOM, "MASTER  dBFS", 1.4f);
+		const bool thin = !layout.buttons;
+		if (thin)
+			draw::text(vg, labelFont(), 9.f, t.textDim, math::Vec(masterRect.pos.x - 8.f, masterRect.getCenter().y),
+			           NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, "MASTER", 1.4f);
+		else
+			draw::text(vg, labelFont(), 9.f, t.textDim, math::Vec(masterRect.pos.x, masterRect.pos.y - 3.f),
+			           NVG_ALIGN_LEFT | NVG_ALIGN_BOTTOM, "MASTER  dBFS", 1.4f);
 		for (int c = 0; c < 2; ++c) {
-			const float y = masterRect.pos.y + 2.f + c * 12.f;
+			const float y = masterRect.pos.y + (thin ? 0.5f : 2.f) + c * (thin ? 10.f : 12.f);
 			const float db = toDb(level[c]), holdDb = toDb(hold[c]);
 			const int holdSeg = (int) std::ceil((holdDb + 48.f) / 2.f) - 1;
 			for (int i = 0; i < count; ++i) {
@@ -265,6 +301,8 @@ struct TransportBar : widget::OpaqueWidget {
 			nvgFillColor(vg, clipTime[c] > 0.f ? nvgRGB(0xff, 0x3b, 0x2f) : nvgRGB(0x3a, 0x1c, 0x1a));
 			nvgFill(vg);
 		}
+		if (thin)
+			return;
 		draw::text(vg, labelFont(), 7.f, t.textFaint, math::Vec(masterRect.pos.x + count * 7.f + 12.f, masterRect.pos.y - 3.f),
 		           NVG_ALIGN_CENTER | NVG_ALIGN_BOTTOM, "CLIP", 0.8f);
 		// Scale under the bars
@@ -276,6 +314,40 @@ struct TransportBar : widget::OpaqueWidget {
 		}
 	}
 
+	/** An LCD with its label inside on the left (the thin bar has no room above) */
+	void drawInlineLcd(NVGcontext* const vg, const math::Rect& r, const char* label, const std::string& text) {
+		drawLcd(vg, r, 14.f, text, true);
+		draw::text(vg, labelFont(), 8.f, theme().textDim, math::Vec(r.pos.x + 7.f, r.getCenter().y),
+		           NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, label, 1.2f);
+	}
+
+	void drawThin(NVGcontext* const vg, const Theme& t, CardinalPluginContext* const context) {
+		const bool valid = context->bbtValid;
+		drawInlineLcd(vg, tempoRect, "BPM", valid ? string::f("%.2f", context->beatsPerMinute) : "---.--");
+		drawInlineLcd(vg, sigRect, "SIG", valid ? string::f("%d/%d", context->beatsPerBar, context->beatType) : "-/-");
+		std::string pos = "-.-.-";
+		if (valid)
+			pos = string::f("%d.%d.%d", context->bar, context->beat, (int) (context->tick / std::max(1.0, context->ticksPerBeat / 4.0)) + 1);
+		drawInlineLcd(vg, posRect, "BARS", pos);
+
+		// Playing lamp: the host's transport state
+		nvgBeginPath(vg);
+		nvgCircle(vg, playRect.getCenter().x, playRect.getCenter().y, 5.f);
+		nvgFillColor(vg, context->playing ? nvgRGB(0x55, 0xe0, 0x7c) : nvgRGB(0x1d, 0x2a, 0x20));
+		nvgFill(vg);
+
+		if (showDsp) {
+			const float load = APP->engine->getMeterAverage();
+			draw::text(vg, labelFont(), 9.f, t.textDim, math::Vec(dspRect.pos.x - 8.f, dspRect.getCenter().y),
+			           NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, string::f("DSP %d %%", (int) std::round(load * 100.f)), 1.2f);
+			drawSegments(vg, dspRect.pos, 12, load, true);
+		}
+		if (showMaster)
+			drawMaster(vg, t);
+		draw::text(vg, uiFont(), 11.f, t.textFaint, math::Vec(box.size.x - 16.f, box.size.y * 0.5f),
+		           NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, string::f("%s  ·  Host sync", getPluginFormatName()));
+	}
+
 	void draw(const DrawArgs& args) override {
 		NVGcontext* const vg = args.vg;
 		const Theme& t = theme();
@@ -284,6 +356,10 @@ struct TransportBar : widget::OpaqueWidget {
 		const bool valid = context->bbtValid;
 
 		drawBarBackground(vg, box.size, true);
+		if (!layout.buttons) {
+			drawThin(vg, t, context);
+			return;
+		}
 
 		// Tempo and signature
 		drawLabel(vg, tempoRect, "TEMPO");
@@ -369,7 +445,7 @@ struct TransportBar : widget::OpaqueWidget {
 
 widget::Widget* createTransportBar() {
 	TransportBar* const bar = new TransportBar;
-	bar->box.size.y = 74.f;
+	bar->box.size.y = bar->layout.height;
 	return bar;
 }
 
