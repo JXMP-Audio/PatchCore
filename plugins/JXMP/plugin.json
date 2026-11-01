@@ -190,6 +190,14 @@
       "tags": [
         "Visual"
       ]
+    },
+    {
+      "slug": "Clock",
+      "name": "Clock",
+      "description": "JX-CLK: master clock from CLOCK IN, the transport or its own tempo; x4 to /16 with swing, reset, run",
+      "tags": [
+        "Clock generator"
+      ]
     }
   ]
 }

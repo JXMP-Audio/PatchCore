@@ -118,24 +118,51 @@ struct CrtScreen : widget::TransparentWidget {
 			frames.pop_front();
 	}
 
-	/** Screen point of (x, y) in divisions; kept on the round screen. */
+	/** Screen point of (x, y) in divisions. It may lie off the round screen: trace() clips it. */
 	math::Vec point(math::Vec c, float r, float xDiv, float yDiv) const {
 		const float d = r / 4.f;  // 8 divisions across the diameter
-		math::Vec p(xDiv * d, -yDiv * d);
-		const float len = p.norm(), maxLen = r * 0.985f;
-		if (len > maxLen)
-			p = p.mult(maxLen / len);
-		return c.plus(p);
+		return c.plus(math::Vec(xDiv * d, -yDiv * d));
 	}
 
+	/** Part of the segment a–b inside the circle (centre c, radius r), as t0..t1 of the segment; false if none. */
+	static bool clipToCircle(math::Vec a, math::Vec b, math::Vec c, float r, float* t0, float* t1) {
+		const math::Vec d = b.minus(a), f = a.minus(c);
+		const float A = d.dot(d), B = 2.f * f.dot(d), C = f.dot(f) - r * r;
+		if (A <= 1e-9f) {
+			*t0 = 0.f;
+			*t1 = 1.f;
+			return C <= 0.f;
+		}
+		const float disc = B * B - 4.f * A * C;
+		if (disc < 0.f)
+			return false;
+		const float sq = std::sqrt(disc);
+		*t0 = std::max(0.f, (-B - sq) / (2.f * A));
+		*t1 = std::min(1.f, (-B + sq) / (2.f * A));
+		return *t0 < *t1;
+	}
+
+	/** The trace as on a real tube: what leaves the round screen is hidden behind the bezel, not bent onto it. */
 	void trace(NVGcontext* vg, math::Vec c, float r, const std::vector<math::Vec>& pts, NVGcolor col, float alpha) {
 		if (pts.size() < 2)
 			return;
+		const float rc = r * 0.995f;
 		for (int pass = 0; pass < 2; ++pass) {
 			nvgBeginPath(vg);
-			nvgMoveTo(vg, pts[0].x, pts[0].y);
-			for (size_t i = 1; i < pts.size(); ++i)
-				nvgLineTo(vg, pts[i].x, pts[i].y);
+			bool drawing = false;
+			for (size_t i = 1; i < pts.size(); ++i) {
+				float t0, t1;
+				if (!clipToCircle(pts[i - 1], pts[i], c, rc, &t0, &t1)) {
+					drawing = false;
+					continue;
+				}
+				const math::Vec d = pts[i].minus(pts[i - 1]);
+				const math::Vec p0 = pts[i - 1].plus(d.mult(t0)), p1 = pts[i - 1].plus(d.mult(t1));
+				if (!drawing || t0 > 0.f)
+					nvgMoveTo(vg, p0.x, p0.y);
+				nvgLineTo(vg, p1.x, p1.y);
+				drawing = t1 >= 1.f;
+			}
 			nvgLineJoin(vg, NVG_ROUND);
 			nvgLineCap(vg, NVG_ROUND);
 			// A wide soft glow, then the bright core
@@ -219,6 +246,8 @@ struct CrtScreen : widget::TransparentWidget {
 				const NVGcolor col = ch == 0 ? green : amber;
 				trace(vg, c, r, part, col, 1.f);
 				const math::Vec head = part.back();
+				if (head.minus(c).norm() > r)
+					continue;  // the beam is off screen
 				nvgBeginPath(vg);
 				nvgCircle(vg, head.x, head.y, 2.6f);
 				nvgFillPaint(vg, nvgRadialGradient(vg, head.x, head.y, 0.5f, 4.f, nvgRGBAf(1, 1, 1, 0.9f), nvgRGBAf(col.r, col.g, col.b, 0)));

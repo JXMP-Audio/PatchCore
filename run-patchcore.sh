@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # PatchCore launcher.
 #
-#   ./run-patchcore.sh                 start PatchCore (empty rack)
+#   ./run-patchcore.sh                 the workbench: everything being worked on (newest modules)
+#   ./run-patchcore.sh empty           an empty rack (also --empty)
 #   ./run-patchcore.sh demo            the JXMP ambient patch (also --demo)
 #   ./run-patchcore.sh showcase        the JXMP showcase voice (also --showcase)
 #   ./run-patchcore.sh my-patch.vcv    open your own patch
@@ -19,6 +20,18 @@ set -euo pipefail
 
 core="$(cd "$(dirname "$(realpath "$0")")" && pwd)"
 bin="$core/bin/Cardinal"
+
+# Rebuilds when a source file is newer than the app, so a start always shows the newest work
+rebuild_if_needed() {
+	local newer
+	newer="$(find "$core/src" "$core/plugins/JXMP" "$core/dpf/distrho" "$core/include" \
+		\( -name '*.cpp' -o -name '*.hpp' -o -name '*.h' -o -name 'plugin.json' -o -name '*.mk' -o -name Makefile \) \
+		-newer "$bin" -print -quit 2>/dev/null || true)"
+	if [ -n "$newer" ]; then
+		echo "Sources changed since the last build: building PatchCore first..."
+		make -C "$core" -j"$(nproc)" jack
+	fi
+}
 
 build() {
 	echo "Fetching sources (submodules)..."
@@ -64,7 +77,7 @@ case "${1:-}" in
 		exit 0
 		;;
 	-h|--help)
-		sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
+		sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
 		exit 0
 		;;
 esac
@@ -88,6 +101,8 @@ case "${1:-}" in
 		build
 		exit 0
 		;;
+	empty|--empty)
+		;;
 	demo|--demo)
 		patch="$core/patches/jxmp-ambient.vcv"
 		;;
@@ -95,6 +110,7 @@ case "${1:-}" in
 		patch="$core/patches/jxmp-showcase.vcv"
 		;;
 	"")
+		patch="$core/patches/jxmp-workbench.vcv"
 		;;
 	-*)
 		echo "Unknown option: $1 (try --help)" >&2
@@ -105,7 +121,11 @@ case "${1:-}" in
 		;;
 esac
 
-[ -x "$bin" ] || build
+if [ -x "$bin" ]; then
+	rebuild_if_needed
+else
+	build
+fi
 
 cd "$core"
 if [ -n "$patch" ]; then

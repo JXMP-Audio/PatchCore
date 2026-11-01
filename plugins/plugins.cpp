@@ -1247,6 +1247,8 @@ static void initStatic__JXMP()
         p->addModel(modelJXMPConsole8);
         p->addModel(modelJXMPConsole16);
         p->addModel(modelJXMPConsole32);
+        p->addModel(modelJXMPScope);
+        p->addModel(modelJXMPClock);
     }
 }
 
