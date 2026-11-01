@@ -42,6 +42,8 @@ share the name in LV2/CLAP; ASIO single-file include risky on 32-bit MinGW.
    rate change (pitch), driver switch restart (patch path + unsaved kept), missing-card notice; VST3 in a host.
 2. Final whole-branch review, merge `standalone-audio` into `main`, push, bump the collection.
 3. Then the Editor (sub-project C of doc 11) — needs its own spec.
+3b. Third JXMP module set, design [14](14-jxmp-modules-set3-design.md): JX-SCP first (round green CRT scope),
+   then JX-CLK + JX-EUC, JX-DRM, JX-REV + JX-CHR, the small ones. Order against the Editor: the user decides.
 4. JX-CONSOLE docs (design guide colour, plugins/JXMP/README.md, module list, demo patch).
 
 ## 2026-11-01

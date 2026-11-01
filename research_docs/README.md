@@ -17,6 +17,7 @@ A Reason-inspired, realistic frontend for Cardinal (a VCV Rack fork).
 | [11-views-console-editor-design.md](11-views-console-editor-design.md) | Draft: plugin vs standalone views, JX-CONSOLE + Mixer view, piano-roll Editor |
 | [12-standalone-plugin-audio-design.md](12-standalone-plugin-audio-design.md) | Draft: standalone vs VST3 (PatchCore, PatchCore FX), thin plugin bar, audio device settings (PipeWire/JACK, ALSA, WASAPI, ASIO), DPF vendored |
 | [13-plan-standalone-plugin-audio.md](13-plan-standalone-plugin-audio.md) | Implementation plan for 12, task by task |
+| [14-jxmp-modules-set3-design.md](14-jxmp-modules-set3-design.md) | Design: third JXMP set — Scope (round CRT), Clock, Euclidean, Drums, Reverb, Chorus, Folder, Ring mod, Logic, Switch, Poly utils |
 | [STATUS.md](STATUS.md) | Handoff: what is done, what is in progress, what comes next (kept current every session) |
 | [mockups/index.html](mockups/index.html) | Interactive HTML mockup. Open it in a browser |
 | [mockups/screens/](mockups/screens/) | `front.png`, `back.png`, `play.png` captures at 1600×940 |
