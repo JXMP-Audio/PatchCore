@@ -65,7 +65,7 @@ void showNotice(const std::string& text) {
 void restartApp() {
 	// The patch goes through a temporary file; the original path and the unsaved state come back after the restart
 	const std::string tmp = system::join(asset::user(""), "patchcore-restart.vcv");
-	const std::string original = APP->patch->path;
+	const std::string original = "path:" + APP->patch->path;
 	const bool modified = !APP->history->isSaved();
 	try {
 		APP->patch->save(tmp);
@@ -78,6 +78,8 @@ void restartApp() {
 	SetEnvironmentVariableA("PATCHCORE_DEV_PATCH", tmp.c_str());
 	SetEnvironmentVariableA("PATCHCORE_RESTORE_PATH", original.c_str());
 	SetEnvironmentVariableA("PATCHCORE_RESTORE_MODIFIED", modified ? "1" : "0");
+	// The new instance waits for this one to exit (and free the audio device) before it opens audio
+	SetEnvironmentVariableA("PATCHCORE_RESTART_WAIT_PID", std::to_string(GetCurrentProcessId()).c_str());
 	wchar_t exe[MAX_PATH];
 	GetModuleFileNameW(nullptr, exe, MAX_PATH);
 	std::wstring cmd = L"\"";
@@ -191,7 +193,7 @@ struct AudioSettingsDialog : widget::OpaqueWidget {
 		ui::Menu* const menu = createMenu();
 		switch (row) {
 			case ROW_DRIVER:
-				for (const pa::Driver d : pa::platformDrivers()) {
+				for (const pa::Driver d : DISTRHO_NAMESPACE::getAvailableAudioDrivers()) {
 					menu->addChild(createCheckMenuItem(pa::driverName(d), "", [=]() { return edit.driver == d; }, [=]() {
 						edit.driver = d;
 						if (d != runningDriver) {
@@ -245,7 +247,14 @@ struct AudioSettingsDialog : widget::OpaqueWidget {
 			return;
 		}
 		if (err == "restart") {
-			asyncDialog::create("PatchCore restarts to switch the audio driver. The patch stays open.", []() { restartApp(); });
+			const pa::AudioSetup wanted = edit;
+			asyncDialog::create("PatchCore restarts to switch the audio driver. The patch stays open.", [wanted]() {
+				if (!pa::saveSetup(wanted)) {
+					showNotice("Could not save the audio settings to " + pa::configPath());
+					return;
+				}
+				restartApp();
+			});
 			return;
 		}
 		error = err.empty() ? "The audio settings could not be applied" : err;
@@ -257,15 +266,10 @@ struct AudioSettingsDialog : widget::OpaqueWidget {
 		context->testToneFrames = (int32_t) (context->sampleRate * 0.5);
 	}
 
+	/** Closes the whole dialog (the overlay that holds this panel) */
 	void close() {
-		requestDelete();
-	}
-
-	void step() override {
-		// Centred over the scene
 		if (parent != nullptr)
-			box.pos = parent->box.size.minus(box.size).div(2).round();
-		OpaqueWidget::step();
+			parent->requestDelete();
 	}
 
 	void onButton(const ButtonEvent& e) override {
@@ -289,15 +293,6 @@ struct AudioSettingsDialog : widget::OpaqueWidget {
 			close();
 	}
 
-	void onHoverKey(const HoverKeyEvent& e) override {
-		if (e.action == GLFW_PRESS && e.key == GLFW_KEY_ESCAPE) {
-			close();
-			e.consume(this);
-			return;
-		}
-		OpaqueWidget::onHoverKey(e);
-		e.consume(this);  // modal: keys do not reach the rack
-	}
 
 	void drawButton(NVGcontext* const vg, const math::Rect& r, const std::string& label, bool enabled, bool primary) {
 		const Theme& t = theme();
@@ -312,14 +307,6 @@ struct AudioSettingsDialog : widget::OpaqueWidget {
 	void draw(const DrawArgs& args) override {
 		NVGcontext* const vg = args.vg;
 		const Theme& t = theme();
-
-		// Dim the app behind the dialog
-		if (parent != nullptr) {
-			nvgBeginPath(vg);
-			nvgRect(vg, -box.pos.x, -box.pos.y, parent->box.size.x, parent->box.size.y);
-			nvgFillColor(vg, nvgRGBAf(0, 0, 0, 0.45f));
-			nvgFill(vg);
-		}
 
 		draw::bevelBox(vg, box.zeroPos(), 8.f, t.chrome2, t.chrome1, nvgRGB(0, 0, 0));
 		draw::text(vg, labelFont(), 11.f, t.textDim, math::Vec(20.f, 26.f), NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, "AUDIO SETTINGS", 1.6f);
@@ -371,10 +358,64 @@ struct AudioSettingsDialog : widget::OpaqueWidget {
 };
 
 
+/** Full-scene overlay: dims the app and swallows every click and key, so the dialog is modal */
+struct AudioSettingsOverlay : widget::OpaqueWidget {
+	static AudioSettingsOverlay* current;
+	AudioSettingsDialog* panel;
+
+	AudioSettingsOverlay() {
+		panel = new AudioSettingsDialog;
+		addChild(panel);
+		current = this;
+	}
+
+	~AudioSettingsOverlay() {
+		if (current == this)
+			current = nullptr;
+	}
+
+	void step() override {
+		if (parent != nullptr)
+			box = math::Rect(math::Vec(), parent->box.size);
+		panel->box.pos = box.size.minus(panel->box.size).div(2).round();
+		OpaqueWidget::step();
+	}
+
+	void onButton(const ButtonEvent& e) override {
+		OpaqueWidget::onButton(e);
+		e.consume(this);
+	}
+
+	void onHoverKey(const HoverKeyEvent& e) override {
+		if (e.action == GLFW_PRESS && e.key == GLFW_KEY_ESCAPE) {
+			requestDelete();
+			e.consume(this);
+			return;
+		}
+		OpaqueWidget::onHoverKey(e);
+		e.consume(this);  // keys do not reach the rack
+	}
+
+	void onHoverScroll(const HoverScrollEvent& e) override {
+		e.consume(this);
+	}
+
+	void draw(const DrawArgs& args) override {
+		nvgBeginPath(args.vg);
+		nvgRect(args.vg, 0, 0, box.size.x, box.size.y);
+		nvgFillColor(args.vg, nvgRGBAf(0, 0, 0, 0.45f));
+		nvgFill(args.vg);
+		OpaqueWidget::draw(args);
+	}
+};
+
+AudioSettingsOverlay* AudioSettingsOverlay::current = nullptr;
+
+
 void showAudioSettings() {
-	if (!isStandalone())
+	if (!isStandalone() || AudioSettingsOverlay::current != nullptr)
 		return;
-	APP->scene->addChild(new AudioSettingsDialog);
+	APP->scene->addChild(new AudioSettingsOverlay);
 }
 
 

@@ -174,26 +174,33 @@ struct RtAudioBridge : NativeBridge {
         const uint previousRate = sampleRate;
         const uint previousBufferSize = bufferSize;
 
+        // The audio thread stops first (it takes midiInLock itself); then the MIDI input threads are held off
+        // while the buffers they write into are freed and created again
         if (handle != nullptr)
-        {
             deactivate();
-            close();
-        }
 
-        setup = wanted;
-        const bool ok = _open(! wanted.input.empty());
-
-        if (! ok)
+        bool ok;
         {
-            if (error != nullptr)
-                *error = "Could not open " + (wanted.output.empty() ? std::string("the default output") : wanted.output)
-                       + " at " + std::to_string(wanted.sampleRate) + " Hz";
-            setup = previous;
-            if (! _open(! previous.input.empty()))
+            const RecursiveMutexLocker rml(midiInLock);
+
+            if (handle != nullptr)
+                close();
+
+            setup = wanted;
+            ok = _open(! wanted.input.empty());
+
+            if (! ok)
             {
-                setup.output.clear();
-                setup.input.clear();
-                _open(false);
+                if (error != nullptr)
+                    *error = "Could not open " + (wanted.output.empty() ? std::string("the default output") : wanted.output)
+                           + " at " + std::to_string(wanted.sampleRate) + " Hz";
+                setup = previous;
+                if (! _open(! previous.input.empty()))
+                {
+                    setup.output.clear();
+                    setup.input.clear();
+                    _open(false);
+                }
             }
         }
 
@@ -214,10 +221,24 @@ struct RtAudioBridge : NativeBridge {
     }
 
     // RtAudio's error callback has no user pointer: a stream error marks the (single) bridge as stopped
+    // ALSA reports a lost device only as warnings ("audio write error, No such device"): an underrun is normal,
+    // but a run of other read/write errors means the card is gone
     static void errorCallback(const RtAudioError::Type type, const std::string& text)
     {
-        if (type == RtAudioError::WARNING || type == RtAudioError::DEBUG_WARNING)
+        static int ioErrors = 0;
+        if (type == RtAudioError::DEBUG_WARNING)
             return;
+        if (type == RtAudioError::WARNING)
+        {
+            const bool ioError = (text.find("audio write error") != std::string::npos
+                               || text.find("audio read error") != std::string::npos)
+                              && text.find("underrun") == std::string::npos;
+            if (! ioError)
+                return;
+            if (++ioErrors < 20)
+                return;
+        }
+        ioErrors = 0;
         d_stderr("PatchCore audio: %s", text.c_str());
         if (sRunning != nullptr)
             *sRunning = false;
@@ -234,9 +255,8 @@ struct RtAudioBridge : NativeBridge {
             } DISTRHO_SAFE_EXCEPTION("handle->abortStream()");
         }
 
-       #if DISTRHO_PLUGIN_NUM_INPUTS > 0
+        // PatchCore: always, since every open allocates them (an output-only variant leaked them before)
         freeBuffers();
-       #endif
         handle = nullptr;
         return true;
     }

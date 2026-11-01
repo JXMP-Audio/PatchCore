@@ -104,12 +104,17 @@ std::string getAudioNotice();
 
 /**
    Apply a setup and save it. Same driver: a live reopen (back to the previous setup on failure, with *error set).
-   Another driver: saved for the next start, returns false with *error = "restart".
+   Another driver: returns false with *error = "restart" (the caller saves it with saveSetup() once the user
+   confirms the restart).
 */
 bool requestAudioSetup(const patchcore_audio::AudioSetup& setup, std::string* error);
 
 /** False after the audio device was lost (unplugged, stream error). */
 bool isAudioRunning();
+
+/** The drivers this build and system can run (Linux: PipeWire/JACK if libjack loads, ALSA; Windows: WASAPI,
+ASIO if the SDK is compiled in). */
+std::vector<patchcore_audio::Driver> getAvailableAudioDrivers();
 
 /** Opens the ASIO driver's control panel (Windows, ASIO only). */
 bool showAsioPanel();

@@ -960,6 +960,28 @@ jack_client_t* jackbridge_client_open(const char* client_name, uint32_t options,
 #else
     // PatchCore: the saved driver decides; PipeWire/JACK is tried only when it is the chosen driver
     patchcore_audio::gPatchCoreSetup = patchcore_audio::loadSetup();
+   #ifdef DISTRHO_OS_WINDOWS
+    // After restartApp(): wait until the previous instance has released the audio device
+    if (const char* const pid = std::getenv("PATCHCORE_RESTART_WAIT_PID"))
+    {
+        if (HANDLE const h = OpenProcess(SYNCHRONIZE, FALSE, static_cast<DWORD>(std::atol(pid))))
+        {
+            WaitForSingleObject(h, 10000);
+            CloseHandle(h);
+        }
+        _putenv_s("PATCHCORE_RESTART_WAIT_PID", "");
+    }
+   #endif
+   #ifndef __WINDOWS_ASIO__
+    // ASIO is listed on Windows, but this build has no ASIO SDK: run WASAPI and say so
+    if (patchcore_audio::gPatchCoreSetup.driver == patchcore_audio::Driver::Asio)
+    {
+        patchcore_audio::gPatchCoreSetup.driver = patchcore_audio::Driver::Wasapi;
+        patchcore_audio::gPatchCoreSetup.output.clear();
+        patchcore_audio::gPatchCoreSetup.input.clear();
+        patchcore_audio::gPatchCoreNotice = "ASIO is not part of this build, using WASAPI";
+    }
+   #endif
     const bool wantJack = patchcore_audio::gPatchCoreSetup.driver == patchcore_audio::Driver::Jack;
    #ifndef DISTRHO_OS_WASM
     if (wantJack && getBridgeInstance().client_open_ptr != nullptr)
@@ -1004,6 +1026,40 @@ jack_client_t* jackbridge_client_open(const char* client_name, uint32_t options,
         return kValidClient;
     }
     delete nativeBridge;
+
+    // PatchCore: the saved native driver does not open at all: try the other driver of the platform, so a bad
+    // setup never keeps the app from starting
+    {
+        const patchcore_audio::Driver failed = patchcore_audio::gPatchCoreSetup.driver;
+       #ifndef DISTRHO_OS_WASM
+        if (! wantJack && getBridgeInstance().client_open_ptr != nullptr)
+            if (jack_client_t* const client = getBridgeInstance().client_open_ptr(client_name, static_cast<jack_options_t>(options), status))
+            {
+                usingNativeBridge = false;
+                usingRealJACK = true;
+                nativeBridge = nullptr;
+                patchcore_audio::gPatchCoreSetup.driver = patchcore_audio::Driver::Jack;
+                patchcore_audio::gPatchCoreNotice = std::string(patchcore_audio::driverName(failed)) + " could not start, using PipeWire / JACK";
+                gPatchCoreJackClient = client;
+                return client;
+            }
+       #endif
+        const patchcore_audio::Driver first = patchcore_audio::platformDrivers()[0];
+        const patchcore_audio::Driver other = first == failed ? patchcore_audio::platformDrivers()[1] : first;
+        if (other != patchcore_audio::Driver::Jack)
+        {
+            patchcore_audio::gPatchCoreSetup = patchcore_audio::defaultSetup();
+            patchcore_audio::gPatchCoreSetup.driver = other;
+            nativeBridge = new RtAudioBridge;
+            if (nativeBridge->open(client_name))
+            {
+                patchcore_audio::gPatchCoreNotice = std::string(patchcore_audio::driverName(failed)) + " could not start, using "
+                                                  + patchcore_audio::driverName(other);
+                return kValidClient;
+            }
+            delete nativeBridge;
+        }
+    }
    #endif
 
    #if defined(HAVE_SDL2) && DISTRHO_PLUGIN_NUM_INPUTS+DISTRHO_PLUGIN_NUM_OUTPUTS > 0
@@ -2526,8 +2582,6 @@ bool requestMIDI()
     return false;
 }
 
-END_NAMESPACE_DISTRHO
-
 // --------------------------------------------------------------------------------------------------------------------
 // PatchCore: audio device settings
 
@@ -2576,7 +2630,7 @@ bool requestAudioSetup(const patchcore_audio::AudioSetup& setup, std::string* co
                                           : patchcore_audio::Driver::Jack;
     if (setup.driver != current)
     {
-        patchcore_audio::saveSetup(setup);
+        // Saved by the dialog once the user confirms the restart
         if (error != nullptr)
             *error = "restart";
         return false;
@@ -2594,7 +2648,8 @@ bool requestAudioSetup(const patchcore_audio::AudioSetup& setup, std::string* co
         return true;
     }
     const bool ok = nativeBridge->reopen(setup, error);
-    patchcore_audio::saveSetup(ok ? nativeBridge->currentSetup() : setup);
+    if (ok)
+        patchcore_audio::saveSetup(nativeBridge->currentSetup());  // a failed setup is not remembered
     return ok;
 #else
     (void)setup;
@@ -2612,6 +2667,24 @@ bool isAudioRunning()
 #endif
 }
 
+std::vector<patchcore_audio::Driver> getAvailableAudioDrivers()
+{
+    std::vector<patchcore_audio::Driver> out;
+#if !(defined(JACKBRIDGE_DUMMY) || defined(JACKBRIDGE_DIRECT))
+    for (const patchcore_audio::Driver d : patchcore_audio::platformDrivers())
+    {
+        if (d == patchcore_audio::Driver::Jack && getBridgeInstance().client_open_ptr == nullptr)
+            continue;  // no libjack / PipeWire JACK
+       #ifndef __WINDOWS_ASIO__
+        if (d == patchcore_audio::Driver::Asio)
+            continue;  // no ASIO SDK in this build
+       #endif
+        out.push_back(d);
+    }
+#endif
+    return out;
+}
+
 bool showAsioPanel()
 {
 #if defined(__WINDOWS_ASIO__) && !(defined(JACKBRIDGE_DUMMY) || defined(JACKBRIDGE_DIRECT))
@@ -2620,6 +2693,8 @@ bool showAsioPanel()
 #endif
     return false;
 }
+
+END_NAMESPACE_DISTRHO
 
 #endif // JACKBRIDGE_SKIP_NATIVE_UTILS
 

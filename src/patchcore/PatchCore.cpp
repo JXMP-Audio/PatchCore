@@ -232,20 +232,28 @@ void devStep() {
 	++frame;
 
 	if (frame == 1) {
+		bool loaded = false;
 		if (const char* const path = std::getenv("PATCHCORE_DEV_PATCH")) {
 			try {
 				APP->patch->load(path);
 				APP->patch->path = path;
+				loaded = true;
 			}
 			catch (Exception& e) {
 				WARN("PatchCore: could not load %s: %s", path, e.what());
+				if (std::getenv("PATCHCORE_RESTORE_PATH") != nullptr)
+					showNotice(std::string("The patch could not be reopened after the restart; it is kept in ") + path);
 			}
 		}
-		// After restartApp(): the patch came from a temporary file; give it back its own path and unsaved state
-		if (const char* const original = std::getenv("PATCHCORE_RESTORE_PATH")) {
+		// After restartApp(): the patch came from a temporary file; give it back its own path and unsaved state.
+		// Only when it loaded: otherwise the temporary file is the user's work and stays where it is.
+		const char* const original = std::getenv("PATCHCORE_RESTORE_PATH");
+		if (original != nullptr && loaded) {
 			if (const char* const tmp = std::getenv("PATCHCORE_DEV_PATCH"))
 				system::remove(tmp);
-			APP->patch->path = original;
+			// "path:" prefix, so an untitled patch (empty path) survives Windows' environment
+			const std::string restored = original;
+			APP->patch->path = restored.compare(0, 5, "path:") == 0 ? restored.substr(5) : restored;
 			const char* const modified = std::getenv("PATCHCORE_RESTORE_MODIFIED");
 			if (modified != nullptr && std::string(modified) == "1")
 				APP->history->savedIndex = -1;

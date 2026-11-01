@@ -410,6 +410,7 @@ patchcore_audio::AudioSetup getAudioSetup() { return patchcore_audio::defaultSet
 std::string getAudioNotice() { return std::string(); }
 bool requestAudioSetup(const patchcore_audio::AudioSetup&, std::string*) { return false; }
 bool isAudioRunning() { return true; }
+std::vector<patchcore_audio::Driver> getAvailableAudioDrivers() { return {}; }
 bool showAsioPanel() { return false; }
 #endif
 

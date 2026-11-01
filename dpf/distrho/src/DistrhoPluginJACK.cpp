@@ -374,6 +374,42 @@ protected:
         }
        #endif
 
+       #ifdef DISTRHO_OS_LINUX
+        // PipeWire: pactl gives the sink's node.name, which pw-link understands (JACK port names follow the
+        // node's description instead), as the old launcher script did
+        if (! sink.empty() && sink.find('\'') == std::string::npos)
+        {
+            std::vector<std::string> playback;
+            if (FILE* const p = popen("pw-link -i 2>/dev/null", "r"))
+            {
+                char line[512];
+                const std::string prefix = sink + ":playback_";
+                while (std::fgets(line, sizeof(line), p) != nullptr)
+                {
+                    std::string port(line);
+                    while (! port.empty() && (port.back() == '\n' || port.back() == '\r'))
+                        port.pop_back();
+                    if (port.compare(0, prefix.size(), prefix) == 0 && port.find('\'') == std::string::npos)
+                        playback.push_back(port);
+                }
+                pclose(p);
+            }
+            if (! playback.empty())
+            {
+                const uint32_t outs = std::min<uint32_t>(2, DISTRHO_PLUGIN_NUM_OUTPUTS);
+                bool linked = true;
+                for (uint32_t i = 0; i < outs; ++i)
+                {
+                    const std::string cmd = std::string("pw-link '") + jackbridge_port_name(fPortAudioOuts[i]) + "' '"
+                                          + playback[std::min<size_t>(i, playback.size() - 1)] + "' 2>/dev/null";
+                    linked = std::system(cmd.c_str()) == 0 && linked;
+                }
+                if (linked)
+                    return;
+            }
+        }
+       #endif
+
         const char** const ports = jackbridge_get_ports(fClient, nullptr, JACK_DEFAULT_AUDIO_TYPE,
                                                         JackPortIsPhysical | JackPortIsInput);
         if (ports == nullptr)
