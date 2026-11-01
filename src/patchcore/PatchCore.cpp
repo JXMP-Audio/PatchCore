@@ -68,7 +68,7 @@ const Theme& theme() {
 
 
 bool enabled() {
-	return settings.theme != THEME_CLASSIC && !isMini();
+	return !isMini();
 }
 
 
@@ -124,10 +124,7 @@ void loadSettings() {
 		return;
 	}
 
-	if (json_t* const j = json_object_get(rootJ, "theme")) {
-		const std::string s = json_string_value(j) ? json_string_value(j) : "";
-		settings.theme = s == "classic" ? THEME_CLASSIC : THEME_DARK;
-	}
+	// "theme" is no longer read: the Classic (plain Cardinal) look was removed, PatchCore always uses its own UI
 	if (json_t* const j = json_object_get(rootJ, "sheen"))
 		settings.sheen = math::clamp((float) json_number_value(j), 0.f, 1.f);
 	if (json_t* const j = json_object_get(rootJ, "mountScrews"))
@@ -147,7 +144,6 @@ void loadSettings() {
 
 void saveSettings() {
 	json_t* const rootJ = json_object();
-	json_object_set_new(rootJ, "theme", json_string(settings.theme == THEME_CLASSIC ? "classic" : "dark"));
 	json_object_set_new(rootJ, "sheen", json_real(settings.sheen));
 	json_object_set_new(rootJ, "mountScrews", json_boolean(settings.mountScrews));
 	json_object_set_new(rootJ, "navigatorVisible", json_boolean(settings.navigatorVisible));
@@ -243,9 +239,6 @@ void devStep() {
 				WARN("PatchCore: could not load %s: %s", path, e.what());
 			}
 		}
-		// Runtime only, never saved
-		if (const char* const themeName = std::getenv("PATCHCORE_DEV_THEME"))
-			settings.theme = std::string(themeName) == "classic" ? THEME_CLASSIC : THEME_DARK;
 		if (const char* const view = std::getenv("PATCHCORE_DEV_VIEW"))
 			viewSide = flipTarget = std::string(view) == "back" ? VIEW_BACK : VIEW_FRONT;
 	}

@@ -667,16 +667,6 @@ struct ViewButton : MenuButton {
 			menu->addChild(new ui::MenuSeparator);
 			menu->addChild(createMenuLabel("PatchCore"));
 
-			menu->addChild(createCheckMenuItem("PatchCore rack (off = Classic)", "",
-				[]() {return patchcore::settings.theme != patchcore::THEME_CLASSIC;},
-				[]() {
-					patchcore::settings.theme = patchcore::settings.theme == patchcore::THEME_CLASSIC
-					                          ? patchcore::THEME_DARK : patchcore::THEME_CLASSIC;
-					patchcore::viewSide = patchcore::VIEW_FRONT;
-					patchcore::saveSettings();
-					patchcore::setAllFramebuffersDirty(APP->scene);
-				}
-			));
 			menu->addChild(createCheckMenuItem("Mount screws on screwless panels", "",
 				[]() {return patchcore::settings.mountScrews;},
 				[]() {patchcore::settings.mountScrews ^= true; patchcore::saveSettings();},

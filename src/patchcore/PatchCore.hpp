@@ -30,11 +30,6 @@ struct Model;
 
 namespace patchcore {
 
-enum ThemeId {
-	THEME_CLASSIC = 0,
-	THEME_DARK,
-};
-
 enum ViewSide {
 	VIEW_FRONT = 0,
 	VIEW_BACK,
@@ -52,7 +47,6 @@ struct Theme {
 
 /** Persistent PatchCore options, stored in the `PatchCore.json` sidecar next to Cardinal's own settings. */
 struct Settings {
-	int theme = THEME_DARK;
 	/** Panel gloss/vignette amount, 0..1 */
 	float sheen = 0.6f;
 	/** Draw mount screws on modules whose panel has no screw widgets */
