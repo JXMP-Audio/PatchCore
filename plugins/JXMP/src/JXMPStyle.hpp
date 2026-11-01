@@ -73,6 +73,34 @@ struct Rng {
 	}
 };
 
+/** Distance from point p to the segment a–b. */
+inline float segmentDistance(math::Vec p, math::Vec a, math::Vec b) {
+	const math::Vec ab = b.minus(a);
+	const float len2 = ab.dot(ab);
+	const float t = len2 > 0.f ? math::clamp(p.minus(a).dot(ab) / len2, 0.f, 1.f) : 0.f;
+	return p.minus(a.plus(ab.mult(t))).norm();
+}
+
+/** Scratches already on a panel, as straight segments: a new one must keep `gap` away from all of them, so no
+scratch crosses another. */
+struct ScratchField {
+	std::vector<std::pair<math::Vec, math::Vec>> segments;
+
+	bool fits(math::Vec a, math::Vec b, float gap) const {
+		for (const auto& s : segments) {
+			// Sample both segments: close enough for short, nearly straight scratches
+			for (int i = 0; i <= 4; ++i) {
+				const float t = i / 4.f;
+				if (segmentDistance(a.plus(b.minus(a).mult(t)), s.first, s.second) < gap)
+					return false;
+				if (segmentDistance(s.first.plus(s.second.minus(s.first).mult(t)), a, b) < gap)
+					return false;
+			}
+		}
+		return true;
+	}
+};
+
 /** Wear: worn lighter edges, scratches, grime, chipped paint, different for every unit (`seed`). Drawn under
 the legends and controls, so the text stays readable. Clipped to the panel: chips and scratches near an edge
 must not spill onto the neighbouring modules. */
@@ -90,12 +118,26 @@ inline void patina(NVGcontext* vg, math::Vec size, uint32_t seed) {
 	nvgFill(vg);
 
 	Rng rng(seed);
+	ScratchField field;
 	const int count = 44 + (int) (rng.next() * 26);
 	nvgLineCap(vg, NVG_ROUND);
 	for (int i = 0; i < count; ++i) {
-		const float x = rng.next() * size.x, y = rng.next() * size.y;
-		const float a = rng.next() * 2.f * M_PI;
-		const float len = mm2px(0.8f + rng.next() * rng.next() * 7.f);
+		// A few tries to find a place where it crosses no other scratch; otherwise it is left out
+		float x = 0.f, y = 0.f, a = 0.f, len = 0.f;
+		bool placed = false;
+		for (int attempt = 0; attempt < 6 && !placed; ++attempt) {
+			x = rng.next() * size.x;
+			y = rng.next() * size.y;
+			a = rng.next() * 2.f * M_PI;
+			len = mm2px(0.8f + rng.next() * rng.next() * 7.f);
+			const math::Vec p0(x, y), p1(x + std::cos(a) * len, y + std::sin(a) * len);
+			if (field.fits(p0, p1, mm2px(0.6f))) {
+				field.segments.push_back(std::make_pair(p0, p1));
+				placed = true;
+			}
+		}
+		if (!placed)
+			continue;
 		nvgBeginPath(vg);
 		nvgMoveTo(vg, x, y);
 		nvgQuadTo(vg, x + std::cos(a) * len * 0.5f + (rng.next() - 0.5f) * 3.f, y + std::sin(a) * len * 0.5f,
@@ -173,10 +215,23 @@ inline void patina(NVGcontext* vg, math::Vec size, uint32_t seed) {
 	// A few deeper scratches: a dark groove with a light lip
 	const int deep = 2 + (int) (rng.next() * 3);
 	for (int i = 0; i < deep; ++i) {
-		const float x = rng.next() * size.x, y = rng.next() * size.y;
-		const float a = rng.next() * 2.f * M_PI;
-		const float len = mm2px(3.f + rng.next() * 9.f);
-		const float bend = (rng.next() - 0.5f) * mm2px(2.f);
+		float x = 0.f, y = 0.f, a = 0.f, len = 0.f, bend = 0.f;
+		bool placed = false;
+		for (int attempt = 0; attempt < 8 && !placed; ++attempt) {
+			x = rng.next() * size.x;
+			y = rng.next() * size.y;
+			a = rng.next() * 2.f * M_PI;
+			len = mm2px(3.f + rng.next() * 9.f);
+			bend = (rng.next() - 0.5f) * mm2px(2.f);
+			const math::Vec p0(x, y), p1(x + std::cos(a) * len, y + std::sin(a) * len);
+			// The bent middle is up to half the bend off the chord: keep that much more room
+			if (field.fits(p0, p1, mm2px(0.8f) + std::fabs(bend) * 0.5f)) {
+				field.segments.push_back(std::make_pair(p0, p1));
+				placed = true;
+			}
+		}
+		if (!placed)
+			continue;
 		for (int layer = 0; layer < 2; ++layer) {
 			const float o = layer ? 0.7f : 0.f;
 			nvgBeginPath(vg);

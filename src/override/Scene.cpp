@@ -119,6 +119,10 @@ struct Scene::Internal {
 
 	bool heldArrowKeys[4] = {};
 
+	/** PatchCore: where a selection box drag on the rack started (a click is not a selection) */
+	bool rackBoxStarted = false;
+	math::Vec rackBoxStart;
+
 	double lastSceneChangeTime = 0.0;
 	int historyActionIndex = -1;
 };
@@ -186,6 +190,8 @@ math::Vec Scene::getMousePos() {
 
 
 void Scene::step() {
+	if (APP->event->draggedWidget == nullptr)
+		internal->rackBoxStarted = false;
 	patchcore::devStep();
 
 	if (APP->window->isFullScreen()) {
@@ -373,7 +379,19 @@ void Scene::onHover(const HoverEvent& e) {
 
 void Scene::onDragHover(const DragHoverEvent& e) {
 	mousePos = e.pos;
+
+	// PatchCore: a plain click on a module panel goes on to the rack, whose selection box would select the
+	// module under the mouse after the slightest movement. The box selects only after a real drag (6 px).
+	const bool rackBox = patchcore::enabled() && e.origin == rack && e.button == GLFW_MOUSE_BUTTON_LEFT;
+	if (rackBox && !internal->rackBoxStarted) {
+		internal->rackBoxStarted = true;
+		internal->rackBoxStart = e.pos;
+	}
+
 	OpaqueWidget::onDragHover(e);
+
+	if (rackBox && e.pos.minus(internal->rackBoxStart).norm() < 6.f)
+		rack->deselectAll();
 }
 
 
