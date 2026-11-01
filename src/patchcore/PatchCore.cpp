@@ -17,6 +17,7 @@
 #include <app/RackWidget.hpp>
 #include <app/Scene.hpp>
 #include <patch.hpp>
+#include <patchcore/Mixer.hpp>
 #include <widget/FramebufferWidget.hpp>
 
 #include <cstdlib>
@@ -252,6 +253,8 @@ void devStep() {
 			if (std::sscanf(offset, "%f,%f", &x, &y) == 2)
 				APP->scene->rackScroll->setGridOffset(math::Vec(x, y));
 		}
+		if (std::getenv("PATCHCORE_DEV_MIXER") != nullptr)
+			showMixer(true);
 		if (const char* const select = std::getenv("PATCHCORE_DEV_SELECT")) {
 			const std::vector<app::ModuleWidget*> modules = APP->scene->rack->getModules();
 			const size_t index = std::atoi(select);

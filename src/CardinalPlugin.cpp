@@ -1332,7 +1332,8 @@ protected:
                 for (uint32_t j=0; j<frames; ++j)
                     peak = std::max(peak, std::abs(outputs[i][j]));
             }
-            context->outputPeaks[i] = peak;
+            // the highest peak since the UI last read it (the UI resets it)
+            context->outputPeaks[i] = std::max(static_cast<float>(context->outputPeaks[i]), peak);
         }
 
         fWasBypassed = bypassed;

@@ -52,7 +52,7 @@ struct FaderQuantity : engine::ParamQuantity {
 struct Console : engine::Module {
 	const int n;
 	/** Read by the UI */
-	cs::Vu channelVu[kMaxChannels];
+	cs::PeakMeter channelPeak[kMaxChannels];
 	cs::Vu vuL, vuR;
 	bool active = false;
 
@@ -118,6 +118,21 @@ struct Console : engine::Module {
 		owner().compare_exchange_strong(expected, this);
 	}
 
+	/** The RMS level in dBFS of a sine that reads 0 VU */
+	float vuRef() const { return vuL.refDbfs; }
+	void setVuRef(float ref) { vuL.refDbfs = vuR.refDbfs = ref; }
+
+	json_t* dataToJson() override {
+		json_t* const rootJ = json_object();
+		json_object_set_new(rootJ, "vuRef", json_real(vuRef()));
+		return rootJ;
+	}
+
+	void dataFromJson(json_t* rootJ) override {
+		if (json_t* const j = json_object_get(rootJ, "vuRef"))
+			setVuRef(math::clamp((float) json_number_value(j), -24.f, 0.f));
+	}
+
 	~Console() {
 		Console* expected = this;
 		owner().compare_exchange_strong(expected, nullptr);
@@ -176,7 +191,7 @@ struct Console : engine::Module {
 				left += post * pl;
 				right += post * pr;
 			}
-			channelVu[i].process(post, dt);
+			channelPeak[i].process(post, dt);
 			if (meter == i + 1) {
 				vuL.process(post * pl, dt);
 				vuR.process(post * pr, dt);
@@ -279,6 +294,10 @@ struct VuMeter : widget::TransparentWidget {
 		}
 		st::text(vg, math::Vec(w / 2, h * 0.62f), "VU", std::max(6.f, h * 0.16f), ink, st::FONT_TITLE, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.5f);
 		st::text(vg, math::Vec(b + h * 0.12f, h - b - h * 0.1f), right ? "R" : "L", fs, ink, st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.f);
+		// The reference: which level reads 0 VU
+		const float ref = module ? module->vuRef() : cs::kVuRefRack;
+		st::text(vg, math::Vec(w - b - h * 0.08f, h - b - h * 0.1f), string::f("0 VU = %.0f dBFS", ref), fs * 0.75f, ink,
+		         st::FONT_LABEL, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, 0.f);
 
 		// Needle, clipped to the face
 		const float level = module ? (right ? module->vuR.vu() : module->vuL.vu()) : -60.f;
@@ -394,7 +413,8 @@ struct Fader : app::SliderKnob {
 	}
 };
 
-/** Vertical LED bar of a channel level (VU ballistics): green, yellow from −3, red from 0. */
+/** Vertical LED bar of a channel's peak level in dBFS (10 V = 0 dBFS), 3 dB per LED from −45 up: green, yellow from
+−18, red from −6, the top LED is 0 dBFS (clipping at the interface). The held peak stays lit for 1.5 s. */
 struct LedMeter : widget::TransparentWidget {
 	Console* module = nullptr;
 	int channel = 0;
@@ -402,12 +422,14 @@ struct LedMeter : widget::TransparentWidget {
 	void draw(const DrawArgs& args) override {
 		NVGcontext* const vg = args.vg;
 		const int leds = 16;
-		const float level = module ? module->channelVu[channel].vu() : -60.f;
+		const float level = module ? module->channelPeak[channel].db() : -60.f;
+		const float hold = module ? module->channelPeak[channel].holdDb() : -60.f;
 		const float gap = 1.5f, lh = (box.size.y - gap * (leds - 1)) / leds;
 		for (int i = 0; i < leds; ++i) {
-			const float db = -30.f + 33.f * (i + 1) / leds;  // −28 .. +3
-			const bool on = level >= db - 33.f / leds;
-			NVGcolor c = db > 0.f ? nvgRGB(0xe8, 0x3a, 0x30) : db > -3.f ? nvgRGB(0xf0, 0xc0, 0x30) : nvgRGB(0x3c, 0xd0, 0x6e);
+			const float db = -45.f + 3.f * i;  // −45 .. 0 dBFS
+			const bool next = i + 1 < leds && hold >= db + 3.f;
+			const bool on = level >= db || (hold >= db && !next);
+			NVGcolor c = db >= -6.f ? nvgRGB(0xe8, 0x3a, 0x30) : db >= -18.f ? nvgRGB(0xf0, 0xc0, 0x30) : nvgRGB(0x3c, 0xd0, 0x6e);
 			if (!on)
 				c = color::mult(c, 0.18f);
 			nvgBeginPath(vg);
@@ -846,6 +868,26 @@ struct ConsoleWidget : JXMPModuleWidget, patchcore::MixerProvider {
 			return false;
 		Console* const o = Console::owner().load();
 		return o == console || o == nullptr;
+	}
+
+	void appendContextMenu(ui::Menu* menu) override {
+		JXMPModuleWidget::appendContextMenu(menu);
+		if (!console)
+			return;
+		Console* const m = console;
+		menu->addChild(new ui::MenuSeparator);
+		const std::vector<std::pair<float, std::string>> refs = {
+		    {cs::kVuRefRack, "0 VU = -9 dBFS (a 5 V sine, Rack level)"},
+		    {cs::kVuRefHot, "0 VU = -14 dBFS"},
+		    {cs::kVuRefStudio, "0 VU = -18 dBFS (studio, EBU R68)"},
+		};
+		menu->addChild(createSubmenuItem("VU meter reference", string::f("%.0f dBFS", m->vuRef()), [=](ui::Menu* sub) {
+			for (const auto& r : refs) {
+				const float ref = r.first;
+				sub->addChild(createCheckMenuItem(r.second, "", [=]() { return std::fabs(m->vuRef() - ref) < 0.01f; },
+				                                  [=]() { m->setVuRef(ref); }));
+			}
+		}));
 	}
 
 	void onDoubleClick(const DoubleClickEvent& e) override {

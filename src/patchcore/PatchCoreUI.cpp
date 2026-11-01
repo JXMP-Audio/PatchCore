@@ -10,6 +10,7 @@
 #include <context.hpp>
 #include <engine/Engine.hpp>
 #include <string.hpp>
+#include <system.hpp>
 #include <widget/OpaqueWidget.hpp>
 
 #include "../CardinalCommon.hpp"
@@ -63,6 +64,34 @@ struct TransportBar : widget::OpaqueWidget {
 	math::Rect tempoRect, tempoUpRect, tempoDownRect, sigRect, buttonsRect, posRect, timeRect, dspRect, masterRect;
 	math::Rect buttonRects[5];
 	bool draggingTempo = false;
+	bool showDsp = true, showMaster = true;
+
+	/** Master peak meter in dBFS: instant attack, falls 20 dB in 1.7 s, peak held 1.5 s, CLIP lit 2 s */
+	float level[2] = {}, hold[2] = {}, holdTime[2] = {}, clipTime[2] = {};
+	double lastTime = 0.0;
+
+	void updateMeters() {
+		const double now = system::getTime();
+		const float dt = lastTime > 0.0 ? (float) std::min(now - lastTime, 0.5) : 0.f;
+		lastTime = now;
+		CardinalPluginContext* const context = pluginContext();
+		for (int c = 0; c < 2; ++c) {
+			const float peak = context->outputPeaks[c];
+			context->outputPeaks[c] = 0.f;
+			level[c] = std::max(peak, level[c] * std::pow(10.f, -dt / 1.7f));
+			if (peak >= hold[c]) {
+				hold[c] = peak;
+				holdTime[c] = 1.5f;
+			}
+			else if ((holdTime[c] -= dt) <= 0.f)
+				hold[c] = level[c];
+			clipTime[c] = peak >= 1.f ? 2.f : std::max(0.f, clipTime[c] - dt);
+		}
+	}
+
+	static float toDb(float a) {
+		return a > 0.f ? std::max(20.f * std::log10(a), -60.f) : -60.f;
+	}
 
 	void step() override {
 		const float cy = box.size.y * 0.5f + 6.f;
@@ -84,9 +113,15 @@ struct TransportBar : widget::OpaqueWidget {
 		x += 146.f + 12.f;
 		timeRect = math::Rect(x, cy - 14.f, 112.f, 28.f);
 
+		// Right side: host info text (about 170 px), the master meter, the DSP meter; whatever does not fit
+		// next to the time display is left out
 		const float right = box.size.x - 16.f;
-		masterRect = math::Rect(right - 330.f, cy - 12.f, 150.f, 24.f);
+		masterRect = math::Rect(right - 180.f - kMasterW, cy - 12.f, kMasterW, 24.f);
 		dspRect = math::Rect(masterRect.pos.x - 110.f, cy - 8.f, 82.f, 16.f);
+		const float minX = timeRect.pos.x + timeRect.size.x + 20.f;
+		showMaster = masterRect.pos.x >= minX;
+		showDsp = showMaster && dspRect.pos.x >= minX;
+		updateMeters();
 
 		OpaqueWidget::step();
 	}
@@ -202,6 +237,45 @@ struct TransportBar : widget::OpaqueWidget {
 		}
 	}
 
+	/** 24 segments of 2 dB (−48..0 dBFS) and the CLIP lamp */
+	static constexpr float kMasterW = 24 * 7.f + 26.f;
+
+	void drawMaster(NVGcontext* const vg, const Theme& t) {
+		const int count = 24;
+		draw::text(vg, labelFont(), 9.f, t.textDim, math::Vec(masterRect.pos.x, masterRect.pos.y - 3.f),
+		           NVG_ALIGN_LEFT | NVG_ALIGN_BOTTOM, "MASTER  dBFS", 1.4f);
+		for (int c = 0; c < 2; ++c) {
+			const float y = masterRect.pos.y + 2.f + c * 12.f;
+			const float db = toDb(level[c]), holdDb = toDb(hold[c]);
+			const int holdSeg = (int) std::ceil((holdDb + 48.f) / 2.f) - 1;
+			for (int i = 0; i < count; ++i) {
+				const float segDb = -48.f + 2.f * (i + 1);  // upper edge of the segment
+				NVGcolor color = segDb > -6.f ? nvgRGB(0xef, 0x4a, 0x3c) : segDb > -18.f ? nvgRGB(0xf2, 0xc2, 0x30) : nvgRGB(0x55, 0xe0, 0x7c);
+				const bool on = db > segDb - 2.f || (i == holdSeg && holdDb > -48.f);
+				if (!on)
+					color = nvgRGB(0x1d, 0x2a, 0x20);
+				nvgBeginPath(vg);
+				nvgRoundedRect(vg, masterRect.pos.x + i * 7.f, y, 5.f, 9.f, 1.f);
+				nvgFillColor(vg, color);
+				nvgFill(vg);
+			}
+			// CLIP: the output reached 0 dBFS
+			nvgBeginPath(vg);
+			nvgRoundedRect(vg, masterRect.pos.x + count * 7.f + 3.f, y, 18.f, 9.f, 1.5f);
+			nvgFillColor(vg, clipTime[c] > 0.f ? nvgRGB(0xff, 0x3b, 0x2f) : nvgRGB(0x3a, 0x1c, 0x1a));
+			nvgFill(vg);
+		}
+		draw::text(vg, labelFont(), 7.f, t.textFaint, math::Vec(masterRect.pos.x + count * 7.f + 12.f, masterRect.pos.y - 3.f),
+		           NVG_ALIGN_CENTER | NVG_ALIGN_BOTTOM, "CLIP", 0.8f);
+		// Scale under the bars
+		const float marks[] = {-48.f, -36.f, -24.f, -18.f, -12.f, -6.f, 0.f};
+		for (const float m : marks) {
+			const float x = masterRect.pos.x + (m + 48.f) / 2.f * 7.f - (m > -48.f ? 1.f : -2.5f);
+			draw::text(vg, labelFont(), 7.f, t.textFaint, math::Vec(x, masterRect.pos.y + 26.f), NVG_ALIGN_CENTER | NVG_ALIGN_TOP,
+			           string::f("%d", (int) m), 0.f);
+		}
+	}
+
 	void draw(const DrawArgs& args) override {
 		NVGcontext* const vg = args.vg;
 		const Theme& t = theme();
@@ -269,19 +343,17 @@ struct TransportBar : widget::OpaqueWidget {
 		const int whole = (int) seconds;
 		drawLcd(vg, timeRect, 15.f, string::f("%02d:%02d:%02d.%03d", whole / 3600, (whole / 60) % 60, whole % 60, ms), true);
 
-		// DSP load
-		draw::text(vg, labelFont(), 9.f, t.textDim, math::Vec(dspRect.pos.x, dspRect.pos.y - 5.f),
-		           NVG_ALIGN_LEFT | NVG_ALIGN_BOTTOM, "DSP", 1.4f);
-		drawSegments(vg, math::Vec(dspRect.pos.x, dspRect.pos.y + 3.f), 12, APP->engine->getMeterAverage(), true);
-
-		// Master output level, -60..0 dB
-		draw::text(vg, labelFont(), 9.f, t.textDim, math::Vec(masterRect.pos.x, masterRect.pos.y - 3.f),
-		           NVG_ALIGN_LEFT | NVG_ALIGN_BOTTOM, "MASTER", 1.4f);
-		for (int c = 0; c < 2; ++c) {
-			const float peak = context->outputPeaks[c];
-			const float db = peak > 0.f ? 20.f * std::log10(peak) : -60.f;
-			drawSegments(vg, math::Vec(masterRect.pos.x, masterRect.pos.y + 2.f + c * 13.f), 20, (db + 60.f) / 60.f, true);
+		// DSP load: share of the audio block time the engine needs
+		if (showDsp) {
+			const float load = APP->engine->getMeterAverage();
+			draw::text(vg, labelFont(), 9.f, t.textDim, math::Vec(dspRect.pos.x, dspRect.pos.y - 5.f),
+			           NVG_ALIGN_LEFT | NVG_ALIGN_BOTTOM, string::f("DSP  %d %%", (int) std::round(load * 100.f)), 1.4f);
+			drawSegments(vg, math::Vec(dspRect.pos.x, dspRect.pos.y + 3.f), 12, load, true);
 		}
+
+		// Master output peak level
+		if (showMaster)
+			drawMaster(vg, t);
 
 		// Engine and host info
 		const std::string rate = string::f("%g kHz  ·  %u smp", context->sampleRate / 1000.0, context->bufferSize);

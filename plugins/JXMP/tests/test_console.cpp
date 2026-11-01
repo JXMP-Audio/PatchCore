@@ -81,19 +81,51 @@ int main() {
 	q.setLowShelf(fs, 100.f, 11.f);
 	assert(std::fabs(q.process(1.f) - y) < 0.2f);
 
-	// VU: a 5 V sine reads 0 VU after it settled, silence falls back, about 300 ms to rise
+	// VU: a 5 V sine reads 0 VU at the Rack reference, silence falls back
 	Vu vu;
 	const float dt = 1.f / fs;
 	for (int i = 0; i < 48000; ++i)
 		vu.process(5.f * std::sin(2.f * M_PI * 440.f * i / fs), dt);
-	assert(near(vu.vu(), 0.f, 0.3f));
+	assert(near(vu.vu(), 0.f, 0.15f));
+	// IEC 60268-17 ballistics: 99 % of the final deflection after 300 ms, overshoot of about 1.5 %
 	Vu rise;
+	float peak = 0.f;
 	for (int i = 0; i < (int) (0.3f * fs); ++i)
 		rise.process(5.f * std::sin(2.f * M_PI * 440.f * i / fs), dt);
-	assert(rise.vu() > -3.f && rise.vu() < -0.3f);
+	const float at300 = rise.level;
+	for (int i = (int) (0.3f * fs); i < 48000; ++i) {
+		rise.process(5.f * std::sin(2.f * M_PI * 440.f * i / fs), dt);
+		peak = std::max(peak, rise.level);
+	}
+	const float settled = 5.f * 2.f / (float) M_PI;
+	assert(at300 > 0.97f * settled && at300 < 1.01f * settled);
+	assert(peak > 1.005f * settled && peak < 1.03f * settled);
 	for (int i = 0; i < 48000 * 3; ++i)
 		vu.process(0.f, dt);
 	assert(vu.vu() <= -20.f);
+	// Studio reference: a sine at −18 dBFS RMS reads 0 VU, the Rack-level 5 V sine reads about +9
+	Vu studio, hot;
+	studio.refDbfs = hot.refDbfs = kVuRefStudio;
+	const float amp = 10.f * std::pow(10.f, -18.f / 20.f) * std::sqrt(2.f);
+	for (int i = 0; i < 48000; ++i) {
+		studio.process(amp * std::sin(2.f * M_PI * 1000.f * i / fs), dt);
+		hot.process(5.f * std::sin(2.f * M_PI * 1000.f * i / fs), dt);
+	}
+	assert(near(studio.vu(), 0.f, 0.15f));
+	assert(near(hot.vu(), 9.f, 0.2f));
+
+	// Peak meter: 10 V = 0 dBFS, 5 V = −6 dBFS, instant attack, −20 dB after 1.7 s, held peak for 1.5 s
+	assert(near(dbfs(10.f), 0.f) && near(dbfs(5.f), -6.02f, 0.05f) && dbfs(0.f) == -60.f);
+	PeakMeter pm;
+	pm.process(5.f, dt);
+	assert(near(pm.db(), -6.02f, 0.05f));
+	for (int i = 0; i < (int) (1.f * fs); ++i)
+		pm.process(0.f, dt);
+	assert(near(pm.holdDb(), -6.02f, 0.05f));
+	for (int i = 0; i < (int) (0.7f * fs); ++i)
+		pm.process(0.f, dt);
+	assert(near(pm.db(), -26.02f, 0.2f));
+	assert(pm.holdDb() < -26.f);
 	// Needle position: −20 VU at the left end, +3 at the right, 0 VU at about 3/4
 	assert(near(vuNeedle(-40.f), 0.f, 0.02f) && near(vuNeedle(3.f), 1.f) && near(vuNeedle(10.f), 1.f));
 	assert(vuNeedle(0.f) > 0.7f && vuNeedle(0.f) < 0.85f);

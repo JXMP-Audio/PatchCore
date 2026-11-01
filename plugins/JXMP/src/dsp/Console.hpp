@@ -2,8 +2,8 @@
  * JXMP Audio modules for PatchCore
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * JX-CONSOLE building blocks: fader law, constant-power pan, mute/solo, three-band EQ (RBJ biquads) and VU
- * ballistics. No Rack dependency, tested in tests/test_console.cpp.
+ * JX-CONSOLE building blocks: fader law, constant-power pan, mute/solo, three-band EQ (RBJ biquads), VU and
+ * peak meter ballistics. No Rack dependency, tested in tests/test_console.cpp.
  */
 
 #pragma once
@@ -101,19 +101,66 @@ struct Biquad {
 	}
 };
 
-/** Rectified-average VU meter. 0 VU is a 5 V sine (Rack's usual audio level); reaches ~90 % in 300 ms. */
+/** Rack's audio interface maps 10 V to 0 dBFS. */
+inline float dbfs(float volts) {
+	const float a = std::fabs(volts) * 0.1f;
+	return a > 0.f ? std::max(20.f * std::log10(a), -60.f) : -60.f;
+}
+
+/** 0 VU references (the RMS level, in dBFS, of a sine that reads 0 VU) */
+constexpr float kVuRefRack = -9.03f;    // a ±5 V sine, Rack's usual audio level
+constexpr float kVuRefHot = -14.f;
+constexpr float kVuRefStudio = -18.f;   // EBU R68, the usual reference on digital consoles
+
+/** VU meter as IEC 60268-17 specifies it: the full-wave rectified signal drives a second-order needle (ζ 0.8,
+ωn 13.1 rad/s), which reaches 99 % of a step in 300 ms and overshoots by 1.5 %. `refDbfs` sets which sine reads
+0 VU. */
 struct Vu {
+	/** Needle deflection, in rectified-average volts */
 	float level = 0.f;
+	float speed = 0.f;
+	float refDbfs = kVuRefRack;
 
 	void process(float x, float dt) {
-		const float tau = 0.13f;
-		level += (std::fabs(x) - level) * std::min(dt / tau, 1.f);
+		const float wn = 13.1f, zeta = 0.8f;
+		speed += (wn * wn * (std::fabs(x) - level) - 2.f * zeta * wn * speed) * dt;
+		level += speed * dt;
+		if (level < 0.f) {
+			level = 0.f;
+			speed = 0.f;
+		}
 	}
 
 	float vu() const {
-		const float ref = 5.f * 2.f / (float) M_PI;
+		// Rectified average of a sine whose RMS is refDbfs (10 V = 0 dBFS)
+		const float ref = 10.f * std::pow(10.f, refDbfs / 20.f) * std::sqrt(2.f) * 2.f / (float) M_PI;
 		return level > 0.f ? std::max(20.f * std::log10(level / ref), -60.f) : -60.f;
 	}
+};
+
+/** Peak meter in dBFS (10 V = 0 dBFS), digital-console style: instant attack, falls 20 dB in 1.7 s, the highest
+peak is held for 1.5 s. */
+struct PeakMeter {
+	float level = 0.f, hold = 0.f, holdTime = 0.f;
+	float lastDt = 0.f, fall = 1.f;
+
+	void process(float x, float dt) {
+		if (dt != lastDt) {
+			lastDt = dt;
+			fall = std::pow(10.f, -dt / 1.7f);  // −20 dB (×0.1) per 1.7 s
+		}
+		const float a = std::fabs(x);
+		level = std::max(a, level * fall);
+		if (a >= hold) {
+			hold = a;
+			holdTime = 1.5f;
+		}
+		else if ((holdTime -= dt) <= 0.f)
+			hold = level;
+	}
+
+	float db() const { return dbfs(level); }
+	float holdDb() const { return dbfs(hold); }
 };
 
 /** Needle position 0..1 on a −20..+3 VU scale. Like a real meter it is linear in voltage: 0 VU sits at ~71 %. */
