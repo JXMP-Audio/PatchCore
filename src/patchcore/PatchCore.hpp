@@ -67,7 +67,7 @@ extern ViewSide viewSide;
 void loadSettings();
 void saveSettings();
 
-/** True when the PatchCore look is active (not Classic, and not the Mini variant). */
+/** True when the PatchCore look is active (always, except in the Mini variant). */
 bool enabled();
 
 /** True when the rack shows its back: PatchCore enabled and flipped. */
