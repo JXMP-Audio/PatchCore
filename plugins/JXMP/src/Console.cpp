@@ -417,7 +417,8 @@ struct Fader : app::SliderKnob {
 };
 
 /** Vertical LED bar of a channel's peak level in dBFS (10 V = 0 dBFS), 3 dB per LED from −45 up: green, yellow from
-−18, red from −6, the top LED is 0 dBFS (clipping at the interface). The held peak stays lit for 1.5 s. */
+−6, and only the top LED red: 0 dBFS, clipping at the interface. The held peak stays lit for 1.5 s. Its own dBFS
+scale on the right, so it is not read against the fader's dB numbers. */
 struct LedMeter : widget::TransparentWidget {
 	Console* module = nullptr;
 	int channel = 0;
@@ -432,13 +433,21 @@ struct LedMeter : widget::TransparentWidget {
 			const float db = -45.f + 3.f * i;  // −45 .. 0 dBFS
 			const bool next = i + 1 < leds && hold >= db + 3.f;
 			const bool on = level >= db || (hold >= db && !next);
-			NVGcolor c = db >= -6.f ? nvgRGB(0xe8, 0x3a, 0x30) : db >= -18.f ? nvgRGB(0xf0, 0xc0, 0x30) : nvgRGB(0x3c, 0xd0, 0x6e);
+			NVGcolor c = db >= 0.f ? nvgRGB(0xe8, 0x3a, 0x30) : db >= -6.f ? nvgRGB(0xf0, 0xc0, 0x30) : nvgRGB(0x3c, 0xd0, 0x6e);
 			if (!on)
 				c = color::mult(c, 0.18f);
 			nvgBeginPath(vg);
 			nvgRect(vg, 0, box.size.y - (i + 1) * lh - i * gap, box.size.x, lh);
 			nvgFillColor(vg, c);
 			nvgFill(vg);
+		}
+		// dBFS scale to the right of the LEDs
+		const int labelled[] = {15, 13, 11, 9, 5, 0};  // 0, −6, −12, −18, −30, −45 dBFS
+		for (const int i : labelled) {
+			const float y = box.size.y - (i + 1) * lh - i * gap + lh / 2;
+			const int db = -45 + 3 * i;
+			st::text(vg, math::Vec(box.size.x + 2.f, y), db == 0 ? "0" : string::f("%d", db), 6.f, st::legendDim(), st::FONT_NUMBER,
+			         NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, 0.f);
 		}
 	}
 };
@@ -737,7 +746,7 @@ struct ConsoleView : widget::Widget {
 		LedMeter* const led = new LedMeter;
 		led->module = module;
 		led->channel = i;
-		led->box = math::Rect(56.f, 418.f, 7.f, 202.f);
+		led->box = math::Rect(53.f, 418.f, 6.f, 202.f);  // the dBFS scale fits right of it
 		s->addChild(led);
 		return s;
 	}
