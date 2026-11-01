@@ -1323,6 +1323,23 @@ protected:
         ++context->processCounter;
         context->engine->stepBlock(frames);
 
+        // PatchCore: Audio Settings test tone, 440 Hz at -12 dBFS on the first two outputs
+        if (context->testToneFrames > 0)
+        {
+            const float inc = 440.f / static_cast<float>(getSampleRate());
+            for (uint32_t j=0; j<frames; ++j)
+            {
+                const float v = 0.25f * std::sin(2.f * static_cast<float>(M_PI) * context->testTonePhase);
+                context->testTonePhase += inc;
+                if (context->testTonePhase >= 1.f)
+                    context->testTonePhase -= 1.f;
+                for (int i=0; i<2 && i<fNumActiveOutputs; ++i)
+                    if (outputs[i] != nullptr)
+                        outputs[i][j] += v;
+            }
+            context->testToneFrames = context->testToneFrames - static_cast<int32_t>(frames);
+        }
+
         // PatchCore: output peaks for the transport bar meters
         for (int i=0; i<2; ++i)
         {

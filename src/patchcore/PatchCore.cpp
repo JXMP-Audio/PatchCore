@@ -8,6 +8,7 @@
 #include <asset.hpp>
 #include <color.hpp>
 #include <context.hpp>
+#include <history.hpp>
 #include <logger.hpp>
 #include <system.hpp>
 #include <app/CableWidget.hpp>
@@ -240,6 +241,26 @@ void devStep() {
 				WARN("PatchCore: could not load %s: %s", path, e.what());
 			}
 		}
+		// After restartApp(): the patch came from a temporary file; give it back its own path and unsaved state
+		if (const char* const original = std::getenv("PATCHCORE_RESTORE_PATH")) {
+			if (const char* const tmp = std::getenv("PATCHCORE_DEV_PATCH"))
+				system::remove(tmp);
+			APP->patch->path = original;
+			const char* const modified = std::getenv("PATCHCORE_RESTORE_MODIFIED");
+			if (modified != nullptr && std::string(modified) == "1")
+				APP->history->savedIndex = -1;
+			else
+				APP->history->setSaved();
+#ifdef ARCH_WIN
+			_putenv_s("PATCHCORE_RESTORE_PATH", "");
+			_putenv_s("PATCHCORE_RESTORE_MODIFIED", "");
+			_putenv_s("PATCHCORE_DEV_PATCH", "");
+#else
+			unsetenv("PATCHCORE_RESTORE_PATH");
+			unsetenv("PATCHCORE_RESTORE_MODIFIED");
+			unsetenv("PATCHCORE_DEV_PATCH");
+#endif
+		}
 		if (const char* const view = std::getenv("PATCHCORE_DEV_VIEW"))
 			viewSide = flipTarget = std::string(view) == "back" ? VIEW_BACK : VIEW_FRONT;
 	}
@@ -255,6 +276,8 @@ void devStep() {
 		}
 		if (std::getenv("PATCHCORE_DEV_MIXER") != nullptr)
 			showMixer(true);
+		if (std::getenv("PATCHCORE_DEV_AUDIO_DIALOG") != nullptr)
+			showAudioSettings();
 		if (const char* const select = std::getenv("PATCHCORE_DEV_SELECT")) {
 			const std::vector<app::ModuleWidget*> modules = APP->scene->rack->getModules();
 			const size_t index = std::atoi(select);

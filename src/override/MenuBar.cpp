@@ -818,45 +818,21 @@ struct EngineButton : MenuButton {
 		}
 #endif
 
-		if (isUsingNativeAudio()) {
-			if (supportsAudioInput()) {
-				const bool enabled = isAudioInputEnabled();
-				std::string rightText;
-				if (enabled)
-					rightText = CHECKMARK_STRING;
-				menu->addChild(createMenuItem("Enable Audio Input", rightText, [enabled]() {
-					if (!enabled)
-						requestAudioInput();
-				}));
-			}
+		// PatchCore: driver, devices, rate and buffer in one dialog (the standalone only; a plugin follows its host)
+		if (isStandalone()) {
+			menu->addChild(new ui::MenuSeparator);
+			menu->addChild(createMenuItem("Audio Settings…", "", []() {
+				patchcore::showAudioSettings();
+			}));
+		}
 
-			if (supportsMIDI()) {
-				std::string rightText;
-				if (isMIDIEnabled())
-					rightText = CHECKMARK_STRING;
-				menu->addChild(createMenuItem("Enable/Reconnect MIDI", rightText, []() {
-					requestMIDI();
-				}));
-			}
-
-			if (supportsBufferSizeChanges()) {
-				static const std::vector<uint32_t> bufferSizes = {
-					#ifdef DISTRHO_OS_WASM
-					256, 512, 1024, 2048, 4096, 8192, 16384
-					#else
-					128, 256, 512, 1024, 2048, 4096, 8192
-					#endif
-				};
-				const uint32_t currentBufferSize = getBufferSize();
-				menu->addChild(createSubmenuItem("Buffer Size", std::to_string(currentBufferSize), [=](ui::Menu* menu) {
-					for (uint32_t bufferSize : bufferSizes) {
-						menu->addChild(createCheckMenuItem(std::to_string(bufferSize), "",
-							[=]() {return currentBufferSize == bufferSize;},
-							[=]() {requestBufferSizeChange(bufferSize);}
-						));
-					}
-				}));
-			}
+		if (isUsingNativeAudio() && supportsMIDI()) {
+			std::string rightText;
+			if (isMIDIEnabled())
+				rightText = CHECKMARK_STRING;
+			menu->addChild(createMenuItem("Enable/Reconnect MIDI", rightText, []() {
+				requestMIDI();
+			}));
 		}
 	}
 

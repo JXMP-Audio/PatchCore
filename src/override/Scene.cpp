@@ -150,6 +150,8 @@ Scene::Scene() {
 		addChild(internal->transportBar);
 		internal->mixerView = patchcore::createMixerView();
 		addChild(internal->mixerView);
+		// Audio start-up notices, under the top bar (empty in plugins)
+		addChild(patchcore::createNoticeStrip());
 	}
 
 	browser = browserCreate();

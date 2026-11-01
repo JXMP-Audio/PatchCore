@@ -85,6 +85,7 @@ FILES_UI  = CardinalUI.cpp
 FILES_UI += glfw.cpp
 FILES_UI += MenuBar.cpp
 FILES_UI += PatchCoreUI.cpp
+FILES_UI += AudioSettings.cpp
 FILES_UI += Window.cpp
 endif
 
@@ -243,6 +244,7 @@ FILES_UI += common.cpp
 FILES_UI += glfw.cpp
 FILES_UI += MenuBar.cpp
 FILES_UI += PatchCoreUI.cpp
+FILES_UI += AudioSettings.cpp
 FILES_UI += Window.cpp
 ifneq ($(HAIKU_OR_MACOS_OR_WASM_OR_WINDOWS),true)
 FILES_UI += CardinalX11WindowIcon.cpp

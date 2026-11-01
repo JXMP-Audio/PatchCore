@@ -182,14 +182,29 @@ app::ModuleWidget* addModelAt(plugin::Model* model, math::Vec pos);
 // Transport (PatchCoreUI.cpp, built per plugin variant)
 
 widget::Widget* createTransportBar();
+
+// Audio settings (AudioSettings.cpp, built per plugin variant; standalone only)
+
+/** Opens the Audio Settings dialog (does nothing in plugins). */
+void showAudioSettings();
+/** A message for the strip under the top bar (replaces the current one until dismissed). */
+void showNotice(const std::string& text);
+/** The text of the notice strip: a message from showNotice() or the audio start-up notice, "" if none. */
+std::string audioNotice();
+/** Restarts the standalone with the current patch (its path and unsaved state are kept). */
+void restartApp();
+/** The amber notice strip under the top bar. */
+widget::Widget* createNoticeStrip();
 /** True when the internal transport drives the engine (standalone without a timebase master). */
 bool transportIsInternal();
 void transportTogglePlay();
 
 
 /** Development aid, called from Scene::step(). Reads PATCHCORE_DEV_* environment variables once:
-PATCHCORE_DEV_PATCH (patch to load), PATCHCORE_DEV_THEME ("classic", not saved), PATCHCORE_DEV_ZOOM, PATCHCORE_DEV_OFFSET ("x,y" grid offset),
-PATCHCORE_DEV_VIEW ("back"), PATCHCORE_DEV_SELECT (index of a module to select). */
+PATCHCORE_DEV_PATCH (patch to load), PATCHCORE_DEV_ZOOM, PATCHCORE_DEV_OFFSET ("x,y" grid offset),
+PATCHCORE_DEV_VIEW ("back"), PATCHCORE_DEV_SELECT (index of a module to select), PATCHCORE_DEV_MIXER (open the
+Mixer view), PATCHCORE_DEV_AUDIO_DIALOG (open Audio Settings). After restartApp(): PATCHCORE_RESTORE_PATH and
+PATCHCORE_RESTORE_MODIFIED bring back the patch's own path and unsaved state. */
 void devStep();
 
 /** Draws the 19" rack frame (ears, rails, recesses) around the occupied rack rows.

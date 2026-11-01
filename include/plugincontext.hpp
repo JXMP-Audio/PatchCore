@@ -103,6 +103,9 @@ struct CardinalPluginContext : rack::Context {
     bool internalTransportActive = false;
     // PatchCore: peak level of the first two plugin outputs over the last block, for the transport meters
     volatile float outputPeaks[2] = {};
+    // PatchCore: Audio Settings "Test tone": frames of a 440 Hz beep still to play on the first two outputs
+    volatile int32_t testToneFrames = 0;
+    float testTonePhase = 0.f;
     CardinalPluginContext(CardinalDISTRHO::Plugin* const p);
     void writeMidiMessage(const rack::midi::Message& message, uint8_t channel);
     bool addIdleCallback(IdleCallback* cb) const;
