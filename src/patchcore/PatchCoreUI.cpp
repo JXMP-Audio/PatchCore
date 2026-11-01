@@ -18,6 +18,7 @@
 #include "../patchcore/PatchCore.hpp"
 #include "../patchcore/TransportLayout.hpp"
 #include "DistrhoPluginUtils.hpp"
+#include "DistrhoStandaloneUtils.hpp"
 
 namespace rack {
 namespace patchcore {
@@ -120,10 +121,10 @@ struct TransportBar : widget::OpaqueWidget {
 		x += 146.f + 12.f;
 		timeRect = math::Rect(x, cy - 14.f, 112.f, 28.f);
 
-		// Right side: host info text (about 170 px), the master meter, the DSP meter; whatever does not fit
+		// Right side: engine info text (about 200 px), the master meter, the DSP meter; whatever does not fit
 		// next to the time display is left out
 		const float right = box.size.x - 16.f;
-		masterRect = math::Rect(right - 180.f - kMasterW, cy - 12.f, kMasterW, 24.f);
+		masterRect = math::Rect(right - 215.f - kMasterW, cy - 12.f, kMasterW, 24.f);
 		dspRect = math::Rect(masterRect.pos.x - 110.f, cy - 8.f, 82.f, 16.f);
 		const float minX = timeRect.pos.x + timeRect.size.x + 20.f;
 		showMaster = masterRect.pos.x >= minX;
@@ -431,14 +432,24 @@ struct TransportBar : widget::OpaqueWidget {
 		if (showMaster)
 			drawMaster(vg, t);
 
-		// Engine and host info
-		const std::string rate = string::f("%g kHz  ·  %u smp", context->sampleRate / 1000.0, context->bufferSize);
-		const std::string host = internal ? "Standalone  ·  Internal clock"
-		                                  : string::f("%s  ·  Host sync", getPluginFormatName());
-		draw::text(vg, uiFont(), 11.f, t.textFaint, math::Vec(box.size.x - 16.f, box.size.y * 0.5f - 8.f),
-		           NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, rate);
-		draw::text(vg, uiFont(), 11.f, t.textFaint, math::Vec(box.size.x - 16.f, box.size.y * 0.5f + 10.f),
-		           NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, host);
+		// Engine info: rate, buffer and driver; the sound card (or the clock) below; red when the device was lost
+		const ::patchcore_audio::AudioSetup audio = DISTRHO_NAMESPACE::getAudioSetup();
+		std::string line1 = string::f("%g kHz  ·  %u smp  ·  %s", context->sampleRate / 1000.0, context->bufferSize,
+		                              ::patchcore_audio::driverName(audio.driver));
+		std::string line2 = !audio.output.empty() ? audio.output : internal ? "Internal clock" : "JACK transport";
+		NVGcolor color = t.textFaint;
+		if (!DISTRHO_NAMESPACE::isAudioRunning()) {
+			line1 = "Audio stopped";
+			line2 = "Engine → Audio Settings…";
+			color = t.rec;
+		}
+		const float maxW = 196.f;
+		while (line2.size() > 4 && textWidth(uiFont(), 11.f, line2, 0.f) > maxW)
+			line2 = line2.substr(0, line2.size() - 4) + "…";
+		draw::text(vg, uiFont(), 11.f, color, math::Vec(box.size.x - 16.f, box.size.y * 0.5f - 8.f),
+		           NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, line1);
+		draw::text(vg, uiFont(), 11.f, color, math::Vec(box.size.x - 16.f, box.size.y * 0.5f + 10.f),
+		           NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, line2);
 	}
 };
 
