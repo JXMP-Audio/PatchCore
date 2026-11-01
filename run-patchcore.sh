@@ -119,14 +119,14 @@ pid=$!
 if command -v pw-link > /dev/null && command -v pactl > /dev/null; then
 	sink="$(pactl get-default-sink 2>/dev/null || true)"
 	for _ in $(seq 50); do
-		pw-link -o 2>/dev/null | grep -q '^Cardinal:audio_out_1$' && break
+		pw-link -o 2>/dev/null | grep -q '^PatchCore:audio_out_1$' && break
 		sleep 0.2
 	done
 	if [ -n "$sink" ]; then
 		mapfile -t ports < <(pw-link -i | grep "^$sink:playback_" | head -2)
 		if [ "${#ports[@]}" -ge 1 ]; then
-			pw-link Cardinal:audio_out_1 "${ports[0]}" 2>/dev/null || true
-			pw-link Cardinal:audio_out_2 "${ports[1]:-${ports[0]}}" 2>/dev/null || true
+			pw-link PatchCore:audio_out_1 "${ports[0]}" 2>/dev/null || true
+			pw-link PatchCore:audio_out_2 "${ports[1]:-${ports[0]}}" 2>/dev/null || true
 			echo "Audio: PatchCore → $sink"
 		fi
 	fi

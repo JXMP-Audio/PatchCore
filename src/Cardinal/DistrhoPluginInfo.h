@@ -29,15 +29,15 @@
 #define CARDINAL_NUM_AUDIO_OUTPUTS 8
 #define CARDINAL_NUM_PARAMETERS    24
 
-#define DISTRHO_PLUGIN_BRAND   "DISTRHO"
-#define DISTRHO_PLUGIN_NAME    "Cardinal"
-#define DISTRHO_PLUGIN_LABEL   "Cardinal"
-#define DISTRHO_PLUGIN_URI     "https://distrho.kx.studio/plugins/cardinal"
-#define DISTRHO_PLUGIN_CLAP_ID "studio.kx.distrho.cardinal"
+#define DISTRHO_PLUGIN_BRAND   "JXMP Audio"
+#define DISTRHO_PLUGIN_NAME    "PatchCore"
+#define DISTRHO_PLUGIN_LABEL   "PatchCoreMain"
+#define DISTRHO_PLUGIN_URI     "https://github.com/JXMP-Audio/PatchCore#main"
+#define DISTRHO_PLUGIN_CLAP_ID "audio.jxmp.patchcore.main"
 
 #define DISTRHO_PLUGIN_AU_TYPE   aumf
-#define DISTRHO_PLUGIN_BRAND_ID  Dstr
-#define DISTRHO_PLUGIN_UNIQUE_ID DcnM
+#define DISTRHO_PLUGIN_BRAND_ID  JXMP
+#define DISTRHO_PLUGIN_UNIQUE_ID PcMn
 #define DISTRHO_PLUGIN_EXTRA_IO  { CARDINAL_NUM_AUDIO_INPUTS, CARDINAL_NUM_AUDIO_OUTPUTS }, { 2, 2 }
 
 #ifdef HEADLESS
@@ -64,6 +64,5 @@
 #define DISTRHO_PLUGIN_USES_CUSTOM_MODGUI 1
 #define DISTRHO_PLUGIN_LV2_CATEGORY       "mod:ControlVoltagePlugin, lv2:UtilityPlugin"
 
-#define DPF_VST3_DONT_USE_BRAND_ID
 
 #endif // DISTRHO_PLUGIN_INFO_H_INCLUDED

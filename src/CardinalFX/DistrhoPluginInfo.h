@@ -29,16 +29,16 @@
 #define CARDINAL_NUM_AUDIO_OUTPUTS 2
 #define CARDINAL_NUM_PARAMETERS    24
 
-#define DISTRHO_PLUGIN_BRAND   "DISTRHO"
-#define DISTRHO_PLUGIN_URI     "https://distrho.kx.studio/plugins/cardinal#fx"
-#define DISTRHO_PLUGIN_CLAP_ID "studio.kx.distrho.cardinal#fx"
+#define DISTRHO_PLUGIN_BRAND   "JXMP Audio"
+#define DISTRHO_PLUGIN_URI     "https://github.com/JXMP-Audio/PatchCore#fx"
+#define DISTRHO_PLUGIN_CLAP_ID "audio.jxmp.patchcore.fx"
 
 #define DISTRHO_PLUGIN_AU_TYPE   aumf
-#define DISTRHO_PLUGIN_BRAND_ID  Dstr
-#define DISTRHO_PLUGIN_UNIQUE_ID DcnF
+#define DISTRHO_PLUGIN_BRAND_ID  JXMP
+#define DISTRHO_PLUGIN_UNIQUE_ID PcFx
 
-#define DISTRHO_PLUGIN_NAME  "Cardinal FX"
-#define DISTRHO_PLUGIN_LABEL "CardinalFX"
+#define DISTRHO_PLUGIN_NAME  "PatchCore FX"
+#define DISTRHO_PLUGIN_LABEL "PatchCoreFX"
 
 #ifdef HEADLESS
 #define DISTRHO_PLUGIN_HAS_UI             0
@@ -65,6 +65,5 @@
 #define DISTRHO_PLUGIN_LV2_CATEGORY       "lv2:UtilityPlugin"
 #define DISTRHO_PLUGIN_VST3_CATEGORIES    "Fx|Generator"
 
-#define DPF_VST3_DONT_USE_BRAND_ID
 
 #endif // DISTRHO_PLUGIN_INFO_H_INCLUDED

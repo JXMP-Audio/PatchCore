@@ -619,7 +619,7 @@ void Window::step() {
 #if CARDINAL_VARIANT_MINI
 		std::string windowTitle = "Cardinal Mini";
 #else
-		std::string windowTitle = "Cardinal";
+		std::string windowTitle = "PatchCore";
 #endif
 		if (APP->patch->path != "") {
 			windowTitle += " - ";
