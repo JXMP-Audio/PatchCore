@@ -3,6 +3,38 @@
 Handoff notes, updated at the end of every work session (rule: keep this file current before a session
 or weekly limit ends). Newest first.
 
+## 2026-11-02 (night) — third JXMP set in progress
+
+### Branches (all pushed, NOT merged; builds only when the user asks, the launcher rebuilds itself)
+
+- `standalone-audio`: spec 12 / plan 13 done + review fixes; also selection only with Shift+click / Ctrl+drag,
+  scratches never cross, console VU = channel post-fader, LED meters red only at 0 dBFS with a dBFS scale.
+- `jxmp-set3` (on top of `standalone-audio`): spec [14](14-jxmp-modules-set3-design.md).
+  - [x] JX-SCP scope (round CRT, trigger, AUTO/NORM, X-Y, afterglow, live slow sweeps, trace clipped to the circle)
+  - [x] JX-CLK clock (CLOCK IN front/back one side at a time, transport, own tempo, x4…/16, swing)
+  - [x] JX-EUC Euclidean rhythms (4 tracks, display, gate + accent)
+  - [ ] JX-DRM, JX-REV, JX-CHR, JX-FLD, JX-RNG, JX-LGC, JX-SW, JX-PLY
+- `run-patchcore.sh` with no argument opens `patches/jxmp-workbench.vcv` (showcase + console, scope, clock,
+  euclid — add every new module there) and rebuilds first when sources are newer.
+
+### Open bug (user, 00:25): JX-SCP with an LFO still drifts right→left every sweep
+
+Fix b2725d9 (AUTO waits 1.5× the trigger spacing) did not help the user. Not reproduced yet. Hypotheses to check
+first, in the running app with the user watching workspace 3:
+1. The trigger never fires (TRIG'D dark): trigger SOURCE is still CH1 (default; in the workbench CH1 = VCA audio,
+   CH2 = LFO), or the LFO is unipolar (0…10 V) and LEVEL = 0 V never gets crossed (hysteresis ±0.05 V). Then AUTO
+   free-runs and the picture drifts — real scopes do the same. If so: make it simpler (auto trigger level at the
+   middle of the signal when nothing triggers, and/or AUTO falls back to the triggering channel).
+2. The live slow-sweep drawing (sweep ≥ 0.1 s) mixing the buffer and the last frame.
+Tests in plugins/JXMP/tests (scope, clock, euclid) are written but have not been run (user rule).
+
+### Next
+
+1. The scope drift bug above.
+2. JX-DRM (one module, kick/snare/hat/clap, trig + accent, outs + mix), then add it to the workbench driven by
+   JX-EUC; then REV, CHR, the small ones.
+3. Later: full build + tests + VST3 check, merge `standalone-audio` then `jxmp-set3`, bump the collection.
+
 ## 2026-11-01 (evening) — standalone vs VST3, audio settings
 
 ### In progress: branch `standalone-audio` (pushed, NOT merged, NOT BUILT)
