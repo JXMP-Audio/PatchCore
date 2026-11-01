@@ -280,28 +280,30 @@ struct ScpWidget : JXMPModuleWidget {
 
 		// TIME/DIV, right top
 		section(83.f, 20.5f, 35.f, 27.f, "SWEEP");
-		label(math::Vec(100.5f, 25.f), "TIME / DIV", 7.f);
-		knob(math::Vec(100.5f, 37.5f), Scp::TIME_PARAM, 15.f, st::CAP_BLACK, 0.f, sc::kTimeSteps - 1,
-		     {{0.f, ".1m"}, {1.f, ""}, {2.f, ""}, {3.f, "1m"}, {4.f, ""}, {5.f, ""}, {6.f, "10m"},
+		// No numbers at the top of a scale: the label above the knob sits there
+		label(math::Vec(100.5f, 24.5f), "TIME / DIV", 7.f);
+		knob(math::Vec(100.5f, 38.5f), Scp::TIME_PARAM, 15.f, st::CAP_BLACK, 0.f, sc::kTimeSteps - 1,
+		     {{0.f, ".1m"}, {1.f, ""}, {2.f, ""}, {3.f, "1m"}, {4.f, ""}, {5.f, ""}, {6.f, ""},
 		      {7.f, ""}, {8.f, ""}, {9.f, ".1"}, {10.f, ""}, {11.f, ""}, {12.f, "1s"}});
 
 		// Trigger
 		section(83.f, 52.f, 35.f, 25.f, "TRIGGER");
 		label(math::Vec(92.f, 56.5f), "LEVEL", 6.5f);
-		knob(math::Vec(92.f, 66.f), Scp::TRIG_LEVEL_PARAM, 9.f, st::CAP_WHITE, -10.f, 10.f,
-		     st::marks(-10.f, 10.f, 2.f, 5, [](float v) { return v == 0.f ? std::string("0") : string::f("%+d", (int) v); }));
+		knob(math::Vec(92.f, 66.5f), Scp::TRIG_LEVEL_PARAM, 9.f, st::CAP_WHITE, -10.f, 10.f,
+		     st::marks(-10.f, 10.f, 2.f, 5, [](float v) { return v == 0.f ? std::string() : string::f("%+d", (int) v); }));
 		toggle(math::Vec(110.f, 66.f), Scp::TRIG_SLOPE_PARAM, 2, {"RISE", "FALL"});
-		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(math::Vec(110.f, 55.f)), module, Scp::TRIG_LIGHT));
-		label(math::Vec(103.5f, 55.f), "TRIG'D", 5.5f);
+		// Lit while sweeps start on the trigger (dark when AUTO free-runs)
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(math::Vec(97.5f, 78.5f)), module, Scp::TRIG_LIGHT));
+		label(math::Vec(104.5f, 78.5f), "TRIG'D", 5.5f);
 
 		// Source and mode
-		section(83.f, 80.f, 35.f, 15.f, "SOURCE · MODE");
-		toggle(math::Vec(95.f, 90.f), Scp::TRIG_SOURCE_PARAM, 3, {"CH1", "CH2", "EXT"});
-		toggle(math::Vec(111.f, 90.f), Scp::MODE_PARAM, 2, {"Y-T", "X-Y"});
+		section(83.f, 82.f, 35.f, 18.f, "SOURCE · MODE");
+		toggle(math::Vec(95.f, 93.f), Scp::TRIG_SOURCE_PARAM, 3, {"CH1", "CH2", "EXT"});
+		toggle(math::Vec(111.f, 93.f), Scp::MODE_PARAM, 2, {"Y-T", "X-Y"});
 
 		// Channels, under the tube
-		const std::vector<st::Mark> volts = {{0.f, ".1"}, {1.f, ""}, {2.f, ""}, {3.f, "1"}, {4.f, ""}, {5.f, "5"}};
-		const std::vector<st::Mark> pos = st::marks(-4.f, 4.f, 1.f, 4, [](float v) { return v == 0.f ? std::string("0") : string::f("%+d", (int) v); });
+		const std::vector<st::Mark> volts = {{0.f, ".1"}, {1.f, ""}, {2.f, ""}, {3.f, ""}, {4.f, ""}, {5.f, "5"}};
+		const std::vector<st::Mark> pos = st::marks(-4.f, 4.f, 1.f, 4, [](float v) { return v == 0.f ? std::string() : string::f("%+d", (int) v); });
 		const struct { const char* title; float x; int volt, pos; } chans[2] = {
 		    {"CH 1 · GREEN", 4.f, Scp::VOLT1_PARAM, Scp::POS1_PARAM},
 		    {"CH 2 · AMBER", 45.f, Scp::VOLT2_PARAM, Scp::POS2_PARAM},
