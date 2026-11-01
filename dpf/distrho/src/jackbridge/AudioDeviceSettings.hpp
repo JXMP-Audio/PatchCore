@@ -209,10 +209,9 @@ inline double latencyMs(const AudioSetup& s) {
 	return s.sampleRate > 0 ? 1000.0 * s.bufferSize / s.sampleRate : 0.0;
 }
 
-#ifdef PATCHCORE_AUDIO_GLOBALS
-/** The setup the standalone opened (or tries to), and a message for the user ("" if none); JackBridge.cpp. */
+/** The setup the standalone opened (or tries to), and a message for the user ("" if none). Defined in
+JackBridge.cpp (standalone only); plugins use the functions of DistrhoStandaloneUtils.hpp instead. */
 extern AudioSetup gPatchCoreSetup;
 extern std::string gPatchCoreNotice;
-#endif
 
 } // namespace patchcore_audio

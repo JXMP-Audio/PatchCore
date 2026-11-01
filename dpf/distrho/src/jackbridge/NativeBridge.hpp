@@ -18,7 +18,6 @@
 #define NATIVE_BRIDGE_HPP_INCLUDED
 
 // PatchCore: audio device settings (driver, device, rate, buffer)
-#define PATCHCORE_AUDIO_GLOBALS
 #include "AudioDeviceSettings.hpp"
 
 #include "JackBridge.hpp"
@@ -60,6 +59,11 @@ struct NativeBridge {
     JackBufferSizeCallback bufferSizeCallback;
     void* jackProcessArg;
     void* jackBufferSizeArg;
+
+    // PatchCore: sample rate changes reach the plugin like JACK's callback does; false after a device was lost
+    JackSampleRateCallback sampleRateCallback = nullptr;
+    void* jackSampleRateArg = nullptr;
+    volatile bool running = true;
 
     // Runtime buffers
     enum PortMask {
@@ -155,6 +159,16 @@ struct NativeBridge {
     virtual bool requestAudioInput() { return false; }
     virtual bool requestBufferSizeChange(uint32_t) { return false; }
     virtual bool requestMIDI() { return false; }
+
+    // PatchCore: devices of the running driver, and a live reopen with another device / rate / buffer
+    virtual std::vector<patchcore_audio::DeviceInfo> listDevices() { return {}; }
+    virtual patchcore_audio::AudioSetup currentSetup() const { return patchcore_audio::gPatchCoreSetup; }
+    virtual bool reopen(const patchcore_audio::AudioSetup&, std::string* const error)
+    {
+        if (error != nullptr)
+            *error = "This audio driver cannot change devices";
+        return false;
+    }
 
     uint32_t getBufferSize() const noexcept
     {

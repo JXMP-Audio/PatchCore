@@ -18,6 +18,7 @@
 #define DISTRHO_STANDALONE_UTILS_HPP_INCLUDED
 
 #include "src/DistrhoDefines.h"
+#include "src/jackbridge/AudioDeviceSettings.hpp"  // PatchCore
 
 START_NAMESPACE_DISTRHO
 
@@ -89,6 +90,29 @@ bool requestBufferSizeChange(uint newBufferSize);
    Only valid to call if MIDI is supported but not currently enabled.
 */
 bool requestMIDI();
+
+/* PatchCore: audio device settings of the standalone (all empty / false in plugins) */
+
+/** Devices of a driver; empty for PipeWire/JACK (the server owns them) and for a driver that is not running. */
+std::vector<patchcore_audio::DeviceInfo> getAudioDevices(patchcore_audio::Driver driver);
+
+/** What runs now, with the real sample rate and buffer size. */
+patchcore_audio::AudioSetup getAudioSetup();
+
+/** A start-up or fallback message for the user, "" if none. */
+std::string getAudioNotice();
+
+/**
+   Apply a setup and save it. Same driver: a live reopen (back to the previous setup on failure, with *error set).
+   Another driver: saved for the next start, returns false with *error = "restart".
+*/
+bool requestAudioSetup(const patchcore_audio::AudioSetup& setup, std::string* error);
+
+/** False after the audio device was lost (unplugged, stream error). */
+bool isAudioRunning();
+
+/** Opens the ASIO driver's control panel (Windows, ASIO only). */
+bool showAsioPanel();
 
 /** @} */
 

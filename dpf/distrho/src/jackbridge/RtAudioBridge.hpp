@@ -72,6 +72,10 @@ struct RtAudioBridge : NativeBridge {
     String name;
     uint nextBufferSize = 512;
 
+    // PatchCore: what to open (driver, device names, rate, buffer); after an open it holds the real values
+    patchcore_audio::AudioSetup setup = patchcore_audio::defaultSetup();
+    static volatile bool* sRunning;
+
     RtAudioBridge()
     {
        #if defined(RTMIDI_API_TYPE) && (DISTRHO_PLUGIN_WANT_MIDI_INPUT || DISTRHO_PLUGIN_WANT_MIDI_OUTPUT)
@@ -87,7 +91,136 @@ struct RtAudioBridge : NativeBridge {
     bool open(const char* const clientName) override
     {
         name = clientName;
-        return _open(false);
+        // PatchCore: the saved setup, checked against the devices that exist now
+        setup = patchcore_audio::gPatchCoreSetup;
+        try {
+            RtAudio probe(apiFor(setup.driver));
+            const patchcore_audio::Choice c = patchcore_audio::chooseSetup(setup, devicesOf(probe));
+            setup = c.setup;
+            if (! c.notice.empty() && patchcore_audio::gPatchCoreNotice.empty())
+                patchcore_audio::gPatchCoreNotice = c.notice;
+        } DISTRHO_SAFE_EXCEPTION("PatchCore: probing audio devices");
+
+        if (_open(! setup.input.empty()))
+            return true;
+
+        // The chosen device does not open: the default output, no input
+        if (! setup.output.empty() || ! setup.input.empty())
+        {
+            patchcore_audio::gPatchCoreNotice = "Could not open " + (setup.output.empty() ? setup.input : setup.output)
+                                              + ", using the default output";
+            setup.output.clear();
+            setup.input.clear();
+            return _open(false);
+        }
+        return false;
+    }
+
+    // PatchCore: RtAudio API of a driver (the compiled-in default when the driver is not native)
+    static RtAudio::Api apiFor(const patchcore_audio::Driver driver)
+    {
+        switch (driver)
+        {
+       #ifdef __LINUX_ALSA__
+        case patchcore_audio::Driver::Alsa: return RtAudio::LINUX_ALSA;
+       #endif
+       #ifdef __WINDOWS_WASAPI__
+        case patchcore_audio::Driver::Wasapi: return RtAudio::WINDOWS_WASAPI;
+       #endif
+       #ifdef __WINDOWS_ASIO__
+        case patchcore_audio::Driver::Asio: return RtAudio::WINDOWS_ASIO;
+       #endif
+        default: return RtAudio::RTAUDIO_API_TYPE;
+        }
+    }
+
+    static std::vector<patchcore_audio::DeviceInfo> devicesOf(RtAudio& rt)
+    {
+        std::vector<patchcore_audio::DeviceInfo> out;
+        const uint count = rt.getDeviceCount();
+        for (uint i = 0; i < count; ++i)
+        {
+            RtAudio::DeviceInfo info;
+            try {
+                info = rt.getDeviceInfo(i);
+            } catch (...) { continue; }
+            if (! info.probed)
+                continue;
+            patchcore_audio::DeviceInfo d;
+            d.name = info.name;
+            d.outputs = info.outputChannels;
+            d.inputs = info.inputChannels;
+            d.sampleRates = info.sampleRates;
+            out.push_back(d);
+        }
+        return out;
+    }
+
+    std::vector<patchcore_audio::DeviceInfo> listDevices() override
+    {
+        if (handle == nullptr)
+            return {};
+        return devicesOf(*handle);
+    }
+
+    patchcore_audio::AudioSetup currentSetup() const override
+    {
+        return setup;
+    }
+
+    bool reopen(const patchcore_audio::AudioSetup& wanted, std::string* const error) override
+    {
+        const patchcore_audio::AudioSetup previous = setup;
+        const uint previousRate = sampleRate;
+        const uint previousBufferSize = bufferSize;
+
+        if (handle != nullptr)
+        {
+            deactivate();
+            close();
+        }
+
+        setup = wanted;
+        const bool ok = _open(! wanted.input.empty());
+
+        if (! ok)
+        {
+            if (error != nullptr)
+                *error = "Could not open " + (wanted.output.empty() ? std::string("the default output") : wanted.output)
+                       + " at " + std::to_string(wanted.sampleRate) + " Hz";
+            setup = previous;
+            if (! _open(! previous.input.empty()))
+            {
+                setup.output.clear();
+                setup.input.clear();
+                _open(false);
+            }
+        }
+
+        if (handle == nullptr)
+        {
+            running = false;
+            return false;
+        }
+
+        if (bufferSize != previousBufferSize && bufferSizeCallback != nullptr)
+            bufferSizeCallback(bufferSize, jackBufferSizeArg);
+        if (sampleRate != previousRate && sampleRateCallback != nullptr)
+            sampleRateCallback(sampleRate, jackSampleRateArg);
+
+        running = true;
+        activate();
+        return ok;
+    }
+
+    // RtAudio's error callback has no user pointer: a stream error marks the (single) bridge as stopped
+    static void errorCallback(const RtAudioError::Type type, const std::string& text)
+    {
+        if (type == RtAudioError::WARNING || type == RtAudioError::DEBUG_WARNING)
+            return;
+        d_stderr("PatchCore audio: %s", text.c_str());
+        if (sRunning != nullptr)
+            *sRunning = false;
     }
 
     bool close() override
@@ -142,20 +275,11 @@ struct RtAudioBridge : NativeBridge {
     bool requestAudioInput() override
     {
        #if DISTRHO_PLUGIN_NUM_INPUTS > 0
-        // stop audio first
-        deactivate();
-        close();
-
-        // try to open with capture enabled
-        const bool ok = _open(true);
-
-        if (ok)
-            captureEnabled = true;
-        else
-            _open(false);
-
-        activate();
-        return ok;
+        // PatchCore: the input of the output device (or the default input)
+        patchcore_audio::AudioSetup wanted = setup;
+        if (wanted.input.empty())
+            wanted.input = wanted.output.empty() ? std::string("default") : wanted.output;
+        return reopen(wanted, nullptr);
        #else
         return false;
        #endif
@@ -260,27 +384,9 @@ struct RtAudioBridge : NativeBridge {
 
     bool requestBufferSizeChange(const uint32_t newBufferSize) override
     {
-        // stop audio first
-        deactivate();
-        close();
-
-        // try to open with new buffer size
-        nextBufferSize = newBufferSize;
-
-        const bool ok = _open(captureEnabled);
-
-        if (!ok)
-        {
-            // revert to old buffer size if new one failed
-            nextBufferSize = bufferSize;
-            _open(captureEnabled);
-        }
-
-        if (bufferSizeCallback != nullptr)
-            bufferSizeCallback(bufferSize, jackBufferSizeArg);
-
-        activate();
-        return ok;
+        patchcore_audio::AudioSetup wanted = setup;
+        wanted.bufferSize = newBufferSize;
+        return reopen(wanted, nullptr);
     }
 
     bool _open(const bool withInput, RtAudio* tryingAgain = nullptr)
@@ -290,7 +396,7 @@ struct RtAudioBridge : NativeBridge {
         if (tryingAgain == nullptr)
         {
             try {
-                rtAudio = new RtAudio(RtAudio::RTAUDIO_API_TYPE);
+                rtAudio = new RtAudio(apiFor(setup.driver));  // PatchCore: the chosen driver
             } DISTRHO_SAFE_EXCEPTION_RETURN("new RtAudio()", false);
         }
         else
@@ -298,7 +404,25 @@ struct RtAudioBridge : NativeBridge {
             rtAudio = tryingAgain;
         }
 
+        // PatchCore: the chosen buffer size, and devices by name (empty or not found = the default)
+        nextBufferSize = setup.bufferSize;
         uint rtAudioBufferFrames = nextBufferSize;
+        const auto deviceId = [&rtAudio](const std::string& wanted, const bool output) -> uint
+        {
+            if (! wanted.empty())
+            {
+                const uint count = rtAudio->getDeviceCount();
+                for (uint i = 0; i < count; ++i)
+                {
+                    try {
+                        const RtAudio::DeviceInfo info = rtAudio->getDeviceInfo(i);
+                        if (info.probed && info.name == wanted && (output ? info.outputChannels : info.inputChannels) > 0)
+                            return i;
+                    } catch (...) {}
+                }
+            }
+            return output ? rtAudio->getDefaultOutputDevice() : rtAudio->getDefaultInputDevice();
+        };
 
        #if DISTRHO_PLUGIN_NUM_INPUTS > 0
         RtAudio::StreamParameters inParams;
@@ -308,7 +432,7 @@ struct RtAudioBridge : NativeBridge {
        #if DISTRHO_PLUGIN_NUM_INPUTS > 0
         if (withInput)
         {
-            inParams.deviceId = rtAudio->getDefaultInputDevice();
+            inParams.deviceId = deviceId(setup.input, false);
             inParams.nChannels = DISTRHO_PLUGIN_NUM_INPUTS_2;
             inParamsPtr = &inParams;
         }
@@ -316,7 +440,7 @@ struct RtAudioBridge : NativeBridge {
 
        #if DISTRHO_PLUGIN_NUM_OUTPUTS > 0
         RtAudio::StreamParameters outParams;
-        outParams.deviceId = tryingAgain != nullptr ? 1 : rtAudio->getDefaultOutputDevice();
+        outParams.deviceId = tryingAgain != nullptr ? 1 : deviceId(setup.output, true);
         outParams.nChannels = DISTRHO_PLUGIN_NUM_OUTPUTS_2;
         RtAudio::StreamParameters* const outParamsPtr = &outParams;
        #else
@@ -324,7 +448,9 @@ struct RtAudioBridge : NativeBridge {
        #endif
 
         RtAudio::StreamOptions opts;
-        opts.flags = RTAUDIO_NONINTERLEAVED | RTAUDIO_ALSA_USE_DEFAULT;
+        opts.flags = RTAUDIO_NONINTERLEAVED;
+        if (setup.output.empty())
+            opts.flags |= RTAUDIO_ALSA_USE_DEFAULT;  // PatchCore: a named ALSA device is opened directly
        #ifndef DISTRHO_OS_MAC
        /* RtAudio in macOS uses a different than usual way to handle audio block size,
         * where RTAUDIO_MINIMIZE_LATENCY makes CoreAudio use very low latencies (around 15 samples).
@@ -336,8 +462,9 @@ struct RtAudioBridge : NativeBridge {
         opts.streamName = name.buffer();
 
         try {
-            rtAudio->openStream(outParamsPtr, inParamsPtr, RTAUDIO_FLOAT32, 48000, &rtAudioBufferFrames,
-                                RtAudioCallback, this, &opts, nullptr);
+            sRunning = &running;
+            rtAudio->openStream(outParamsPtr, inParamsPtr, RTAUDIO_FLOAT32, setup.sampleRate, &rtAudioBufferFrames,
+                                RtAudioCallback, this, &opts, errorCallback);
         } catch (const RtAudioError& err) {
            #if DISTRHO_PLUGIN_NUM_OUTPUTS > 0
             if (outParams.deviceId == 0 && rtAudio->getDeviceCount() > 1)
@@ -350,7 +477,11 @@ struct RtAudioBridge : NativeBridge {
         handle = rtAudio;
         bufferSize = rtAudioBufferFrames;
         sampleRate = handle->getStreamSampleRate();
-        allocBuffers(!withInput, true);
+        // PatchCore: buffers for every port on every open (a reopen freed them; the extra ports need them)
+        allocBuffers(true, true);
+        captureEnabled = withInput;
+        setup.sampleRate = sampleRate;
+        setup.bufferSize = bufferSize;
         return true;
     }
 
@@ -438,6 +569,9 @@ struct RtAudioBridge : NativeBridge {
     }
    #endif
 };
+
+// PatchCore: the running flag the RtAudio error callback clears (one bridge per process)
+volatile bool* RtAudioBridge::sRunning = nullptr;
 
 #endif // RTAUDIO_API_TYPE
 #endif // RTAUDIO_BRIDGE_HPP_INCLUDED

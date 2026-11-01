@@ -404,6 +404,13 @@ uint getBufferSize() { return 0; }
 bool requestAudioInput() { return false; }
 bool requestBufferSizeChange(uint) { return false; }
 bool requestMIDI() { return false; }
+// PatchCore
+std::vector<patchcore_audio::DeviceInfo> getAudioDevices(patchcore_audio::Driver) { return {}; }
+patchcore_audio::AudioSetup getAudioSetup() { return patchcore_audio::defaultSetup(); }
+std::string getAudioNotice() { return std::string(); }
+bool requestAudioSetup(const patchcore_audio::AudioSetup&, std::string*) { return false; }
+bool isAudioRunning() { return true; }
+bool showAsioPanel() { return false; }
 #endif
 
 // --------------------------------------------------------------------------------------------------------------------

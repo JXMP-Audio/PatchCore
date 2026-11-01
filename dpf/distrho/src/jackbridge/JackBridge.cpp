@@ -657,6 +657,7 @@ namespace patchcore_audio {
 AudioSetup gPatchCoreSetup = defaultSetup();
 std::string gPatchCoreNotice;
 }
+static jack_client_t* gPatchCoreJackClient = nullptr;
 #endif
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -958,6 +959,8 @@ jack_client_t* jackbridge_client_open(const char* client_name, uint32_t options,
         if (jack_client_t* const client = getBridgeInstance().client_open_ptr(client_name, static_cast<jack_options_t>(options), status))
         {
             d_stdout("PatchCore audio: PipeWire / JACK");
+            patchcore_audio::gPatchCoreSetup.driver = patchcore_audio::Driver::Jack;
+            gPatchCoreJackClient = client;
             return client;
         }
    #endif
@@ -1330,6 +1333,13 @@ bool jackbridge_set_sample_rate_callback(jack_client_t* client, JackSampleRateCa
 # else
         return (getBridgeInstance().set_sample_rate_callback_ptr(client, srate_callback, arg) == 0);
 # endif
+    }
+    if (usingNativeBridge && nativeBridge != nullptr)
+    {
+        // PatchCore: the native bridge reports sample rate changes from a reopen
+        nativeBridge->sampleRateCallback = srate_callback;
+        nativeBridge->jackSampleRateArg = arg;
+        return true;
     }
 #endif
     return false;
@@ -2510,6 +2520,99 @@ bool requestMIDI()
 }
 
 END_NAMESPACE_DISTRHO
+
+// --------------------------------------------------------------------------------------------------------------------
+// PatchCore: audio device settings
+
+std::vector<patchcore_audio::DeviceInfo> getAudioDevices(const patchcore_audio::Driver driver)
+{
+#if !(defined(JACKBRIDGE_DUMMY) || defined(JACKBRIDGE_DIRECT))
+    if (usingNativeBridge && nativeBridge != nullptr && driver == nativeBridge->currentSetup().driver)
+        return nativeBridge->listDevices();
+#endif
+    (void)driver;
+    return {};
+}
+
+patchcore_audio::AudioSetup getAudioSetup()
+{
+#if !(defined(JACKBRIDGE_DUMMY) || defined(JACKBRIDGE_DIRECT))
+    if (usingNativeBridge && nativeBridge != nullptr)
+        return nativeBridge->currentSetup();
+    patchcore_audio::AudioSetup s = patchcore_audio::gPatchCoreSetup;
+    if (usingRealJACK && gPatchCoreJackClient != nullptr)
+    {
+        s.driver = patchcore_audio::Driver::Jack;
+        s.sampleRate = jackbridge_get_sample_rate(gPatchCoreJackClient);
+        s.bufferSize = jackbridge_get_buffer_size(gPatchCoreJackClient);
+    }
+    return s;
+#else
+    return patchcore_audio::defaultSetup();
+#endif
+}
+
+std::string getAudioNotice()
+{
+#if !(defined(JACKBRIDGE_DUMMY) || defined(JACKBRIDGE_DIRECT))
+    return patchcore_audio::gPatchCoreNotice;
+#else
+    return std::string();
+#endif
+}
+
+bool requestAudioSetup(const patchcore_audio::AudioSetup& setup, std::string* const error)
+{
+#if !(defined(JACKBRIDGE_DUMMY) || defined(JACKBRIDGE_DIRECT))
+    const patchcore_audio::Driver current = usingNativeBridge && nativeBridge != nullptr
+                                          ? nativeBridge->currentSetup().driver
+                                          : patchcore_audio::Driver::Jack;
+    if (setup.driver != current)
+    {
+        patchcore_audio::saveSetup(setup);
+        if (error != nullptr)
+            *error = "restart";
+        return false;
+    }
+    if (! usingNativeBridge)
+    {
+        // PipeWire/JACK: the server owns device and rate; PipeWire honours a buffer (quantum) request
+        patchcore_audio::saveSetup(setup);
+        if (gPatchCoreJackClient != nullptr && ! jackbridge_set_buffer_size(gPatchCoreJackClient, setup.bufferSize))
+        {
+            if (error != nullptr)
+                *error = "PipeWire / JACK did not accept the buffer size";
+            return false;
+        }
+        return true;
+    }
+    const bool ok = nativeBridge->reopen(setup, error);
+    patchcore_audio::saveSetup(ok ? nativeBridge->currentSetup() : setup);
+    return ok;
+#else
+    (void)setup;
+    (void)error;
+    return false;
+#endif
+}
+
+bool isAudioRunning()
+{
+#if !(defined(JACKBRIDGE_DUMMY) || defined(JACKBRIDGE_DIRECT))
+    return ! usingNativeBridge || nativeBridge == nullptr || nativeBridge->running;
+#else
+    return true;
+#endif
+}
+
+bool showAsioPanel()
+{
+#if defined(__WINDOWS_ASIO__) && !(defined(JACKBRIDGE_DUMMY) || defined(JACKBRIDGE_DIRECT))
+    if (usingNativeBridge && nativeBridge != nullptr && nativeBridge->currentSetup().driver == patchcore_audio::Driver::Asio)
+        return ASIOControlPanel() == 0;  // ASE_OK
+#endif
+    return false;
+}
 
 #endif // JACKBRIDGE_SKIP_NATIVE_UTILS
 
