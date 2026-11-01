@@ -74,8 +74,11 @@ struct Rng {
 };
 
 /** Wear: worn lighter edges, scratches, grime, chipped paint, different for every unit (`seed`). Drawn under
-the legends and controls, so the text stays readable. */
+the legends and controls, so the text stays readable. Clipped to the panel: chips and scratches near an edge
+must not spill onto the neighbouring modules. */
 inline void patina(NVGcontext* vg, math::Vec size, uint32_t seed) {
+	nvgSave(vg);
+	nvgIntersectScissor(vg, 0, 0, size.x, size.y);
 	// Worn edges
 	const float e = mm2px(2.5f);
 	nvgBeginPath(vg);
@@ -208,6 +211,7 @@ inline void patina(NVGcontext* vg, math::Vec size, uint32_t seed) {
 		nvgFillPaint(vg, nvgRadialGradient(vg, x, y, 0, r, nvgRGBAf(1, 1, 1, 0.025f), nvgRGBAf(1, 1, 1, 0)));
 		nvgFill(vg);
 	}
+	nvgRestore(vg);
 }
 
 /** One scale position: `t` = the parameter value (normalised by JXMPModuleWidget::knob), a label for major marks. */
