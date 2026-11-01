@@ -234,6 +234,12 @@ public:
 
         jackbridge_activate(fClient);
 
+       #if DISTRHO_PLUGIN_NUM_OUTPUTS > 0 && !(defined(JACKBRIDGE_DUMMY) || defined(JACKBRIDGE_DIRECT))
+        // PatchCore: under PipeWire/JACK connect the first two outputs to the system output, as other apps do
+        if (! usingNativeBridge)
+            patchcoreConnectOutputs();
+       #endif
+
         std::fflush(stdout);
 
        #if DISTRHO_PLUGIN_HAS_UI
@@ -348,6 +354,50 @@ protected:
         fUI.exec_idle();
     }
 #endif
+
+   #if DISTRHO_PLUGIN_NUM_OUTPUTS > 0 && !(defined(JACKBRIDGE_DUMMY) || defined(JACKBRIDGE_DIRECT))
+    // PatchCore: the default sink's playback ports (PipeWire, through pactl), else the first physical ones
+    void patchcoreConnectOutputs()
+    {
+        std::string sink;
+       #ifdef DISTRHO_OS_LINUX
+        if (FILE* const p = popen("pactl get-default-sink 2>/dev/null", "r"))
+        {
+            char line[512] = {};
+            if (std::fgets(line, sizeof(line), p) != nullptr)
+            {
+                sink = line;
+                while (! sink.empty() && (sink.back() == '\n' || sink.back() == '\r'))
+                    sink.pop_back();
+            }
+            pclose(p);
+        }
+       #endif
+
+        const char** const ports = jackbridge_get_ports(fClient, nullptr, JACK_DEFAULT_AUDIO_TYPE,
+                                                        JackPortIsPhysical | JackPortIsInput);
+        if (ports == nullptr)
+            return;
+
+        std::vector<const char*> targets;
+        if (! sink.empty())
+        {
+            const std::string prefix = sink + ":playback_";
+            for (int i = 0; ports[i] != nullptr; ++i)
+                if (std::strncmp(ports[i], prefix.c_str(), prefix.size()) == 0)
+                    targets.push_back(ports[i]);
+        }
+        if (targets.empty())
+            for (int i = 0; ports[i] != nullptr && i < 2; ++i)
+                targets.push_back(ports[i]);
+
+        const uint32_t outs = std::min<uint32_t>(2, DISTRHO_PLUGIN_NUM_OUTPUTS);
+        for (uint32_t i = 0; i < outs && ! targets.empty(); ++i)
+            jackbridge_connect(fClient, jackbridge_port_name(fPortAudioOuts[i]), targets[std::min<size_t>(i, targets.size() - 1)]);
+
+        jackbridge_free(ports);
+    }
+   #endif
 
     void jackBufferSize(const jack_nframes_t nframes)
     {

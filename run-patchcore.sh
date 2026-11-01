@@ -12,9 +12,9 @@
 #                                      command in ~/.local/bin (run it on the host)
 #   ./run-patchcore.sh --uninstall     remove both again
 #
-# The standalone is a JACK client. Under PipeWire it does not connect itself to the speakers,
-# so this script links its first two audio outputs to the default output. Started on the host,
-# it runs inside the distrobox the app is built in (PATCHCORE_CONTAINER, default CLAUDE).
+# PatchCore connects its outputs to the default output itself (Engine → Audio Settings chooses the
+# driver and the sound card). Started on the host, the script runs inside the distrobox the app is
+# built in (PATCHCORE_CONTAINER, default CLAUDE).
 set -euo pipefail
 
 core="$(cd "$(dirname "$(realpath "$0")")" && pwd)"
@@ -109,28 +109,6 @@ esac
 
 cd "$core"
 if [ -n "$patch" ]; then
-	PATCHCORE_DEV_PATCH="$patch" "$bin" &
-else
-	"$bin" &
+	PATCHCORE_DEV_PATCH="$patch" exec "$bin"
 fi
-pid=$!
-
-# Connect the audio to the default output (PipeWire / PulseAudio)
-if command -v pw-link > /dev/null && command -v pactl > /dev/null; then
-	sink="$(pactl get-default-sink 2>/dev/null || true)"
-	for _ in $(seq 50); do
-		pw-link -o 2>/dev/null | grep -q '^PatchCore:audio_out_1$' && break
-		sleep 0.2
-	done
-	if [ -n "$sink" ]; then
-		mapfile -t ports < <(pw-link -i | grep "^$sink:playback_" | head -2)
-		if [ "${#ports[@]}" -ge 1 ]; then
-			pw-link PatchCore:audio_out_1 "${ports[0]}" 2>/dev/null || true
-			pw-link PatchCore:audio_out_2 "${ports[1]:-${ports[0]}}" 2>/dev/null || true
-			echo "Audio: PatchCore → $sink"
-		fi
-	fi
-else
-	echo "pw-link/pactl not found: connect PatchCore's outputs yourself (e.g. with qpwgraph)."
-fi
-wait $pid
+exec "$bin"
