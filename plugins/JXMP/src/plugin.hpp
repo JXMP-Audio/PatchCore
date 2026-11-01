@@ -32,3 +32,4 @@ extern Model* modelJXMPConsole4;
 extern Model* modelJXMPConsole8;
 extern Model* modelJXMPConsole16;
 extern Model* modelJXMPConsole32;
+extern Model* modelJXMPScope;

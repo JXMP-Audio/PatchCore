@@ -182,6 +182,14 @@
       "tags": [
         "Mixer"
       ]
+    },
+    {
+      "slug": "Scope",
+      "name": "Scope",
+      "description": "JX-SCP: two-channel oscilloscope with a round green CRT, trigger and X-Y mode",
+      "tags": [
+        "Visual"
+      ]
     }
   ]
 }
