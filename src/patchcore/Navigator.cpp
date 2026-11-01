@@ -157,6 +157,7 @@ struct Navigator : widget::OpaqueWidget {
 			{"Enter", "find module"},
 			{"Space", "play/stop"},
 			{"", "shift+click: select"},
+			{"", "ctrl+drag: select area"},
 			{"", "shift+drag: move module"},
 			{"", "shift+right: module menu"},
 			{"", "wheel: turn knobs"},

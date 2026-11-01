@@ -119,8 +119,10 @@ struct Scene::Internal {
 
 	bool heldArrowKeys[4] = {};
 
-	/** PatchCore: where a selection box drag on the rack started (a click is not a selection) */
+	/** PatchCore: where a selection box drag on the rack started (a click is not a selection), and whether
+	Ctrl was held then (only Ctrl+drag draws the selection box) */
 	bool rackBoxStarted = false;
+	bool rackBoxCtrl = false;
 	math::Vec rackBoxStart;
 
 	double lastSceneChangeTime = 0.0;
@@ -380,13 +382,17 @@ void Scene::onHover(const HoverEvent& e) {
 void Scene::onDragHover(const DragHoverEvent& e) {
 	mousePos = e.pos;
 
-	// PatchCore: a plain click on a module panel goes on to the rack, whose selection box would select the
-	// module under the mouse after the slightest movement. The box selects only after a real drag (6 px).
+	// PatchCore: the rack's selection box only with Ctrl+drag (Shift+click selects a single module). A plain
+	// drag on the rack or on a module panel draws and selects nothing; the rack is not told about the movement,
+	// so its box stays empty. With Ctrl the box selects only after a real drag (6 px), not on a click.
 	const bool rackBox = patchcore::enabled() && e.origin == rack && e.button == GLFW_MOUSE_BUTTON_LEFT;
 	if (rackBox && !internal->rackBoxStarted) {
 		internal->rackBoxStarted = true;
+		internal->rackBoxCtrl = (APP->window->getMods() & RACK_MOD_MASK) == RACK_MOD_CTRL;
 		internal->rackBoxStart = e.pos;
 	}
+	if (rackBox && !internal->rackBoxCtrl)
+		return;
 
 	OpaqueWidget::onDragHover(e);
 
