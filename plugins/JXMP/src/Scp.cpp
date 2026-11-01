@@ -37,6 +37,8 @@ struct Scp : engine::Module {
 	sc::Trigger trigger;
 	sc::Capture capture;
 	float trigLight = 0.f;
+	/** Recent range of the trigger signal (follows it within about 2 s), for the automatic level */
+	float trigLo = 0.f, trigHi = 0.f;
 
 	Scp() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -51,7 +53,8 @@ struct Scp : engine::Module {
 		    ->description = "How many volts one square up is for the amber trace. Smaller = the wave is drawn taller.";
 		configParam(POS2_PARAM, -4.f, 4.f, 0.f, "CH 2 position", " div")->description = "Moves the amber trace up or down.";
 		configParam(TRIG_LEVEL_PARAM, -10.f, 10.f, 0.f, "Trigger level", " V")
-		    ->description = "The voltage the wave must cross to start a drawing. Set it inside the wave to make it stand still.";
+		    ->description = "The voltage the wave must cross to start a drawing. In AUTO a level outside the wave is "
+		                    "replaced by the middle of the wave, so the picture always stands still.";
 		// Toggles: lever up = the highest value, so the default (top) choice is the highest value
 		configSwitch(TRIG_SLOPE_PARAM, 0.f, 1.f, 1.f, "Trigger slope", {"Falling", "Rising"})
 		    ->description = "Start the drawing when the wave crosses the level going up (RISE) or going down (FALL).";
@@ -73,10 +76,21 @@ struct Scp : engine::Module {
 		const float b = inputs[IN2_INPUT].getVoltage();
 		const int source = (int) std::round(params[TRIG_SOURCE_PARAM].getValue());  // 2 CH 1, 1 CH 2, 0 EXT
 		const float t = source == 2 ? a : source == 1 ? b : inputs[TRIG_INPUT].getVoltage();
-		const bool fired = trigger.process(t, params[TRIG_LEVEL_PARAM].getValue(), params[TRIG_SLOPE_PARAM].getValue() > 0.5f);
 		const bool xy = params[MODE_PARAM].getValue() < 0.5f;
 		const bool autoRun = params[TRIG_MODE_PARAM].getValue() > 0.5f;
-		if (fired && !capture.running() && !xy)
+
+		// AUTO: when LEVEL is outside the signal (e.g. a unipolar LFO and LEVEL at 0 V) it would never trigger;
+		// then the middle of the signal is used, as the automatic level of modern scopes
+		const float k = std::min(1.f, args.sampleTime * 0.5f);
+		trigLo = t < trigLo ? t : trigLo + (t - trigLo) * k;
+		trigHi = t > trigHi ? t : trigHi - (trigHi - t) * k;
+		float level = params[TRIG_LEVEL_PARAM].getValue();
+		const float span = trigHi - trigLo;
+		if (autoRun && span > 0.1f && (level <= trigLo + 0.1f * span || level >= trigHi - 0.1f * span))
+			level = 0.5f * (trigLo + trigHi);
+
+		const bool fired = trigger.process(t, level, params[TRIG_SLOPE_PARAM].getValue() > 0.5f);
+		if (fired && !xy)
 			trigLight = 1.f;
 		capture.process(a, b, fired, args.sampleTime, sc::timeDiv((int) std::round(params[TIME_PARAM].getValue())), xy, autoRun);
 		trigLight = std::max(0.f, trigLight - args.sampleTime * 5.f);
@@ -278,22 +292,6 @@ struct CrtScreen : widget::TransparentWidget {
 		nvgCircle(vg, c.x, c.y, r + mm2px(1.2f));
 		nvgFillColor(vg, nvgRGB(0x0d, 0x0e, 0x0f));
 		nvgFill(vg);
-		// Four bezel screws
-		for (int i = 0; i < 4; ++i) {
-			const float a = M_PI / 4 + i * M_PI / 2;
-			const math::Vec s(c.x + std::cos(a) * (outer - mm2px(2.6f)), c.y + std::sin(a) * (outer - mm2px(2.6f)));
-			nvgBeginPath(vg);
-			nvgCircle(vg, s.x, s.y, mm2px(0.9f));
-			nvgFillPaint(vg, nvgLinearGradient(vg, s.x, s.y - 3, s.x, s.y + 3, nvgRGB(0xc4, 0xc6, 0xca), nvgRGB(0x5c, 0x5e, 0x62)));
-			nvgFill(vg);
-			nvgBeginPath(vg);
-			nvgMoveTo(vg, s.x - mm2px(0.6f), s.y);
-			nvgLineTo(vg, s.x + mm2px(0.6f), s.y);
-			nvgStrokeWidth(vg, 0.8f);
-			nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.6f));
-			nvgStroke(vg);
-		}
-
 		// Phosphor screen, dark green, a little lighter in the middle
 		nvgBeginPath(vg);
 		nvgCircle(vg, c.x, c.y, r);
