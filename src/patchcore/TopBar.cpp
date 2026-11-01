@@ -130,10 +130,10 @@ struct ViewSegment : widget::OpaqueWidget {
 		float w;
 	};
 	std::vector<Item> items = {
-		{"Rack", "Tab"},
-		{"Back", ""},
+		{"Rack", "F1"},
+		{"Back", "F2"},
 		{"Search", "Enter"},
-		{"Mixer", ""},
+		{"Mixer", "F4"},
 	};
 
 	bool isOn(size_t i) const {

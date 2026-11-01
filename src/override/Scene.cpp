@@ -587,6 +587,17 @@ void Scene::onHoverKey(const HoverKeyEvent& e) {
 				patchcore::transportTogglePlay();
 				e.consume(this);
 			}
+			// F1 Rack, F2 Back, F4 Mixer (F3 is kept for the Editor, standalone only)
+			if (e.key == GLFW_KEY_F1 || e.key == GLFW_KEY_F2) {
+				patchcore::showMixer(false);
+				patchcore::setViewSide(e.key == GLFW_KEY_F1 ? patchcore::VIEW_FRONT : patchcore::VIEW_BACK);
+				e.consume(this);
+			}
+			if (e.key == GLFW_KEY_F4) {
+				if (patchcore::mixerAvailable())
+					patchcore::showMixer(!patchcore::mixerShown());
+				e.consume(this);
+			}
 		}
 	}
 }
