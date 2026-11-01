@@ -43,7 +43,9 @@ int main() {
 		c.process(x, -x, tr.process(x, 0.f, true), dt, 0.001f);
 	}
 	assert(c.sweeps >= 50 && c.sweeps <= 100);  // at most one sweep per 10 ms period
-	assert(std::fabs(c.shown[0][0]) < 0.5f && c.shown[0][4] > c.shown[0][0]);
+	// The trigger point is the middle of the screen: rising through 0 V there
+	const int mid = Capture::kHalf;
+	assert(std::fabs(c.shown[0][mid]) < 0.5f && c.shown[0][mid + 4] > c.shown[0][mid] && c.shown[0][mid - 4] < c.shown[0][mid]);
 	assert(near(c.shown[1][10], -c.shown[0][10]));
 	// 8 ms of a 10 ms period: the sweep reaches the negative half
 	float lowest = 0.f;
@@ -75,7 +77,7 @@ int main() {
 	}
 	// After the first second: about one sweep per LFO period, each starting at the rising zero crossing
 	assert(lfo.sweeps - firstSweeps >= 2 && lfo.sweeps - firstSweeps <= 4);
-	assert(std::fabs(lfo.shown[0][0]) < 0.1f && lfo.shown[0][50] > lfo.shown[0][0]);
+	assert(std::fabs(lfo.shown[0][Capture::kHalf]) < 0.1f && lfo.shown[0][Capture::kHalf + 50] > lfo.shown[0][Capture::kHalf]);
 
 	// NORM: no trigger, no sweep (the screen stays dark); a trigger starts one
 	Capture norm;
@@ -95,7 +97,7 @@ int main() {
 	Capture slow;
 	for (int i = 0; i < 48000; ++i)
 		slow.process(1.f, 0.f, i == 0, dt, 1.f);
-	assert(!slow.running() || slow.index <= 33);
+	assert(!slow.running() || slow.index <= Capture::kHalf + 34);
 
 	std::printf("scope: all tests passed\n");
 	return 0;

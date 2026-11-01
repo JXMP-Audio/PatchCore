@@ -65,7 +65,8 @@ struct Trigger {
  * One sweep of both channels: starts on a trigger. AUTO also starts by itself when no trigger came for a while,
  * so a steady voltage still shows: normally after two sweep lengths (at most 0.15 s); while triggers keep coming
  * (a slow LFO) it waits 1.5 times their spacing (up to 3 s), so the picture stands still instead of drifting.
- * NORM starts only on a trigger., then takes kPoints samples spread over
+ * NORM starts only on a trigger. The trigger point is the middle of the sweep: the half before it comes from a
+ * history that is kept all the time., then takes kPoints samples spread over
  * kDivisions × time/div. A finished sweep is copied to `shown` and `sweeps` counts up, which the display reads.
  */
 struct Capture {
@@ -90,6 +91,11 @@ struct Capture {
 		return index < kPoints;
 	}
 
+	/** The half sweep before the trigger, kept all the time, so the trigger point sits in the middle of the screen */
+	static constexpr int kHalf = kPoints / 2;
+	float history[2][kHalf] = {};
+	int historyPos = 0;
+
 	/** One audio sample. `freeRun` = take sweeps back to back, no trigger (X–Y mode). `autoRun` = AUTO: start
 	without a trigger after a while; off = NORM. */
 	void process(float a, float b, bool trigger, float dt, float secondsPerDiv, bool freeRun = false, bool autoRun = true) {
@@ -103,22 +109,37 @@ struct Capture {
 		}
 		else if (sinceTrigger > 3.f)
 			triggerSpacing = 0.f;
-		if (!running()) {
-			waiting += dt;
-			if (trigger || freeRun || (autoRun && waiting > autoTimeout(sweepTime))) {
-				index = 0;
-				waiting = 0.f;
-				sinceTake = step;  // the first point is the trigger sample
-			}
-			else
-				return;
-		}
+
+		// One point per step of the time base; long steps fall behind on a short dt: at most one per sample
 		sinceTake += dt;
-		if (sinceTake < step)
+		bool take = false;
+		if (sinceTake >= step) {
+			sinceTake = std::min(sinceTake - step, step);
+			take = true;
+		}
+
+		if (!running()) {
+			if (take) {
+				history[0][historyPos] = a;
+				history[1][historyPos] = b;
+				historyPos = (historyPos + 1) % kHalf;
+			}
+			waiting += dt;
+			if (!(trigger || freeRun || (autoRun && waiting > autoTimeout(sweepTime))))
+				return;
+			// Start: the remembered half first (oldest to newest), the trigger sample in the middle
+			for (int ch = 0; ch < 2; ++ch)
+				for (int i = 0; i < kHalf; ++i)
+					buffer[ch][i] = history[ch][(historyPos + i) % kHalf];
+			buffer[0][kHalf] = a;
+			buffer[1][kHalf] = b;
+			index = kHalf + 1;
+			waiting = 0.f;
+			sinceTake = 0.f;
 			return;
-		sinceTake -= step;
-		// Long time steps fall far behind on a short dt: never more than one point per sample
-		sinceTake = std::min(sinceTake, step);
+		}
+		if (!take)
+			return;
 		buffer[0][index] = a;
 		buffer[1][index] = b;
 		if (++index >= kPoints) {
