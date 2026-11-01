@@ -160,6 +160,12 @@ JACK_LIBS  += -lole32 -lwinmm
 # JACK_LIBS  += -ldsound
 # WASAPI
 JACK_LIBS  += -lksuser -lmfplat -lmfuuid -lwmcodecdspuuid
+# PatchCore: ASIO, when the ASIO SDK sources are in rtaudio/asio (see the README there)
+PATCHCORE_ASIO_DIR = $(DPF_PATH)/distrho/src/jackbridge/rtaudio/asio
+ifneq ($(wildcard $(PATCHCORE_ASIO_DIR)/asio.cpp),)
+JACK_FLAGS += -DPATCHCORE_HAVE_ASIO -I$(PATCHCORE_ASIO_DIR)
+JACK_LIBS  += -lole32 -luuid
+endif
 else
 ifeq ($(HAVE_PULSEAUDIO),true)
 JACK_FLAGS += $(PULSEAUDIO_FLAGS)
