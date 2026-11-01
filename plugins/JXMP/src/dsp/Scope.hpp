@@ -22,6 +22,12 @@ constexpr int kTimeSteps = sizeof(kTimeDiv) / sizeof(kTimeDiv[0]);
 static const float kVoltDiv[] = {0.1f, 0.2f, 0.5f, 1.f, 2.f, 5.f};
 constexpr int kVoltSteps = sizeof(kVoltDiv) / sizeof(kVoltDiv[0]);
 
+/** AUTO starts a sweep by itself after this long without a trigger (seconds) */
+constexpr float kAutoTimeout = 0.15f;
+
+/** From this sweep length (seconds) on, the display draws the sweep while it runs (the beam moves visibly) */
+constexpr float kLiveSweep = 0.1f;
+
 /** Horizontal divisions across the screen, and points per sweep */
 constexpr int kDivisions = 8;
 constexpr int kPoints = 256;
@@ -56,8 +62,8 @@ struct Trigger {
 };
 
 /**
- * One sweep of both channels: starts on a trigger (AUTO also by itself after two sweep lengths without one, so
- * a steady voltage still shows; NORM only on a trigger), then takes kPoints samples spread over
+ * One sweep of both channels: starts on a trigger (AUTO also by itself when none came for a short while — two
+ * sweep lengths, at most 0.15 s, as lab scopes do — so a steady voltage still shows; NORM only on a trigger), then takes kPoints samples spread over
  * kDivisions × time/div. A finished sweep is copied to `shown` and `sweeps` counts up, which the display reads.
  */
 struct Capture {
@@ -80,7 +86,7 @@ struct Capture {
 		const float step = sweepTime / kPoints;
 		if (!running()) {
 			waiting += dt;
-			if (trigger || freeRun || (autoRun && waiting > 2.f * sweepTime + 0.05f)) {
+			if (trigger || freeRun || (autoRun && waiting > std::min(2.f * sweepTime + 0.05f, kAutoTimeout))) {
 				index = 0;
 				waiting = 0.f;
 				sinceTake = step;  // the first point is the trigger sample

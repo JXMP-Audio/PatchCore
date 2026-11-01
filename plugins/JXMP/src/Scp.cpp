@@ -166,6 +166,11 @@ struct CrtScreen : widget::TransparentWidget {
 			return;
 		}
 
+		// Slow sweeps (Y–T) are drawn while they run, so the picture moves instead of jumping every few seconds
+		const float sweepTime = sc::timeDiv((int) std::round(module->params[Scp::TIME_PARAM].getValue())) * sc::kDivisions;
+		const int liveIndex = module->capture.index;
+		const bool live = !xy && sweepTime >= sc::kLiveSweep && module->capture.running();
+
 		const double now = system::getTime();
 		// NORM: without new triggers the last trace stays a moment, then fades out (the screen goes dark)
 		const bool norm = module->params[Scp::TRIG_MODE_PARAM].getValue() < 0.5f && !xy;
@@ -185,14 +190,39 @@ struct CrtScreen : widget::TransparentWidget {
 				trace(vg, c, r, pts, green, alpha);
 				continue;
 			}
+			// A slow sweep is drawn live below; the last finished one stays dimmed behind the beam
+			if (live && &f == &frames.back())
+				alpha *= 0.35f;
 			for (int ch = 0; ch < 2; ++ch) {
 				if (!(ch == 0 ? on1 : on2))
 					continue;
-				for (int i = 0; i < sc::kPoints; ++i) {
+				const int from = live && &f == &frames.back() ? liveIndex : 0;
+				std::vector<math::Vec> part;
+				for (int i = from; i < sc::kPoints; ++i) {
 					const float x = (float) i / (sc::kPoints - 1) * 8.f - 4.f;
-					pts[i] = point(c, r, x, sc::divisions(f.data[ch][i], ch == 0 ? v1 : v2, ch == 0 ? p1 : p2));
+					part.push_back(point(c, r, x, sc::divisions(f.data[ch][i], ch == 0 ? v1 : v2, ch == 0 ? p1 : p2)));
 				}
-				trace(vg, c, r, pts, ch == 0 ? green : amber, alpha);
+				trace(vg, c, r, part, ch == 0 ? green : amber, alpha);
+			}
+		}
+
+		// Live sweep: the beam writes from the left, a bright spot at its head
+		if (live && liveIndex > 1) {
+			for (int ch = 0; ch < 2; ++ch) {
+				if (!(ch == 0 ? on1 : on2))
+					continue;
+				std::vector<math::Vec> part;
+				for (int i = 0; i < liveIndex; ++i) {
+					const float x = (float) i / (sc::kPoints - 1) * 8.f - 4.f;
+					part.push_back(point(c, r, x, sc::divisions(module->capture.buffer[ch][i], ch == 0 ? v1 : v2, ch == 0 ? p1 : p2)));
+				}
+				const NVGcolor col = ch == 0 ? green : amber;
+				trace(vg, c, r, part, col, 1.f);
+				const math::Vec head = part.back();
+				nvgBeginPath(vg);
+				nvgCircle(vg, head.x, head.y, 2.6f);
+				nvgFillPaint(vg, nvgRadialGradient(vg, head.x, head.y, 0.5f, 4.f, nvgRGBAf(1, 1, 1, 0.9f), nvgRGBAf(col.r, col.g, col.b, 0)));
+				nvgFill(vg);
 			}
 		}
 	}

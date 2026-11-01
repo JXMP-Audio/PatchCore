@@ -57,6 +57,12 @@ int main() {
 		dc.process(2.f, 0.f, false, dt, 0.001f);
 	assert(dc.sweeps >= 1 && near(dc.shown[0][100], 2.f));
 
+	// A slow time base does not wait long for a trigger: AUTO starts within 0.15 s even at 1 s/div
+	Capture slowAuto;
+	for (int i = 0; i < (int) (0.2f * fs); ++i)
+		slowAuto.process(1.f, 0.f, false, dt, 1.f);
+	assert(slowAuto.running());
+
 	// NORM: no trigger, no sweep (the screen stays dark); a trigger starts one
 	Capture norm;
 	for (int i = 0; i < 4800; ++i)
