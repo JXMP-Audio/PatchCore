@@ -46,9 +46,10 @@ struct Scp : engine::Module {
 		configSwitch(VOLT2_PARAM, 0.f, sc::kVoltSteps - 1, 4.f, "CH 2 volts / div", {"0.1 V", "0.2 V", "0.5 V", "1 V", "2 V", "5 V"});
 		configParam(POS2_PARAM, -4.f, 4.f, 0.f, "CH 2 position", " div");
 		configParam(TRIG_LEVEL_PARAM, -10.f, 10.f, 0.f, "Trigger level", " V");
-		configSwitch(TRIG_SLOPE_PARAM, 0.f, 1.f, 0.f, "Trigger slope", {"Rising", "Falling"});
-		configSwitch(TRIG_SOURCE_PARAM, 0.f, 2.f, 0.f, "Trigger source", {"CH 1", "CH 2", "External"});
-		configSwitch(MODE_PARAM, 0.f, 1.f, 0.f, "Mode", {"Y–T (time)", "X–Y (CH 1 across, CH 2 up)"});
+		// Toggles: lever up = the highest value, so the default (top) choice is the highest value
+		configSwitch(TRIG_SLOPE_PARAM, 0.f, 1.f, 1.f, "Trigger slope", {"Falling", "Rising"});
+		configSwitch(TRIG_SOURCE_PARAM, 0.f, 2.f, 2.f, "Trigger source", {"External", "CH 2", "CH 1"});
+		configSwitch(MODE_PARAM, 0.f, 1.f, 1.f, "Mode", {"X–Y (CH 1 across, CH 2 up)", "Y–T (time)"});
 		configInput(IN1_INPUT, "In 1")->description = "Channel 1, the green trace (X in X–Y mode). Polyphonic: the first voice is drawn.";
 		configInput(IN2_INPUT, "In 2")->description = "Channel 2, the amber trace (Y in X–Y mode).";
 		configInput(TRIG_INPUT, "Trig")->description = "External trigger, used when the trigger source is EXT.";
@@ -58,10 +59,10 @@ struct Scp : engine::Module {
 	void process(const ProcessArgs& args) override {
 		const float a = inputs[IN1_INPUT].getVoltage();
 		const float b = inputs[IN2_INPUT].getVoltage();
-		const int source = (int) std::round(params[TRIG_SOURCE_PARAM].getValue());
-		const float t = source == 0 ? a : source == 1 ? b : inputs[TRIG_INPUT].getVoltage();
-		const bool fired = trigger.process(t, params[TRIG_LEVEL_PARAM].getValue(), params[TRIG_SLOPE_PARAM].getValue() < 0.5f);
-		const bool xy = params[MODE_PARAM].getValue() > 0.5f;
+		const int source = (int) std::round(params[TRIG_SOURCE_PARAM].getValue());  // 2 CH 1, 1 CH 2, 0 EXT
+		const float t = source == 2 ? a : source == 1 ? b : inputs[TRIG_INPUT].getVoltage();
+		const bool fired = trigger.process(t, params[TRIG_LEVEL_PARAM].getValue(), params[TRIG_SLOPE_PARAM].getValue() > 0.5f);
+		const bool xy = params[MODE_PARAM].getValue() < 0.5f;
 		if (fired && !capture.running() && !xy)
 			trigLight = 1.f;
 		capture.process(a, b, fired, args.sampleTime, sc::timeDiv((int) std::round(params[TIME_PARAM].getValue())), xy);
@@ -132,7 +133,7 @@ struct CrtScreen : widget::TransparentWidget {
 	}
 
 	void drawTraces(NVGcontext* vg, math::Vec c, float r) {
-		const bool xy = module ? module->params[Scp::MODE_PARAM].getValue() > 0.5f : false;
+		const bool xy = module ? module->params[Scp::MODE_PARAM].getValue() < 0.5f : false;
 		const float v1 = module ? sc::voltDiv((int) std::round(module->params[Scp::VOLT1_PARAM].getValue())) : 2.f;
 		const float v2 = module ? sc::voltDiv((int) std::round(module->params[Scp::VOLT2_PARAM].getValue())) : 2.f;
 		const float p1 = module ? module->params[Scp::POS1_PARAM].getValue() : 0.f;
@@ -287,14 +288,14 @@ struct ScpWidget : JXMPModuleWidget {
 		      {7.f, ""}, {8.f, ""}, {9.f, ".1"}, {10.f, ""}, {11.f, ""}, {12.f, "1s"}});
 
 		// Trigger
-		section(83.f, 52.f, 35.f, 25.f, "TRIGGER");
+		// The divider stops short: TRIG'D and its lamp sit at its end, in the header row
+		section(83.f, 52.f, 22.f, 25.f, "TRIGGER");
+		label(math::Vec(110.f, 52.f), "TRIG'D", 5.5f);
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(math::Vec(116.f, 52.f)), module, Scp::TRIG_LIGHT));
 		label(math::Vec(92.f, 56.5f), "LEVEL", 6.5f);
 		knob(math::Vec(92.f, 66.5f), Scp::TRIG_LEVEL_PARAM, 9.f, st::CAP_WHITE, -10.f, 10.f,
 		     st::marks(-10.f, 10.f, 2.f, 5, [](float v) { return v == 0.f ? std::string() : string::f("%+d", (int) v); }));
 		toggle(math::Vec(110.f, 66.f), Scp::TRIG_SLOPE_PARAM, 2, {"RISE", "FALL"});
-		// Lit while sweeps start on the trigger (dark when AUTO free-runs)
-		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(math::Vec(97.5f, 78.5f)), module, Scp::TRIG_LIGHT));
-		label(math::Vec(104.5f, 78.5f), "TRIG'D", 5.5f);
 
 		// Source and mode
 		section(83.f, 82.f, 35.f, 18.f, "SOURCE · MODE");
