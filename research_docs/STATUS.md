@@ -24,6 +24,16 @@ start paths).
 - `src/patchcore/AudioSettings.cpp` (per variant): dialog, test tone, notice strip, `restartApp()`.
 - Windows ASIO: wiring only; the SDK sources are added with the first Windows build.
 
+Also on the branch: a plain click on a module panel no longer selects it (the rack's selection box now
+needs a 6 px drag), and scratches in the patina never cross each other.
+
+Final review (fresh reviewer) done: the Critical (link) and all Important findings are fixed in 5e1db44,
+uncompiled. Deferred minors (see `.superpowers/sdd/13-plan-standalone-plugin-audio/progress.md`): Linux restart
+skips Rack's normal shutdown; JACK ignores the chosen rate and its buffer change is server-wide; ALSA default
+output + named input opens the default input; a card held by PipeWire is not listed under ALSA; config parse
+keeps `\r`; info-text truncation cuts UTF-8; CardinalRemote lacks AudioSettings.cpp; main and Synth variants
+share the name in LV2/CLAP; ASIO single-file include risky on 32-bit MinGW.
+
 ### Next
 
 1. When the user asks for a build: `make -j12 jack && make -j12 vst3`, fix compile errors, run
