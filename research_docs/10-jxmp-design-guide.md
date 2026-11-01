@@ -48,6 +48,7 @@ metal toggles with LEDs, outputs on light fields. No third-party names or logos.
 | JX-RND (Random) | amber `#e0a43a` |
 | JX-SLW (Slew) | olive `#8fae3a` |
 | JX-ATT (Attenuverter) | slate `#6f86a8` |
+| JX-CONSOLE (Console 4/8/16/32) | indigo `#5b6ee1` |
 | future modules | a new colour each, not reused |
 
 ## Knob caps — what each colour means
@@ -105,5 +106,9 @@ inputs have light text. All JXMP sockets are on the back (Patchbay front jacks a
   2. [x] JX-RND (Random, 8 HP) — colour amber `#e0a43a`: sample & hold of noise or an input, smooth random, internal rate or clock, unipolar/bipolar
   3. [x] JX-SLW (Slew / glide, 8 HP) — colour olive `#8fae3a`: rise and fall times, linear/exponential, for portamento on V/OCT
   4. [x] JX-ATT (Attenuverters, 10 HP) — colour slate `#6f86a8`: four attenuverters with offsets, chained (an unpatched input is a constant)
-- [ ] Next (2026-10-29): views (Rack · Back · Editor · Mixer) and plugin/standalone transport, JX-CONSOLE 4/8/16/32 with the Mixer view and VU meters, piano-roll Editor — design draft [11](11-views-console-editor-design.md)
+- [x] JX-CONSOLE 4/8/16/32 (18 HP) — colour indigo `#5b6ee1`: one per project, all sockets on the back, front with two
+  cream VU meters (IEC ballistics, selectable 0 VU reference), meter source, master mute and fader; the full console
+  is the Mixer view (F4) — [11](11-views-console-editor-design.md)
+- [ ] Next: plugin/standalone modes and audio settings ([12](12-standalone-plugin-audio-design.md)), then the
+  piano-roll Editor — [11](11-views-console-editor-design.md)
 - Cancelled: realistic cables (07/08) — the original cables stay

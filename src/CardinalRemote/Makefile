@@ -334,6 +334,7 @@ FILES += common.cpp
 FILES += glfw.cpp
 FILES += MenuBar.cpp
 FILES += PatchCoreUI.cpp
+FILES += AudioSettings.cpp
 FILES += Window.cpp
 
 ifeq ($(WINDOWS),true)

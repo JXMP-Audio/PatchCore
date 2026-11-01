@@ -7,6 +7,11 @@
 
 #include <cstdlib>
 #include <fstream>
+#ifdef _WIN32
+# include <direct.h>
+#else
+# include <sys/stat.h>
+#endif
 #include <sstream>
 #include <string>
 #include <vector>
@@ -110,7 +115,8 @@ inline Choice chooseSetup(const AudioSetup& saved, const std::vector<DeviceInfo>
 
 	const DeviceInfo* out = saved.output.empty() ? nullptr : findDevice(devices, saved.output);
 	if (!saved.output.empty() && out == nullptr) {
-		c.notice = "Sound card " + saved.output + " not found, using the default output";
+		c.notice = "Sound card " + saved.output + (saved.driver == Driver::Alsa ? " not found or in use by PipeWire" : " not found")
+		         + ", using the default output";
 		c.setup.output.clear();
 	}
 	if (!saved.input.empty() && findDevice(devices, saved.input) == nullptr) {
@@ -154,6 +160,8 @@ inline AudioSetup parse(const std::string& text) {
 	std::istringstream in(text);
 	std::string line;
 	while (std::getline(in, line)) {
+		while (!line.empty() && (line.back() == '\r' || line.back() == '\n'))
+			line.pop_back();  // a file edited on Windows
 		const size_t eq = line.find('=');
 		if (eq == std::string::npos)
 			continue;
@@ -197,7 +205,21 @@ inline AudioSetup loadSetup() {
 	return parse(ss.str());
 }
 
+/** Creates the folder of `path` (one level, like Cardinal's config folder) if it is missing. */
+inline void ensureParentDir(const std::string& path) {
+	const size_t slash = path.find_last_of("/\\");
+	if (slash == std::string::npos || slash == 0)
+		return;
+	const std::string dir = path.substr(0, slash);
+#ifdef _WIN32
+	_mkdir(dir.c_str());
+#else
+	mkdir(dir.c_str(), 0755);
+#endif
+}
+
 inline bool saveSetup(const AudioSetup& s) {
+	ensureParentDir(configPath());
 	std::ofstream f(configPath().c_str(), std::ios::trunc);
 	if (!f)
 		return false;

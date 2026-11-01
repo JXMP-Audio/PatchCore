@@ -315,6 +315,27 @@ struct TransportBar : widget::OpaqueWidget {
 		}
 	}
 
+	/** `text` cut with "…" to `maxW` px at the info font, whole UTF-8 characters only; cached (drawn every frame) */
+	std::string fitInput, fitOutput;
+	std::string fitText(const std::string& text, float maxW) {
+		if (text == fitInput)
+			return fitOutput;
+		fitInput = text;
+		std::string t = text;
+		if (textWidth(uiFont(), 11.f, t, 0.f) > maxW) {
+			while (!t.empty() && textWidth(uiFont(), 11.f, t + "…", 0.f) > maxW) {
+				// drop the last whole character: its continuation bytes, then its lead byte
+				while (!t.empty() && (static_cast<unsigned char>(t.back()) & 0xC0) == 0x80)
+					t.pop_back();
+				if (!t.empty())
+					t.pop_back();
+			}
+			t += "…";
+		}
+		fitOutput = t;
+		return t;
+	}
+
 	/** An LCD with its label inside on the left (the thin bar has no room above) */
 	void drawInlineLcd(NVGcontext* const vg, const math::Rect& r, const char* label, const std::string& text) {
 		drawLcd(vg, r, 14.f, text, true);
@@ -443,9 +464,7 @@ struct TransportBar : widget::OpaqueWidget {
 			line2 = "Engine → Audio Settings…";
 			color = t.rec;
 		}
-		const float maxW = 196.f;
-		while (line2.size() > 4 && textWidth(uiFont(), 11.f, line2, 0.f) > maxW)
-			line2 = line2.substr(0, line2.size() - 4) + "…";
+		line2 = fitText(line2, 196.f);
 		draw::text(vg, uiFont(), 11.f, color, math::Vec(box.size.x - 16.f, box.size.y * 0.5f - 8.f),
 		           NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, line1);
 		draw::text(vg, uiFont(), 11.f, color, math::Vec(box.size.x - 16.f, box.size.y * 0.5f + 10.f),

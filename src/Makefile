@@ -168,7 +168,6 @@ mapi: $(TARGETS)
 	$(MAKE) mapi -C CardinalFX $(CARDINAL_FX_ARGS)
 
 lv2: $(TARGETS)
-	$(MAKE) lv2 -C Cardinal
 	$(MAKE) lv2 -C CardinalFX $(CARDINAL_FX_ARGS)
 	$(MAKE) lv2 -C CardinalSynth $(CARDINAL_SYNTH_ARGS)
 	$(MAKE) lv2_sep -C CardinalMiniSep

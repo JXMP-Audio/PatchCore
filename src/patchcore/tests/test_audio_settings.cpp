@@ -30,6 +30,9 @@ int main() {
 	const AudioSetup d = defaultSetup();
 	assert(g.driver == d.driver && g.sampleRate == d.sampleRate && g.bufferSize == d.bufferSize && g.output.empty());
 	assert(parse("").sampleRate == 48000);
+	// A file edited on Windows (CRLF): values without the \r
+	const AudioSetup crlf = parse("output=Built-in Audio\r\nsampleRate=44100\r\n");
+	assert(crlf.output == "Built-in Audio" && crlf.sampleRate == 44100);
 
 	// nearest
 	assert(nearest({44100, 48000, 96000}, 88200) == 96000);
@@ -68,8 +71,9 @@ int main() {
 	assert(c.setup.driver == Driver::Jack && c.notice.empty());
 
 	// Config path override and file round trip
-	setenv("PATCHCORE_AUDIO_CONFIG", "/tmp/jxmp-tests/audio-test.conf", 1);
-	assert(configPath() == "/tmp/jxmp-tests/audio-test.conf");
+	// saveSetup creates a missing folder
+	setenv("PATCHCORE_AUDIO_CONFIG", "/tmp/jxmp-tests/audio-new-dir/audio-test.conf", 1);
+	assert(configPath() == "/tmp/jxmp-tests/audio-new-dir/audio-test.conf");
 	assert(saveSetup(s));
 	assert(loadSetup().output == s.output);
 

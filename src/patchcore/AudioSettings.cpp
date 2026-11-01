@@ -13,7 +13,9 @@
 #include <context.hpp>
 #include <helpers.hpp>
 #include <history.hpp>
+#include <logger.hpp>
 #include <patch.hpp>
+#include <settings.hpp>
 #include <string.hpp>
 #include <system.hpp>
 #include <ui/Menu.hpp>
@@ -95,6 +97,14 @@ void restartApp() {
 		return;
 	}
 #else
+	// exec() skips the normal shutdown: save the app settings first
+	try {
+		settings::save();
+	}
+	catch (Exception& e) {
+		WARN("PatchCore: could not save the settings before the restart: %s", e.what());
+	}
+	saveSettings();
 	setenv("PATCHCORE_DEV_PATCH", tmp.c_str(), 1);
 	setenv("PATCHCORE_RESTORE_PATH", original.c_str(), 1);
 	setenv("PATCHCORE_RESTORE_MODIFIED", modified ? "1" : "0", 1);
@@ -186,6 +196,9 @@ struct AudioSettingsDialog : widget::OpaqueWidget {
 	bool rowEnabled(int row) const {
 		if (row == ROW_OUTPUT || row == ROW_INPUT)
 			return edit.driver != pa::Driver::Jack && edit.driver == runningDriver;
+		// PipeWire/JACK: the server sets the rate
+		if (row == ROW_RATE)
+			return edit.driver != pa::Driver::Jack;
 		return true;
 	}
 
@@ -344,7 +357,7 @@ struct AudioSettingsDialog : widget::OpaqueWidget {
 		else if (edit.driver != runningDriver)
 			hint = std::string("Apply restarts PatchCore with ") + pa::driverName(edit.driver) + "; choose its devices then.";
 		else if (edit.driver == pa::Driver::Jack)
-			hint = "PipeWire / JACK routes the sound; the rate follows the server.";
+			hint = "PipeWire / JACK sets the rate; the buffer applies to all its apps.";
 		draw::text(vg, uiFont(), 11.f, hintColor, math::Vec(20.f, kH - 70.f), NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, hint);
 
 		drawButton(vg, buttonRects[BTN_TEST], "Test tone", true, false);

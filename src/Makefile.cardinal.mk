@@ -420,7 +420,8 @@ BUILD_CXX_FLAGS += -DDISTRHO_NO_WARNINGS
 # Enable all possible plugin types and setup resources
 
 ifeq ($(CARDINAL_VARIANT),main)
-TARGETS = clap jack lv2 vst3
+# PatchCore: the main variant is only the standalone app; the plugins are PatchCore (Synth) and PatchCore FX
+TARGETS = jack
 else ifeq ($(DSP_UI_SPLIT),true)
 TARGETS = lv2_sep
 else ifeq ($(CARDINAL_VARIANT),mini)
@@ -428,7 +429,8 @@ TARGETS = jack
 else ifeq ($(CARDINAL_VARIANT),native)
 TARGETS = jack
 else
-TARGETS = au clap lv2 vst2 vst3
+# PatchCore: VST3 only (research_docs/12)
+TARGETS = vst3
 endif
 
 all: $(TARGETS)

@@ -469,8 +469,9 @@ struct RtAudioBridge : NativeBridge {
 
         RtAudio::StreamOptions opts;
         opts.flags = RTAUDIO_NONINTERLEAVED;
-        if (setup.output.empty())
-            opts.flags |= RTAUDIO_ALSA_USE_DEFAULT;  // PatchCore: a named ALSA device is opened directly
+        // PatchCore: ALSA's "default" only when no device is named (the flag applies to output and input alike)
+        if (setup.output.empty() && (! withInput || setup.input.empty() || setup.input == "default"))
+            opts.flags |= RTAUDIO_ALSA_USE_DEFAULT;
        #ifndef DISTRHO_OS_MAC
        /* RtAudio in macOS uses a different than usual way to handle audio block size,
         * where RTAUDIO_MINIMIZE_LATENCY makes CoreAudio use very low latencies (around 15 samples).

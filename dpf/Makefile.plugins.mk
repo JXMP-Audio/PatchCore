@@ -165,6 +165,8 @@ PATCHCORE_ASIO_DIR = $(DPF_PATH)/distrho/src/jackbridge/rtaudio/asio
 ifneq ($(wildcard $(PATCHCORE_ASIO_DIR)/asio.cpp),)
 JACK_FLAGS += -DPATCHCORE_HAVE_ASIO -I$(PATCHCORE_ASIO_DIR)
 JACK_LIBS  += -lole32 -luuid
+# compiled on their own, as RtAudio's own build does (not included into one file with RtAudio.cpp)
+PATCHCORE_ASIO_SRCS = $(wildcard $(addprefix $(PATCHCORE_ASIO_DIR)/,asio.cpp asiodrivers.cpp asiolist.cpp iasiothiscallresolver.cpp))
 endif
 else
 ifeq ($(HAVE_PULSEAUDIO),true)
@@ -618,10 +620,18 @@ $(BUILD_DIR)/DistrhoUIMain_DSSI.cpp.o: BUILD_CXX_FLAGS += $(LIBLO_FLAGS)
 
 jack: $(jack) $(jackfiles)
 
+# PatchCore: the ASIO SDK objects (Windows, only when the sources are present)
+PATCHCORE_ASIO_OBJS = $(PATCHCORE_ASIO_SRCS:$(PATCHCORE_ASIO_DIR)/%.cpp=$(BUILD_DIR)/patchcore-asio/%.cpp.o)
+
+$(BUILD_DIR)/patchcore-asio/%.cpp.o: $(PATCHCORE_ASIO_DIR)/%.cpp
+	-@mkdir -p $(shell dirname $@)
+	@echo "Compiling ASIO $<"
+	$(SILENT)$(CXX) $< $(BUILD_CXX_FLAGS) -I$(PATCHCORE_ASIO_DIR) -c -o $@
+
 ifeq ($(HAVE_DGL),true)
-$(jack): $(OBJS_DSP) $(OBJS_UI) $(BUILD_DIR)/DistrhoPluginMain_JACK.cpp.o $(BUILD_DIR)/DistrhoUIMain_JACK.cpp.o $(DGL_LIB)
+$(jack): $(OBJS_DSP) $(OBJS_UI) $(BUILD_DIR)/DistrhoPluginMain_JACK.cpp.o $(BUILD_DIR)/DistrhoUIMain_JACK.cpp.o $(DGL_LIB) $(PATCHCORE_ASIO_OBJS)
 else
-$(jack): $(OBJS_DSP) $(BUILD_DIR)/DistrhoPluginMain_JACK.cpp.o
+$(jack): $(OBJS_DSP) $(BUILD_DIR)/DistrhoPluginMain_JACK.cpp.o $(PATCHCORE_ASIO_OBJS)
 endif
 	-@mkdir -p $(shell dirname $@)
 	@echo "Creating JACK standalone for $(NAME)"

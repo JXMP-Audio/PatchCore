@@ -18,6 +18,7 @@
 #include "Application.hpp"
 #include "Window.hpp"
 #include "RemoteUI.hpp"
+#include "DistrhoStandaloneUtils.hpp"  // PatchCore: audio settings stubs below
 
 #include <asset.hpp>
 #include <patch.hpp>
@@ -63,6 +64,14 @@ uint getBufferSize() { return 0; }
 bool requestAudioInput() { return false; }
 bool requestBufferSizeChange(uint) { return false; }
 bool requestMIDI() { return false; }
+// PatchCore: audio settings (the remote has no local audio)
+std::vector<patchcore_audio::DeviceInfo> getAudioDevices(patchcore_audio::Driver) { return {}; }
+patchcore_audio::AudioSetup getAudioSetup() { return patchcore_audio::defaultSetup(); }
+std::string getAudioNotice() { return std::string(); }
+bool requestAudioSetup(const patchcore_audio::AudioSetup&, std::string*) { return false; }
+bool isAudioRunning() { return true; }
+std::vector<patchcore_audio::Driver> getAvailableAudioDrivers() { return {}; }
+bool showAsioPanel() { return false; }
 const char* getPluginFormatName() noexcept { return "Remote"; }
 
 FileBrowserHandle fileBrowserCreate(bool, ulong, double, const FileBrowserOptions&) { return nullptr; }

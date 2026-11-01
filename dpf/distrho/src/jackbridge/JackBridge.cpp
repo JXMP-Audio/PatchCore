@@ -76,13 +76,7 @@ typedef void* lib_t;
 # ifdef RTAUDIO_API_TYPE
 #  include "rtaudio/RtAudio.cpp"
 # endif
-# ifdef __WINDOWS_ASIO__
-// PatchCore: the ASIO SDK sources (GPLv3 release), see rtaudio/asio/README.md
-#  include "rtaudio/asio/asio.cpp"
-#  include "rtaudio/asio/asiodrivers.cpp"
-#  include "rtaudio/asio/asiolist.cpp"
-#  include "rtaudio/asio/iasiothiscallresolver.cpp"
-# endif
+// PatchCore: the ASIO SDK sources are compiled separately (dpf/Makefile.plugins.mk, PATCHCORE_ASIO_OBJS)
 # ifdef RTMIDI_API_TYPE
 #  include "rtmidi/RtMidi.cpp"
 # endif
