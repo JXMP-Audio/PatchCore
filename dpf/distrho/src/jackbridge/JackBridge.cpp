@@ -651,6 +651,14 @@ static bool usingNativeBridge = false;
 static bool usingRealJACK = true;
 static NativeBridge* nativeBridge = nullptr;
 
+// PatchCore: what the standalone opened, and the notice for the user
+#if !(defined(JACKBRIDGE_DUMMY) || defined(JACKBRIDGE_DIRECT))
+namespace patchcore_audio {
+AudioSetup gPatchCoreSetup = defaultSetup();
+std::string gPatchCoreNotice;
+}
+#endif
+
 // --------------------------------------------------------------------------------------------------------------------
 
 static JackBridge& getBridgeInstance() noexcept
@@ -942,10 +950,25 @@ jack_client_t* jackbridge_client_open(const char* client_name, uint32_t options,
 #elif defined(JACKBRIDGE_DIRECT)
     return jack_client_open(client_name, static_cast<jack_options_t>(options), status);
 #else
+    // PatchCore: the saved driver decides; PipeWire/JACK is tried only when it is the chosen driver
+    patchcore_audio::gPatchCoreSetup = patchcore_audio::loadSetup();
+    const bool wantJack = patchcore_audio::gPatchCoreSetup.driver == patchcore_audio::Driver::Jack;
    #ifndef DISTRHO_OS_WASM
-    if (getBridgeInstance().client_open_ptr != nullptr)
+    if (wantJack && getBridgeInstance().client_open_ptr != nullptr)
         if (jack_client_t* const client = getBridgeInstance().client_open_ptr(client_name, static_cast<jack_options_t>(options), status))
+        {
+            d_stdout("PatchCore audio: PipeWire / JACK");
             return client;
+        }
+   #endif
+   #if !defined(DISTRHO_OS_WASM) && !defined(DISTRHO_OS_MAC)
+    if (wantJack)
+    {
+        // JACK wanted but not running: fall back to the first native driver
+        const patchcore_audio::Driver native = patchcore_audio::platformDrivers()[1];
+        patchcore_audio::gPatchCoreNotice = std::string("PipeWire / JACK is not running, using ") + patchcore_audio::driverName(native);
+        patchcore_audio::gPatchCoreSetup.driver = native;
+    }
    #endif
 
     static jack_client_t* const kValidClient = (jack_client_t*)0x1;
@@ -966,7 +989,10 @@ jack_client_t* jackbridge_client_open(const char* client_name, uint32_t options,
    #if defined(HAVE_RTAUDIO) && defined(RTAUDIO_API_TYPE)
     nativeBridge = new RtAudioBridge;
     if (nativeBridge->open(client_name))
+    {
+        d_stdout("PatchCore audio: %s", patchcore_audio::driverName(patchcore_audio::gPatchCoreSetup.driver));
         return kValidClient;
+    }
     delete nativeBridge;
    #endif
 

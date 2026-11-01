@@ -17,6 +17,10 @@
 #ifndef NATIVE_BRIDGE_HPP_INCLUDED
 #define NATIVE_BRIDGE_HPP_INCLUDED
 
+// PatchCore: audio device settings (driver, device, rate, buffer)
+#define PATCHCORE_AUDIO_GLOBALS
+#include "AudioDeviceSettings.hpp"
+
 #include "JackBridge.hpp"
 
 #include "../../extra/Mutex.hpp"

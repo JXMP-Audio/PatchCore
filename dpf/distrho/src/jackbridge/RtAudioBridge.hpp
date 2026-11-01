@@ -30,13 +30,14 @@
 #elif defined(DISTRHO_OS_WINDOWS) && !defined(_MSC_VER)
 # define __WINDOWS_WASAPI__
 # define __WINDOWS_MM__
+# ifdef PATCHCORE_HAVE_ASIO
+#  define __WINDOWS_ASIO__  // PatchCore: ASIO next to WASAPI
+# endif
 # define RTAUDIO_API_TYPE WINDOWS_WASAPI
 # define RTMIDI_API_TYPE WINDOWS_MM
 #else
-# if defined(HAVE_PULSEAUDIO) && !defined(DPF_JACK_STANDALONE_SKIP_PULSEAUDIO_FALLBACK)
-#  define __LINUX_PULSE__
-#  define RTAUDIO_API_TYPE LINUX_PULSE
-# elif defined(HAVE_ALSA)
+// PatchCore: the native driver on Linux is ALSA (direct); PipeWire is reached through JACK, no PulseAudio fallback
+# if defined(HAVE_ALSA)
 #  define RTAUDIO_API_TYPE LINUX_ALSA
 # endif
 # ifdef HAVE_ALSA

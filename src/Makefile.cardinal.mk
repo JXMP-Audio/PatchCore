@@ -48,8 +48,8 @@ endif # CARDINAL_VARIANT mini
 # Import base definitions
 
 ifeq ($(CARDINAL_VARIANT),main)
-# main variant should not use rtaudio/sdl2 fallback (it has CV ports)
-SKIP_NATIVE_AUDIO_FALLBACK = true
+# PatchCore: the standalone also runs on ALSA (Audio Settings), so the native fallback stays on; the native
+# bridge uses the first two audio ports, the extra (CV) ports stay silent there
 else ifneq ($(CARDINAL_VARIANT),mini)
 # other variants should only use rtaudio/sdl2 fallbacks
 FORCE_NATIVE_AUDIO_FALLBACK = true
