@@ -172,6 +172,9 @@ bool panelColorAt(app::ModuleWidget* mw, math::Vec point, float minArea, NVGcolo
 
 // Quick search (QuickSearch.cpp, with module creation helpers in custom/Browser.cpp)
 
+/** Mixer view over the rack area (MixerView.cpp); visible while patchcore::mixerShown(). */
+widget::Widget* createMixerView();
+
 /** Compact module finder opened at the mouse (QuickSearch.cpp). */
 widget::Widget* createQuickSearch();
 /** Fuzzy search over brand, plugin, name, description and tags; best matches first. */

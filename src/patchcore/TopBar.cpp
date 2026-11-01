@@ -4,6 +4,7 @@
  */
 
 #include "PatchCore.hpp"
+#include <patchcore/Mixer.hpp>
 
 #include <app/RackWidget.hpp>
 #include <app/Scene.hpp>
@@ -137,16 +138,16 @@ struct ViewSegment : widget::OpaqueWidget {
 
 	bool isOn(size_t i) const {
 		switch (i) {
-			case 0: return targetViewSide() == VIEW_FRONT;
-			case 1: return targetViewSide() == VIEW_BACK;
+			case 0: return !mixerShown() && targetViewSide() == VIEW_FRONT;
+			case 1: return !mixerShown() && targetViewSide() == VIEW_BACK;
 			case 2: return APP->scene->browser->isVisible();
-			default: return false;
+			default: return mixerShown();
 		}
 	}
 
 	bool isDisabled(size_t i) const {
-		// The mixer view is a later milestone
-		return i == 3;
+		// The Mixer view needs a console (JX-CONSOLE) in the rack
+		return i == 3 && !mixerAvailable();
 	}
 
 	void step() override {
@@ -178,9 +179,10 @@ struct ViewSegment : widget::OpaqueWidget {
 		if (i < 0 || isDisabled(i))
 			return;
 		switch (i) {
-			case 0: setViewSide(VIEW_FRONT); break;
-			case 1: setViewSide(VIEW_BACK); break;
+			case 0: showMixer(false); setViewSide(VIEW_FRONT); break;
+			case 1: showMixer(false); setViewSide(VIEW_BACK); break;
 			case 2: APP->scene->browser->show(); break;
+			case 3: showMixer(!mixerShown()); break;
 		}
 		e.consume(this);
 	}
