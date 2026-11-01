@@ -3,6 +3,45 @@
 Handoff notes, updated at the end of every work session (rule: keep this file current before a session
 or weekly limit ends). Newest first.
 
+## 2026-11-01
+
+### Done (on `main`, pushed, collection bumped)
+
+- JX-CONSOLE checked on screen and merged into `main`: double-click opens the Mixer, fader drag and wheel
+  (verified in the saved patch), Esc back to the rack, a second console shows the red INACTIVE notice. The
+  "dark channel 2 LED meter" was the old test patch, not a bug.
+- Wear (patina) is clipped to the panel: chips and scratches no longer spill onto neighbouring modules.
+- The Classic (plain Cardinal) look is removed: no View menu toggle, an old `"theme": "classic"` is ignored.
+  `PATCHCORE_DEV_THEME` is gone.
+- Meters read real levels: console VU with IEC 60268-17 ballistics and a selectable 0 VU reference (module
+  menu: −9 dBFS Rack level / −14 / −18 dBFS EBU R68, printed on the face); channel LED meters are peak dBFS
+  with hold; the transport MASTER meter has a dBFS scale, hold and CLIP, peaks are collected between frames;
+  meters are left out when the window is too narrow instead of overlapping the time display.
+- `run-patchcore.sh`: `--update`, `--uninstall`, `patchcore` command via `--install`.
+- `PATCHCORE_DEV_MIXER=1` opens the Mixer view (no mouse automation needed).
+
+### Not verified on screen
+
+- The new transport MASTER meter in a wide window (the capture window stayed 914 px). Check it running.
+
+### Testing note
+
+- Captures: the user's desktop is Hyprland (Lua config, 0.56): never click with xdotool on the visible
+  screen. Workspace 3 is free for test windows, but Hyprland does not render hidden workspaces, so a capture
+  there only runs while the user looks at workspace 3. No Xvfb in the container; do not install system packages.
+- A cable between a back port and a front port (only from a hand-edited patch) is drawn on the front by
+  design (doc 04): route JXMP outputs to Host Audio through JX-PB in test patches.
+
+### Next — to plan together with the user
+
+1. Standalone audio device settings: today the app is a JACK client (PipeWire picks the device, DPF offers
+   only buffer size, and only in native mode). Device / sample rate selection means the DPF RtAudio bridge
+   (`dpf/distrho/src/jackbridge/`, a separate submodule) or our own device dialog.
+2. Standalone Editor (piano roll, doc 11 sub-project C) and views/transport (sub-project A).
+3. VST/plugin build without the Editor, without the transport bar and without audio settings (the host
+   provides them).
+4. Docs for JX-CONSOLE: design guide colour (indigo `#5b6ee1`), plugins/JXMP/README.md, module list, a demo patch.
+
 ## 2026-10-29
 
 ### Done (on `main`, pushed, collection bumped)
