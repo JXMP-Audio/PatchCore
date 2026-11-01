@@ -7,22 +7,18 @@
 #   ./run-patchcore.sh my-patch.vcv    open your own patch
 #   ./run-patchcore.sh --build         fetch the sources and build PatchCore first (also done
 #                                      automatically when it has not been built yet)
-#   ./run-patchcore.sh --install       add PatchCore to the application menu
+#   ./run-patchcore.sh --update        pull the newest version from GitHub and build it
+#   ./run-patchcore.sh --install       add PatchCore to the application menu and a `patchcore`
+#                                      command in ~/.local/bin (run it on the host)
+#   ./run-patchcore.sh --uninstall     remove both again
 #
 # The standalone is a JACK client. Under PipeWire it does not connect itself to the speakers,
 # so this script links its first two audio outputs to the default output. Started on the host,
 # it runs inside the distrobox the app is built in (PATCHCORE_CONTAINER, default CLAUDE).
 set -euo pipefail
 
-core="$(cd "$(dirname "$0")" && pwd)"
+core="$(cd "$(dirname "$(realpath "$0")")" && pwd)"
 bin="$core/bin/Cardinal"
-
-# PatchCore is built in the Arch distrobox "CLAUDE" (newer glibc than the host). Started on the host,
-# the script runs itself again inside that container.
-container="${PATCHCORE_CONTAINER:-CLAUDE}"
-if [ -z "${CONTAINER_ID:-}" ] && [ ! -e /run/.containerenv ] && command -v distrobox > /dev/null; then
-	exec distrobox enter "$container" -- "$core/run-patchcore.sh" "$@"
-fi
 
 build() {
 	echo "Fetching sources (submodules)..."
@@ -46,7 +42,39 @@ Categories=AudioVideo;Audio;Music;
 MimeType=application/x-vcv-rack-patch;
 EOF
 	echo "Added PatchCore to the application menu ($apps/patchcore.desktop)."
+	# A "patchcore" command, so it starts from any directory: patchcore demo
+	mkdir -p "$HOME/.local/bin"
+	ln -sf "$core/run-patchcore.sh" "$HOME/.local/bin/patchcore"
+	echo "Added the command: $HOME/.local/bin/patchcore (e.g. patchcore demo)"
 }
+
+uninstall_desktop() {
+	rm -f "$HOME/.local/share/applications/patchcore.desktop" "$HOME/.local/bin/patchcore"
+	echo "Removed the menu entry and the patchcore command (the PatchCore folder stays)."
+}
+
+# --install, --uninstall and --help run where they were started (on the host: the host's home)
+case "${1:-}" in
+	--install)
+		install_desktop
+		exit 0
+		;;
+	--uninstall)
+		uninstall_desktop
+		exit 0
+		;;
+	-h|--help)
+		sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
+		exit 0
+		;;
+esac
+
+# PatchCore is built in the Arch distrobox "CLAUDE" (newer glibc than the host). Started on the host,
+# the script runs itself again inside that container.
+container="${PATCHCORE_CONTAINER:-CLAUDE}"
+if [ -z "${CONTAINER_ID:-}" ] && [ ! -e /run/.containerenv ] && command -v distrobox > /dev/null; then
+	exec distrobox enter "$container" -- "$core/run-patchcore.sh" "$@"
+fi
 
 patch=""
 case "${1:-}" in
@@ -54,12 +82,10 @@ case "${1:-}" in
 		build
 		exit 0
 		;;
-	--install)
-		install_desktop
-		exit 0
-		;;
-	-h|--help)
-		sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
+	--update)
+		echo "Fetching the newest PatchCore from GitHub..."
+		git -C "$core" pull --ff-only
+		build
 		exit 0
 		;;
 	demo|--demo)
