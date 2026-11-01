@@ -1,9 +1,6 @@
 [submodule "plugins/Cardinal/Rack"]
 	path = src/Rack
 	url = https://github.com/VCVRack/Rack.git
-[submodule "dpf"]
-	path = dpf
-	url = https://github.com/DISTRHO/DPF.git
 [submodule "plugins/Befaco"]
 	path = plugins/Befaco
 	url = https://github.com/VCVRack/Befaco.git
@@ -266,3 +263,6 @@
 [submodule "plugins/Venom"]
 	path = plugins/Venom
 	url = https://github.com/DaveBenham/VenomModules
+[submodule "dpf/dgl/src/pugl-upstream"]
+	path = dpf/dgl/src/pugl-upstream
+	url = https://github.com/DISTRHO/pugl.git
