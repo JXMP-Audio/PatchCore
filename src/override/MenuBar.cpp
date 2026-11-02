@@ -81,8 +81,8 @@ namespace menuBar {
 
 
 struct MenuButton : ui::Button {
-	// PatchCore: a menu bar as in desktop apps. While one of its menus is open, moving the mouse over another
-	// title opens that one (the open menu covers the window, so a click there would only close it).
+	// PatchCore: a menu bar as in desktop apps. The open menu covers the window, so a click on another title only
+	// closes it; that title then opens right away (one click, not two). Nothing opens by just hovering.
 	static MenuButton*& openButton() {
 		static MenuButton* b = nullptr;
 		return b;
@@ -90,6 +90,15 @@ struct MenuButton : ui::Button {
 	static widget::Widget*& openOverlay() {
 		static widget::Widget* o = nullptr;
 		return o;
+	}
+	/** Set for a moment when the menu closed: the title under the mouse then opens */
+	static int& switchFrames() {
+		static int n = 0;
+		return n;
+	}
+	static MenuButton*& closedButton() {
+		static MenuButton* b = nullptr;
+		return b;
 	}
 
 	/** Remembers the menu this button just opened (the newest overlay in the scene) */
@@ -114,6 +123,10 @@ struct MenuButton : ui::Button {
 		return false;
 	}
 
+	bool mouseOver() {
+		return math::Rect(getAbsoluteOffset(math::Vec()), box.size).contains(APP->scene->getMousePos());
+	}
+
 	void onDragDrop(const DragDropEvent& e) override {
 		ui::Button::onDragDrop(e);
 		if (e.origin == this)
@@ -126,23 +139,34 @@ struct MenuButton : ui::Button {
 		else
 			box.size.x = bndLabelWidth(APP->window->vg, -1, text.c_str()) + 1.0;
 
-		if (openButton() != nullptr && !menuStillOpen())
+		// The menu just closed (a click outside it): remember for two frames which title it belonged to
+		if (openButton() != nullptr && !menuStillOpen()) {
+			closedButton() = openButton();
 			openButton() = nullptr;
-		if (openButton() != nullptr && openButton() != this) {
-			const math::Rect r(getAbsoluteOffset(math::Vec()), box.size);
-			if (r.contains(APP->scene->getMousePos())) {
-				openOverlay()->requestDelete();
-				openButton() = nullptr;
-				ActionEvent eAction;
-				onAction(eAction);
-				rememberMenu();
-			}
+			openOverlay() = nullptr;
+			switchFrames() = 2;
+		}
+		static double lastFrame = -1.0;
+		if (APP->window->getFrameTime() != lastFrame) {
+			lastFrame = APP->window->getFrameTime();
+			if (switchFrames() > 0)
+				--switchFrames();
+		}
+		if (switchFrames() > 0 && closedButton() != this && mouseOver()) {
+			switchFrames() = 0;
+			ActionEvent eAction;
+			onAction(eAction);
+			rememberMenu();
 		}
 		Widget::step();
 	}
+
 	void draw(const DrawArgs& args) override {
 		if (patchcore::enabled()) {
-			const bool hovered = APP->event->hoveredWidget == this || APP->event->draggedWidget == this;
+			// While a menu is open the overlay takes the hover: highlight its title and the one under the mouse
+			const bool menuOpen = openButton() != nullptr && menuStillOpen();
+			const bool hovered = APP->event->hoveredWidget == this || APP->event->draggedWidget == this
+			                  || (menuOpen && (openButton() == this || mouseOver()));
 			patchcore::drawMenuButton(args.vg, box.size, text, hovered);
 			Widget::draw(args);
 			return;
