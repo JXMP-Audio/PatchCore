@@ -79,8 +79,165 @@ static void testParse() {
 	assert(!parseIndex(R"({"lessons": [{"title": "t"}]})", &idx, &err));
 }
 
+static RackState demoRack() {
+	RackState s;
+	s.side = SIDE_BACK;
+	s.modules = {{20, "VCO"}, {10, "VCO"}, {30, "VCA"}, {40, "Patchbay4"}, {50, "HostAudio2"}};
+	// VCO 10 is the first VCO (lowest id)
+	s.ports = {
+		{10, true, 2, "Saw", SIDE_BACK, 5.f},
+		{10, true, 3, "Sqr", SIDE_BACK, 5.f},
+		{20, true, 2, "Saw", SIDE_BACK, 5.f},
+		{30, false, 0, "In 1", SIDE_BACK, 0.f},
+		{30, true, 0, "Out 1", SIDE_BACK, 0.f},
+		{40, false, 0, "Ch 1", SIDE_FRONT, 0.f},
+		{40, false, 4, "Ch 1", SIDE_BACK, 0.f},
+		{50, false, 0, "", SIDE_FRONT, 0.3f},
+	};
+	s.params = {{30, 0, "Channel 1 level", 100.f, 1.f}, {10, 1, "Frequency", 261.6f, 0.5f}};
+	s.cables = {{10, 2, 30, 0}};
+	return s;
+}
+
+static void testConditions() {
+	const RackState s = demoRack();
+	assert(findModule(s, "VCO")->id == 10);
+	assert(findModule(s, "LFO") == nullptr);
+
+	Ref saw;
+	saw.module = "VCO";
+	saw.kind = Ref::OUTPUT;
+	saw.name = "Saw";
+	assert(findPort(s, saw)->moduleId == 10);
+
+	Ref pbBack;
+	pbBack.module = "Patchbay4";
+	pbBack.kind = Ref::INPUT;
+	pbBack.name = "Ch 1";
+	pbBack.side = SIDE_BACK;
+	assert(findPort(s, pbBack)->index == 4);
+	pbBack.side = SIDE_FRONT;
+	assert(findPort(s, pbBack)->index == 0);
+
+	Ref host;
+	host.module = "HostAudio2";
+	host.kind = Ref::INPUT;
+	host.name = "#1";
+	assert(findPort(s, host) != nullptr && findPort(s, host)->index == 0);
+	host.name = "#2";
+	assert(findPort(s, host) == nullptr);
+
+	Ref inParam;
+	inParam.module = "VCA";
+	inParam.kind = Ref::PARAM;
+	inParam.name = "Channel 1 level";
+	assert(findParam(s, inParam)->display == 100.f);
+
+	StepContext ctx;
+	ctx.stepStart = 0.0;
+
+	Condition c;
+	c.type = Cond::Module;
+	c.ref.module = "VCA";
+	assert(holds(c, s, ctx, 0.0));
+	c.ref.module = "LFO";
+	assert(!holds(c, s, ctx, 0.0));
+
+	Condition side;
+	side.type = Cond::Side;
+	side.side = SIDE_BACK;
+	assert(holds(side, s, ctx, 0.0));
+	side.side = SIDE_FRONT;
+	assert(!holds(side, s, ctx, 0.0));
+
+	// Cable: both ends, only from, only to, wrong end
+	Condition cable;
+	cable.type = Cond::Cable;
+	cable.hasFrom = cable.hasTo = true;
+	cable.ref = saw;
+	cable.to.module = "VCA";
+	cable.to.kind = Ref::INPUT;
+	cable.to.name = "In 1";
+	assert(holds(cable, s, ctx, 0.0));
+	cable.hasTo = false;
+	assert(holds(cable, s, ctx, 0.0));
+	cable.hasTo = true;
+	cable.hasFrom = false;
+	assert(holds(cable, s, ctx, 0.0));
+	cable.hasFrom = true;
+	cable.ref.name = "Sqr";
+	assert(!holds(cable, s, ctx, 0.0));
+
+	// Signal on an unnamed Host Audio input
+	Condition sig;
+	sig.type = Cond::Signal;
+	sig.ref.module = "HostAudio2";
+	sig.ref.kind = Ref::INPUT;
+	sig.ref.name = "#1";
+	sig.value = 0.05;
+	assert(holds(sig, s, ctx, 0.0));
+	sig.value = 0.5;
+	assert(!holds(sig, s, ctx, 0.0));
+
+	// Param range in displayed units
+	Condition range;
+	range.type = Cond::Param;
+	range.ref = inParam;
+	range.hasMin = true;
+	range.min = 50.0;
+	assert(holds(range, s, ctx, 0.0));
+	range.hasMax = true;
+	range.max = 80.0;
+	assert(!holds(range, s, ctx, 0.0));
+
+	// Param moved: the first look records the baseline, then it needs the distance
+	Condition moved;
+	moved.type = Cond::Param;
+	moved.ref = inParam;
+	moved.moved = 0.2;
+	StepContext mctx;
+	RackState t = s;
+	assert(!holds(moved, t, mctx, 0.0));
+	t.params[0].scaled = 0.9f;
+	assert(!holds(moved, t, mctx, 0.1));
+	t.params[0].scaled = 0.75f;
+	assert(holds(moved, t, mctx, 0.2));
+	t.params[0].scaled = 1.f;
+	assert(!holds(moved, t, mctx, 0.3));
+
+	// Next and wait
+	Condition next;
+	next.type = Cond::Next;
+	assert(!holds(next, s, ctx, 0.0));
+	ctx.nextPressed = true;
+	assert(holds(next, s, ctx, 0.0));
+	Condition wait;
+	wait.type = Cond::Wait;
+	wait.value = 2.0;
+	assert(!holds(wait, s, ctx, 1.9));
+	assert(holds(wait, s, ctx, 2.0));
+
+	// All / any; all evaluates every part (baselines are recorded even when an earlier part fails)
+	Condition all;
+	all.type = Cond::All;
+	all.parts = {side, moved};
+	StepContext actx;
+	RackState u = s;
+	assert(!holds(all, u, actx, 0.0));
+	assert(actx.baseline.size() == 1);
+	Condition any;
+	any.type = Cond::Any;
+	any.parts = {side, c};
+	assert(!holds(any, s, ctx, 0.0));
+	any.parts.push_back(cable);
+	cable.ref.name = "Saw";
+	any.parts.back() = cable;
+	assert(holds(any, s, ctx, 0.0));
+}
+
 int main() {
 	testParse();
+	testConditions();
 	std::printf("tutorial logic: all tests passed\n");
 	return 0;
 }

@@ -350,4 +350,159 @@ inline bool parseIndex(const std::string& text, std::vector<IndexEntry>* out, st
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// What the rack looks like right now (built every frame by Tutorial.cpp)
+
+struct ModuleState {
+	int64_t id;
+	std::string slug;
+};
+
+struct PortState {
+	int64_t moduleId;
+	bool output;
+	int index;
+	std::string name;
+	int side;
+	/** Peak |voltage| over the last 0.3 s, all channels */
+	float peak;
+};
+
+struct ParamState {
+	int64_t moduleId;
+	int index;
+	std::string name;
+	/** In the unit the knob shows (Hz, %, dB…) */
+	float display;
+	/** 0..1 across the knob's range */
+	float scaled;
+};
+
+struct CableState {
+	int64_t outModule;
+	int outIndex;
+	int64_t inModule;
+	int inIndex;
+};
+
+struct RackState {
+	std::vector<ModuleState> modules;
+	std::vector<PortState> ports;
+	std::vector<ParamState> params;
+	std::vector<CableState> cables;
+	int side = SIDE_FRONT;
+};
+
+/** The first module of that model (lowest id) */
+inline const ModuleState* findModule(const RackState& s, const std::string& slug) {
+	const ModuleState* best = nullptr;
+	for (const ModuleState& m : s.modules)
+		if (m.slug == slug && (best == nullptr || m.id < best->id))
+			best = &m;
+	return best;
+}
+
+/** "#n" matches the n-th (1-based) port or param; anything else matches the configured name */
+inline bool nameMatches(const std::string& want, const std::string& name, int index) {
+	if (want.size() > 1 && want[0] == '#')
+		return std::atoi(want.c_str() + 1) == index + 1;
+	return want == name;
+}
+
+inline const PortState* findPort(const RackState& s, const Ref& r) {
+	const ModuleState* const m = findModule(s, r.module);
+	if (m == nullptr || (r.kind != Ref::INPUT && r.kind != Ref::OUTPUT))
+		return nullptr;
+	for (const PortState& p : s.ports) {
+		if (p.moduleId != m->id || p.output != (r.kind == Ref::OUTPUT))
+			continue;
+		if (r.side != SIDE_ANY && p.side != r.side)
+			continue;
+		if (nameMatches(r.name, p.name, p.index))
+			return &p;
+	}
+	return nullptr;
+}
+
+inline const ParamState* findParam(const RackState& s, const Ref& r) {
+	const ModuleState* const m = findModule(s, r.module);
+	if (m == nullptr || r.kind != Ref::PARAM)
+		return nullptr;
+	for (const ParamState& p : s.params)
+		if (p.moduleId == m->id && nameMatches(r.name, p.name, p.index))
+			return &p;
+	return nullptr;
+}
+
+/** Per-step memory: when the step began, Next clicks, knob positions at their first look */
+struct StepContext {
+	double stepStart = 0.0;
+	bool nextPressed = false;
+	std::map<std::string, float> baseline;
+};
+
+inline std::string paramKey(const ParamState& p) {
+	return std::to_string(p.moduleId) + "/" + std::to_string(p.index);
+}
+
+inline bool holds(const Condition& c, const RackState& s, StepContext& ctx, double t) {
+	switch (c.type) {
+		case Cond::Next:
+			return ctx.nextPressed;
+		case Cond::Wait:
+			return t - ctx.stepStart >= c.value;
+		case Cond::Module:
+			return findModule(s, c.ref.module) != nullptr;
+		case Cond::Side:
+			return s.side == c.side;
+		case Cond::Signal: {
+			const PortState* const p = findPort(s, c.ref);
+			return p != nullptr && p->peak > c.value;
+		}
+		case Cond::Param: {
+			const ParamState* const p = findParam(s, c.ref);
+			if (p == nullptr)
+				return false;
+			if (c.moved > 0.0) {
+				const std::string key = paramKey(*p);
+				std::map<std::string, float>::const_iterator it = ctx.baseline.find(key);
+				if (it == ctx.baseline.end()) {
+					ctx.baseline[key] = p->scaled;
+					return false;
+				}
+				return std::fabs(p->scaled - it->second) >= c.moved - 1e-6;
+			}
+			return (!c.hasMin || p->display >= c.min) && (!c.hasMax || p->display <= c.max);
+		}
+		case Cond::Cable: {
+			const PortState* const from = c.hasFrom ? findPort(s, c.ref) : nullptr;
+			const PortState* const to = c.hasTo ? findPort(s, c.to) : nullptr;
+			if ((c.hasFrom && from == nullptr) || (c.hasTo && to == nullptr))
+				return false;
+			for (const CableState& k : s.cables) {
+				if (from != nullptr && (k.outModule != from->moduleId || k.outIndex != from->index))
+					continue;
+				if (to != nullptr && (k.inModule != to->moduleId || k.inIndex != to->index))
+					continue;
+				return true;
+			}
+			return false;
+		}
+		case Cond::All: {
+			// every part is evaluated, so "moved" parts record their baselines from the start
+			bool ok = true;
+			for (const Condition& part : c.parts)
+				ok = holds(part, s, ctx, t) && ok;
+			return ok;
+		}
+		case Cond::Any: {
+			bool ok = false;
+			for (const Condition& part : c.parts)
+				ok = holds(part, s, ctx, t) || ok;
+			return ok;
+		}
+	}
+	return false;
+}
+
 } // namespace patchcore_tutorial
