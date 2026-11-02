@@ -190,21 +190,51 @@ struct CrtScreen : widget::TransparentWidget {
 			return;
 		}
 
-		// Each point from its minimum to its maximum, so audio at a slow time base is a solid band
+		// A smooth line through the middle of each point; where a point holds a fast swing (audio at a slow time
+		// base), a vertical bar from its minimum to its maximum, as a DSO's peak detect shows it
 		for (int ch = 0; ch < 2; ++ch) {
 			if (!(ch == 0 ? on1 : on2))
 				continue;
 			const float vd = ch == 0 ? v1 : v2, pd = ch == 0 ? p1 : p2;
-			std::vector<math::Vec> pts;
-			pts.reserve(2 * count);
+			std::vector<math::Vec> line;
+			std::vector<std::vector<math::Vec>> runs;
+			nvgBeginPath(vg);
+			bool bars = false;
 			for (int i = 0; i < count; ++i) {
 				if (!std::isfinite(lo[ch][i]) || !std::isfinite(hi[ch][i]))
 					continue;
 				const float x = (float) i / (sc::kPoints - 1) * 8.f - 4.f;
-				pts.push_back(point(c, r, x, sc::divisions(i % 2 ? lo[ch][i] : hi[ch][i], vd, pd)));
-				pts.push_back(point(c, r, x, sc::divisions(i % 2 ? hi[ch][i] : lo[ch][i], vd, pd)));
+				const float l = sc::divisions(lo[ch][i], vd, pd), h = sc::divisions(hi[ch][i], vd, pd);
+				// A swing wider than the way the signal travels to its neighbours: audio inside one point, not a slope
+				const float m = 0.5f * (l + h);
+				auto mid = [&](int j) {
+					j = std::min(std::max(j, 0), count - 1);
+					if (!std::isfinite(lo[ch][j]) || !std::isfinite(hi[ch][j]))
+						return m;
+					return 0.5f * (sc::divisions(lo[ch][j], vd, pd) + sc::divisions(hi[ch][j], vd, pd));
+				};
+				const float travel = std::fabs(m - mid(i - 1)) + std::fabs(mid(i + 1) - m);
+				if (h - l > 0.25f + 1.5f * travel) {
+					// A fast swing: only its bar, the line breaks here (no false centre line through audio)
+					const math::Vec a = point(c, r, x, l), b = point(c, r, x, h);
+					nvgMoveTo(vg, a.x, a.y);
+					nvgLineTo(vg, b.x, b.y);
+					bars = true;
+					runs.push_back(std::move(line));
+					line.clear();
+					continue;
+				}
+				line.push_back(point(c, r, x, m));
 			}
-			trace(vg, c, r, pts, colours[ch], 1.f);
+			runs.push_back(std::move(line));
+			if (bars) {
+				nvgStrokeWidth(vg, 1.2f);
+				nvgStrokeColor(vg, nvgRGBAf(colours[ch].r, colours[ch].g, colours[ch].b, 0.55f));
+				nvgStroke(vg);
+			}
+			for (const std::vector<math::Vec>& run : runs)
+				if (run.size() >= 2)
+					trace(vg, c, r, run, colours[ch], 1.f);
 		}
 	}
 

@@ -17,6 +17,9 @@ or weekly limit ends). Newest first.
   - [x] JX-REV reverb (plate/hall/room FDN, RT60, predelay, tone, mix)
   - [x] JX-CHR, JX-FLD, JX-RNG, JX-LGC, JX-SW, JX-PLY (2026-11-02 night, checked by screenshots front/back;
         all in patches/jxmp-workbench.vcv rows 3-4)
+  - JX-SCP drawing: a smooth line through each point; audio at a slow time base shows as a peak-detect band
+    (min..max bars, the line breaks there) instead of a jagged trace. A point counts as a swing only when its
+    range is wider than the travel to its neighbours, so steep LFO slopes stay one line.
   - Menus cleaned up (no light mode, no Cardinal/Rack-only options), one-click menu switching.
   - VU "drops" investigated: DSP logging and 300 screen grabs showed no dropouts, only the dips of the
     showcase sequence (a step without gate every ~6 s).
