@@ -50,6 +50,21 @@ int main() {
 		n.process(i == 10 ? NAN : 0.5f, 0.5f, 1.f, 0.5f, true, &l, &r);
 		assert(std::isfinite(l) && std::isfinite(r));
 	}
+	// Switching chorus <-> ensemble glides the delay: no jump (click) in the output
+	{
+		Chorus sw;
+		sw.setSampleRate(fs);
+		float last = 0.f, worst = 0.f;
+		for (int i = 0; i < 9600; ++i) {
+			const float x = std::sin(2.f * float(M_PI) * 220.f * i / fs);
+			float l, r;
+			sw.process(x, x, 1.f, 0.f, i >= 4800, &l, &r);
+			if (i > 2000)
+				worst = std::max(worst, std::fabs(l - last));
+			last = l;
+		}
+		assert(worst < 0.06f);  // a 220 Hz sine moves at most 0.029 per sample
+	}
 	std::printf("chorus: all tests passed\n");
 	return 0;
 }

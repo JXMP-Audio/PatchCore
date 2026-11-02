@@ -40,6 +40,16 @@ int main() {
 	assert(s.current(4) == 3 && s.current(2) == 1);
 	s.reset();
 	assert(s.current(4) == 0);
+	// Switch: a saved step comes back, kept inside 0..3
+	{
+		jxmp::shapers::Stepper st;
+		st.restore(2);
+		assert(st.current(4) == 2);
+		st.restore(9);
+		assert(st.step == 3);
+		st.restore(-1);
+		assert(st.step == 0);
+	}
 	std::printf("shapers: all tests passed\n");
 	return 0;
 }

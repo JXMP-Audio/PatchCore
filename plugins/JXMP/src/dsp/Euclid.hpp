@@ -40,6 +40,11 @@ struct Track {
 		step = -1;
 	}
 
+	/** A step saved with the patch, kept inside the possible range */
+	void restore(int s) {
+		step = std::min(std::max(s, -1), kMaxSteps - 1);
+	}
+
 	void clock(int steps) {
 		steps = std::min(std::max(steps, 1), kMaxSteps);
 		step = (step + 1) % steps;

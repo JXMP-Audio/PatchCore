@@ -52,6 +52,10 @@ struct Stepper {
 	void reset() {
 		step = 0;
 	}
+	/** A step saved with the patch, kept inside 0..3 */
+	void restore(int s) {
+		step = std::min(std::max(s, 0), 3);
+	}
 	int current(int length) const {
 		return step % std::min(std::max(length, 2), 4);
 	}

@@ -47,6 +47,16 @@ int main() {
 	t.reset();
 	assert(t.current(8) == -1);
 
+	// A saved step comes back, kept inside the possible range (a broken patch file cannot point outside)
+	{
+		Track tr;
+		tr.restore(7);
+		assert(tr.step == 7 && tr.current(16) == 7);
+		tr.restore(99);
+		assert(tr.step == kMaxSteps - 1);
+		tr.restore(-5);
+		assert(tr.step == -1);
+	}
 	std::printf("euclid: all tests passed\n");
 	return 0;
 }

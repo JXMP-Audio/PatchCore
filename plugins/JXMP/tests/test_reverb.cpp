@@ -63,6 +63,23 @@ int main() {
 		nan.process(1.f, 1.f, HALL, 1.f, NAN, 0.02f, 0.5f, &l, &r);
 		assert(std::isfinite(l) && std::isfinite(r));
 	}
+	// Stereo in: an impulse on the left only comes out on the left first, and reaches both sides later
+	{
+		Fdn st;
+		st.setSampleRate(fs);
+		double earlyL = 0, earlyR = 0, lateR = 0;
+		for (int i = 0; i < (int) (fs * 1.f); ++i) {
+			float l, r;
+			st.process(i == 0 ? 5.f : 0.f, 0.f, HALL, 1.f, 3.f, 0.f, 0.6f, &l, &r);
+			if (i < (int) (fs * 0.06f)) {
+				earlyL += l * l;
+				earlyR += r * r;
+			}
+			else
+				lateR += r * r;
+		}
+		assert(earlyL > 4.0 * earlyR && lateR > 0.0);
+	}
 	std::printf("reverb: all tests passed\n");
 	return 0;
 }

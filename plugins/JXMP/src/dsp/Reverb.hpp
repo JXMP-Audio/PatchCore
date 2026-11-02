@@ -55,8 +55,9 @@ struct Fdn {
 	Delay lines[kLines];
 	int lengths[kLines] = {};
 	float damp[kLines] = {};
-	Allpass diffusers[4];
-	Delay pre;
+	/** Predelay and diffusion per input side: left feeds the even lines, right the odd ones */
+	Allpass diffusers[4], diffusersR[4];
+	Delay pre, preR;
 	/** Feedback gains, recomputed only when the settings change */
 	float gains[kLines] = {};
 	/** Input level per line: sqrt(1 - g²), so a long decay is not louder than a short one */
@@ -81,10 +82,13 @@ struct Fdn {
 			l.resize(maxLine);
 		static const float diffMs[4] = {4.7f, 3.6f, 12.7f, 9.3f};
 		for (int i = 0; i < 4; ++i) {
-			diffusers[i].d.resize((int) (fs * diffMs[i] / 1000.f) + 4);
-			diffusers[i].length = (int) (fs * diffMs[i] / 1000.f);
+			for (Allpass* a : {&diffusers[i], &diffusersR[i]}) {
+				a->d.resize((int) (fs * diffMs[i] / 1000.f) + 4);
+				a->length = (int) (fs * diffMs[i] / 1000.f);
+			}
 		}
 		pre.resize((int) (fs * 0.25f) + 4);
+		preR.resize((int) (fs * 0.25f) + 4);
 		std::fill(damp, damp + kLines, 0.f);
 		lastSize = -1.f;  // recompute the lengths for the new rate
 	}
@@ -99,7 +103,10 @@ struct Fdn {
 			std::fill(l.buf.begin(), l.buf.end(), 0.f);
 		for (Allpass& a : diffusers)
 			std::fill(a.d.buf.begin(), a.d.buf.end(), 0.f);
+		for (Allpass& a : diffusersR)
+			std::fill(a.d.buf.begin(), a.d.buf.end(), 0.f);
 		std::fill(pre.buf.begin(), pre.buf.end(), 0.f);
+		std::fill(preR.buf.begin(), preR.buf.end(), 0.f);
 		std::fill(damp, damp + kLines, 0.f);
 	}
 
@@ -124,12 +131,15 @@ struct Fdn {
 		}
 
 		// Predelay, then diffusion (a plate diffuses most)
-		const float in = 0.5f * (inL + inR);
-		pre.write(std::isfinite(in) ? in : 0.f);
-		float x = pre.read(std::max(1, (int) (predelay * fs)));
+		pre.write(std::isfinite(inL) ? inL : 0.f);
+		preR.write(std::isfinite(inR) ? inR : 0.f);
+		const int preSamples = std::max(1, (int) (predelay * fs));
+		float x = pre.read(preSamples), xr = preR.read(preSamples);
 		const float g = algo == PLATE ? 0.75f : algo == HALL ? 0.65f : 0.55f;
 		for (Allpass& a : diffusers)
 			x = a.process(x, g);
+		for (Allpass& a : diffusersR)
+			xr = a.process(xr, g);
 
 		// Read the lines, damp, mix (Householder), feed back with the decay gain of each line
 		float y[kLines];
@@ -145,7 +155,7 @@ struct Fdn {
 		const float h = 2.f / kLines * sum;
 		float l = 0.f, rr = 0.f;
 		for (int i = 0; i < kLines; ++i) {
-			lines[i].write((y[i] - h) * gains[i] + (i % 2 ? x : -x) * inject[i]);
+			lines[i].write((y[i] - h) * gains[i] + (i % 2 ? xr : -x) * inject[i]);
 			if (i % 2)
 				rr += y[i];
 			else

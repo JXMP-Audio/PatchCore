@@ -58,6 +58,22 @@ struct Euc : engine::Module {
 			t.reset();
 	}
 
+	/** The step of each track is saved, so a reloaded patch goes on where it was */
+	json_t* dataToJson() override {
+		json_t* const rootJ = json_object();
+		json_t* const stepsJ = json_array();
+		for (const eu::Track& t : tracks)
+			json_array_append_new(stepsJ, json_integer(t.step));
+		json_object_set_new(rootJ, "steps", stepsJ);
+		return rootJ;
+	}
+
+	void dataFromJson(json_t* rootJ) override {
+		json_t* const stepsJ = json_object_get(rootJ, "steps");
+		for (int t = 0; t < kTracks && t < (int) json_array_size(stepsJ); ++t)
+			tracks[t].restore((int) json_integer_value(json_array_get(stepsJ, t)));
+	}
+
 	void process(const ProcessArgs& args) override {
 		if (resetTrigger.process(inputs[RESET_INPUT].getVoltage(), 0.1f, 1.f))
 			onReset();

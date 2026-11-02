@@ -45,6 +45,7 @@ struct Chorus {
 	float sampleRate = 0.f;
 	DelayLine left, right;
 	float phase = 0.f, vibrato = 0.f;
+	float baseMs = -1.f;  // glides 7 <-> 10 ms when the mode changes (a jump would click)
 
 	void setSampleRate(float fs) {
 		if (fs == sampleRate)
@@ -65,7 +66,8 @@ struct Chorus {
 		left.write(std::isfinite(inL) ? inL : 0.f);
 		right.write(std::isfinite(inR) ? inR : 0.f);
 		const float twoPi = 2.f * float(M_PI);
-		const float baseMs = ensemble ? 10.f : 7.f, swingMs = 5.f * depth;
+		const float target = ensemble ? 10.f : 7.f, swingMs = 5.f * depth;
+		baseMs = baseMs < 0.f ? target : baseMs + (target - baseMs) * std::min(1.f, dt / 0.05f);
 		const float vib = ensemble ? 0.15f * depth * std::sin(twoPi * vibrato) : 0.f;
 		auto delaySamples = [&](float ph) {
 			return (baseMs + swingMs * (0.5f + 0.5f * std::sin(twoPi * ph)) + vib) * 0.001f * sampleRate;

@@ -35,6 +35,18 @@ struct Sw : engine::Module {
 		configOutput(OUT_OUTPUT, "Out")->description = "4 -> 1: the input of the current step.";
 	}
 
+	/** The current step is saved, so a reloaded patch goes on where it was */
+	json_t* dataToJson() override {
+		json_t* const rootJ = json_object();
+		json_object_set_new(rootJ, "step", json_integer(stepper.step));
+		return rootJ;
+	}
+
+	void dataFromJson(json_t* rootJ) override {
+		if (json_t* const stepJ = json_object_get(rootJ, "step"))
+			stepper.restore((int) json_integer_value(stepJ));
+	}
+
 	void process(const ProcessArgs& args) override {
 		const int length = (int) params[LENGTH_PARAM].getValue();
 		if (resetTrigger.process(inputs[RESET_INPUT].getVoltage(), 0.1f, 1.f))
