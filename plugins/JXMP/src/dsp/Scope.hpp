@@ -118,16 +118,20 @@ struct Capture {
 			take = true;
 		}
 
+		// The history runs all the time, also during a sweep: a trigger right after a sweep (a slow LFO) must
+		// find the half before it, not samples from before the previous sweep
+		if (take) {
+			history[0][historyPos] = a;
+			history[1][historyPos] = b;
+			historyPos = (historyPos + 1) % kHalf;
+		}
+
 		if (!running()) {
-			if (take) {
-				history[0][historyPos] = a;
-				history[1][historyPos] = b;
-				historyPos = (historyPos + 1) % kHalf;
-			}
 			waiting += dt;
 			if (!(trigger || freeRun || (autoRun && waiting > autoTimeout(sweepTime))))
 				return;
-			// Start: the remembered half first (oldest to newest), the trigger sample in the middle
+			// Start: the remembered half first (oldest to newest; the newest is this sample when it was just
+			// taken), the trigger sample in the middle
 			for (int ch = 0; ch < 2; ++ch)
 				for (int i = 0; i < kHalf; ++i)
 					buffer[ch][i] = history[ch][(historyPos + i) % kHalf];

@@ -17,7 +17,7 @@ plugins/Fundamental (GPL-3.0-or-later) with attribution.
 | Drums | **One module** JX-DRM with four voices |
 | Folder / ring mod | **Two modules** JX-FLD and JX-RNG |
 | Reverb | Plate / hall / room, no freeze or shimmer |
-| Clock | Standalone: follows the PatchCore transport. A CLOCK IN socket for the pulses of Cardinal's Host MIDI module — the only socket of the module that exists on the **front and the back**; only one side can be patched at a time |
+| Clock | Standalone: follows the PatchCore transport. A CLOCK IN socket (on the back, like every JXMP socket) for the pulses of Cardinal's Host MIDI module. (A second CLOCK IN on the front was tried and removed, 2026-11-02.) |
 
 ## Modules
 
@@ -38,9 +38,7 @@ plugins/Fundamental (GPL-3.0-or-later) with attribution.
   tempo measured from the pulse spacing), otherwise the PatchCore transport (standalone: internal transport;
   plugin: host tempo/play state through Cardinal's context), otherwise its own TEMPO knob when the transport
   is stopped and RUN is on.
-- CLOCK IN exists on the front and on the back (the only two-sided socket of the module). The first cable
-  decides the side; the other side is locked (drawn capped) until it is unplugged — the same rule as the
-  Patchbay direction.
+- CLOCK IN is on the back; PPQN (24 / 4 / 1) on the front.
 - Outputs (back): ×2, 1/4 (beat), /2, /4, /8, /16, RESET (on start), RUN (gate). SWING knob (applies to the
   ×2 and 1/16-style even subdivisions).
 - Logic to test: PPQN tempo measurement, divider/multiplier phase, swing timing, reset on start.

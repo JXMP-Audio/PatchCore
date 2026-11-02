@@ -79,6 +79,16 @@ int main() {
 	assert(lfo.sweeps - firstSweeps >= 2 && lfo.sweeps - firstSweeps <= 4);
 	assert(std::fabs(lfo.shown[0][Capture::kHalf]) < 0.1f && lfo.shown[0][Capture::kHalf + 50] > lfo.shown[0][Capture::kHalf]);
 
+	// A sweep longer than the LFO period: the half before the trigger is continuous (no jump of old samples)
+	Capture longSweep;
+	Trigger ls;
+	for (int i = 0; i < 6 * 48000; ++i) {
+		const float x = 5.f * std::sin(2.f * float(M_PI) * 1.f * i / fs);
+		longSweep.process(x, 0.f, ls.process(x, 0.f, true), dt, 0.2f);
+	}
+	for (int i = 1; i < kPoints; ++i)
+		assert(std::fabs(longSweep.shown[0][i] - longSweep.shown[0][i - 1]) < 0.5f);
+
 	// NORM: no trigger, no sweep (the screen stays dark); a trigger starts one
 	Capture norm;
 	for (int i = 0; i < 4800; ++i)

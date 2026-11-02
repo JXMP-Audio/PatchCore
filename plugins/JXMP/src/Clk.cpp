@@ -4,8 +4,8 @@
  *
  * JX-CLK: the master clock. Follows, in this order: pulses on CLOCK IN (e.g. Host MIDI's clock), the PatchCore
  * transport (standalone: its own; in a DAW: the host's), or its own TEMPO when RUN is on. Outputs ×4, ×2, beat,
- * /2, /4, /8, /16 with swing on ×4 and ×2, RESET on start, RUN while running. CLOCK IN exists on the front and
- * on the back; only one side takes a cable. Design: research_docs/14-jxmp-modules-set3-design.md.
+ * /2, /4, /8, /16 with swing on ×4 and ×2, RESET on start, RUN while running. All sockets on the back.
+ * Design: research_docs/14-jxmp-modules-set3-design.md.
  */
 
 #include "JXMPWidget.hpp"
@@ -20,7 +20,7 @@ enum Source { SRC_STOPPED, SRC_EXT, SRC_HOST, SRC_INT };
 
 struct Clk : engine::Module {
 	enum ParamIds { TEMPO_PARAM, RUN_PARAM, SWING_PARAM, PPQN_PARAM, NUM_PARAMS };
-	enum InputIds { CLOCK_FRONT_INPUT, CLOCK_BACK_INPUT, NUM_INPUTS };
+	enum InputIds { CLOCK_INPUT, NUM_INPUTS };
 	enum OutputIds { ENUMS(DIV_OUTPUT, ck::kOutputs), RESET_OUTPUT, RUN_OUTPUT, NUM_OUTPUTS };
 	enum LightIds { BEAT_LIGHT, EXT_LIGHT, HOST_LIGHT, INT_LIGHT, NUM_LIGHTS };
 
@@ -47,11 +47,9 @@ struct Clk : engine::Module {
 		    ->description = "Delays every second x4 and x2 tick: 50 % straight, 66 % triplet feel, 75 % hard shuffle.";
 		configSwitch(PPQN_PARAM, 0.f, 2.f, 2.f, "Clock in pulses per beat", {"1 (beats)", "4 (sixteenths)", "24 (MIDI clock)"})
 		    ->description = "How many CLOCK IN pulses make one beat. Host MIDI's clock output gives 24.";
-		configInput(CLOCK_FRONT_INPUT, "Clock in")->description =
-		    "Clock pulses, e.g. the clock output of the Host MIDI module (tempo from the DAW or a MIDI device). "
-		    "The same socket is on the back; only one side can be patched.";
-		configInput(CLOCK_BACK_INPUT, "Clock in")->description =
-		    "Clock pulses (the same socket as on the front; only one side can be patched).";
+		configInput(CLOCK_INPUT, "Clock in")->description =
+		    "Clock pulses, e.g. the clock output of the Host MIDI module (tempo from the DAW or a MIDI device); "
+		    "PPQN on the front says how many make one beat.";
 		const char* names[ck::kOutputs] = {"x4", "x2", "Beat", "/2", "/4", "/8", "/16"};
 		const char* what[ck::kOutputs] = {"Sixteenth notes (swing applies)", "Eighth notes (swing applies)", "Every beat",
 		                                  "Every 2 beats", "Every 4 beats (a bar in 4/4)", "Every 8 beats", "Every 16 beats"};
@@ -70,15 +68,14 @@ struct Clk : engine::Module {
 
 	void process(const ProcessArgs& args) override {
 		const double dt = args.sampleTime;
-		const bool front = inputs[CLOCK_FRONT_INPUT].isConnected(), back = inputs[CLOCK_BACK_INPUT].isConnected();
+		const bool ext = inputs[CLOCK_INPUT].isConnected();
 		static const int ppqns[] = {1, 4, 24};
 		follower.ppqn = ppqns[math::clamp((int) std::round(params[PPQN_PARAM].getValue()), 0, 2)];
-		const float clockV = front ? inputs[CLOCK_FRONT_INPUT].getVoltage() : inputs[CLOCK_BACK_INPUT].getVoltage();
-		follower.process((front || back) && clockTrigger.process(clockV, 0.1f, 1.f), dt);
+		follower.process(ext && clockTrigger.process(inputs[CLOCK_INPUT].getVoltage(), 0.1f, 1.f), dt);
 
 		const bool hostPlaying = pcontext != nullptr && pcontext->playing && pcontext->bbtValid;
 		bool started = false;
-		if (front || back) {
+		if (ext) {
 			source = follower.running ? SRC_EXT : SRC_STOPPED;
 			beats = follower.beats();
 			started = follower.started;
@@ -132,26 +129,6 @@ struct Clk : engine::Module {
 };
 
 
-/** CLOCK IN exists on both sides; a side with a cable hides the other one (it shrinks to nothing). */
-struct TwoSidedPort : PJ301MPort {
-	math::Vec center, fullSize;
-	bool active = true;
-
-	void setActive(bool a) {
-		if (a == active)
-			return;
-		active = a;
-		box.size = a ? fullSize : math::Vec();
-		box.pos = a ? center.minus(fullSize.div(2)) : center;
-	}
-
-	void draw(const DrawArgs& args) override {
-		if (active)
-			PJ301MPort::draw(args);
-	}
-};
-
-
 /** Tempo window: the BPM in amber digits and where the tempo comes from. */
 struct BpmDisplay : widget::TransparentWidget {
 	Clk* module = nullptr;
@@ -178,17 +155,6 @@ struct BpmDisplay : widget::TransparentWidget {
 
 
 struct ClkWidget : JXMPModuleWidget {
-	TwoSidedPort* clockFront = nullptr;
-	TwoSidedPort* clockBack = nullptr;
-
-	TwoSidedPort* addTwoSided(math::Vec mm, int id) {
-		TwoSidedPort* const p = createInputCentered<TwoSidedPort>(mm2px(mm), module, id);
-		p->center = mm2px(mm);
-		p->fullSize = p->box.size;
-		addInput(p);
-		return p;
-	}
-
 	ClkWidget(Clk* const module) {
 		namespace st = jxmp::style;
 		setup(module, "JX-CLK", nvgRGB(0xff, 0x7f, 0x6a), 12);
@@ -218,34 +184,19 @@ struct ClkWidget : JXMPModuleWidget {
 			addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(math::Vec(53.f, s.y)), module, s.light));
 		}
 
-		// Clock in (front) and pulses per beat
+		// Pulses per beat of CLOCK IN (the socket is on the back)
 		section(3.f, 90.f, 54.96f, 27.f, "CLOCK IN · PPQN");
-		clockFront = addTwoSided(math::Vec(16.f, 104.f), Clk::CLOCK_FRONT_INPUT);
-		label(math::Vec(16.f, 112.f), "e.g. HOST MIDI CLK", 5.f);
+		label(math::Vec(20.f, 101.f), "PULSES PER BEAT", 5.5f);
+		label(math::Vec(20.f, 106.f), "ON CLOCK IN (BACK)", 5.5f);
 		toggle(math::Vec(47.f, 104.f), Clk::PPQN_PARAM, 3, {"24", "4", "1"});
 
-		// Back: clock in again, then the outputs
-		clockBack = addTwoSided(math::Vec(30.48f, 32.f), Clk::CLOCK_BACK_INPUT);
+		// Back: clock in, then the outputs
+		addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(30.48f, 32.f)), module, Clk::CLOCK_INPUT));
 		const float xs[3] = {12.f, 30.48f, 48.96f};
 		const int order[9] = {Clk::DIV_OUTPUT + 0, Clk::DIV_OUTPUT + 1, Clk::DIV_OUTPUT + 2, Clk::DIV_OUTPUT + 3, Clk::DIV_OUTPUT + 4,
 		                      Clk::DIV_OUTPUT + 5, Clk::DIV_OUTPUT + 6, Clk::RESET_OUTPUT, Clk::RUN_OUTPUT};
 		for (int i = 0; i < 9; ++i)
 			addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(xs[i % 3], 52.f + (i / 3) * 20.f)), module, order[i]));
-	}
-
-	void step() override {
-		// One side of CLOCK IN at a time: a cable on one side hides the other
-		if (clockFront && clockBack) {
-			const bool front = !APP->scene->rack->getCablesOnPort(clockFront).empty();
-			const bool back = !APP->scene->rack->getCablesOnPort(clockBack).empty();
-			clockFront->setActive(!back);
-			clockBack->setActive(!front);
-		}
-		JXMPModuleWidget::step();
-	}
-
-	patchcore::PortSide portSide(const engine::Port::Type type, const int portId) const override {
-		return type == engine::Port::INPUT && portId == Clk::CLOCK_FRONT_INPUT ? patchcore::SIDE_FRONT : patchcore::SIDE_BACK;
 	}
 };
 
