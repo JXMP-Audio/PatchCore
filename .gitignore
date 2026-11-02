@@ -43,3 +43,18 @@ compile_flags.txt
 !/docs/LICENSE-PERMISSIONS.md
 !/docs/manual/
 !/docs/screenshots/
+# Upstream Cardinal parts PatchCore does not build or use (local only)
+/.github/FUNDING.yml
+/.github/ISSUE_TEMPLATE/
+/.github/workflows/build.yml
+/.github/workflows/irc.yml
+/.kdev4
+/lv2export/
+/patches/mini/
+/patches/touchosc/
+/patches/welcome-wasm*.vcv
+/utils/create-macos-installer.sh
+/utils/create-windows-installer.sh
+/utils/inno/
+/utils/macOS/
+/utils/distrho.icns
