@@ -7,77 +7,18 @@
  ],
  "modules": [
   {
-   "id": 7300000003,
-   "plugin": "JXMP",
-   "model": "Clock",
-   "version": "2.0.0",
-   "params": [
-    {
-     "id": 0,
-     "value": 100
-    },
-    {
-     "id": 1,
-     "value": 1
-    }
-   ],
-   "pos": [
-    0,
-    0
-   ]
-  },
-  {
-   "id": 7300000011,
-   "plugin": "JXMP",
-   "model": "SEQ",
-   "version": "2.0.0",
-   "params": [],
-   "pos": [
-    12,
-    0
-   ]
-  },
-  {
-   "id": 7300000012,
-   "plugin": "JXMP",
-   "model": "Quantizer",
-   "version": "2.0.0",
-   "params": [],
-   "pos": [
-    30,
-    0
-   ]
-  },
-  {
-   "id": 7300000013,
-   "plugin": "JXMP",
-   "model": "Random",
-   "version": "2.0.0",
-   "params": [],
-   "pos": [
-    38,
-    0
-   ]
-  },
-  {
    "id": 7300000004,
    "plugin": "JXMP",
    "model": "VCO",
    "version": "2.0.0",
-   "params": [],
+   "params": [
+    {
+     "id": 6,
+     "value": -1
+    }
+   ],
    "pos": [
-    46,
-    0
-   ]
-  },
-  {
-   "id": 7300000006,
-   "plugin": "JXMP",
-   "model": "ADSR",
-   "version": "2.0.0",
-   "params": [],
-   "pos": [
-    64,
+    0,
     0
    ]
   },
@@ -88,7 +29,18 @@
    "version": "2.0.0",
    "params": [],
    "pos": [
-    78,
+    18,
+    0
+   ]
+  },
+  {
+   "id": 7300000008,
+   "plugin": "JXMP",
+   "model": "Scope",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    26,
     0
    ]
   },
@@ -99,7 +51,7 @@
    "version": "2.0.0",
    "params": [],
    "pos": [
-    86,
+    50,
     0
    ]
   },
@@ -115,8 +67,144 @@
     }
    ],
    "pos": [
+    54,
+    0
+   ]
+  },
+  {
+   "id": 7300000003,
+   "plugin": "JXMP",
+   "model": "Clock",
+   "version": "2.0.0",
+   "params": [
+    {
+     "id": 0,
+     "value": 110
+    },
+    {
+     "id": 1,
+     "value": 1
+    }
+   ],
+   "pos": [
+    64,
+    0
+   ]
+  },
+  {
+   "id": 7300000005,
+   "plugin": "JXMP",
+   "model": "VCF",
+   "version": "2.0.0",
+   "params": [
+    {
+     "id": 0,
+     "value": 0.45
+    },
+    {
+     "id": 1,
+     "value": 0.55
+    },
+    {
+     "id": 9,
+     "value": 0.5
+    },
+    {
+     "id": 3,
+     "value": 0.35
+    }
+   ],
+   "pos": [
+    76,
+    0
+   ]
+  },
+  {
+   "id": 7300000006,
+   "plugin": "JXMP",
+   "model": "ADSR",
+   "version": "2.0.0",
+   "params": [
+    {
+     "id": 0,
+     "value": 0.05
+    },
+    {
+     "id": 1,
+     "value": 0.35
+    },
+    {
+     "id": 2,
+     "value": 0.2
+    },
+    {
+     "id": 3,
+     "value": 0.3
+    }
+   ],
+   "pos": [
     90,
     0
+   ]
+  },
+  {
+   "id": 7300000009,
+   "plugin": "JXMP",
+   "model": "LFO",
+   "version": "2.0.0",
+   "params": [
+    {
+     "id": 0,
+     "value": -2.0
+    }
+   ],
+   "pos": [
+    0,
+    1
+   ]
+  },
+  {
+   "id": 7300000010,
+   "plugin": "JXMP",
+   "model": "Attenuverter",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    10,
+    1
+   ]
+  },
+  {
+   "id": 7300000011,
+   "plugin": "JXMP",
+   "model": "SEQ",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    20,
+    1
+   ]
+  },
+  {
+   "id": 7300000012,
+   "plugin": "JXMP",
+   "model": "Quantizer",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    38,
+    1
+   ]
+  },
+  {
+   "id": 7300000013,
+   "plugin": "JXMP",
+   "model": "Random",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    46,
+    1
    ]
   }
  ],
@@ -131,27 +219,75 @@
   },
   {
    "id": 2,
-   "outputModuleId": 7300000004,
-   "outputId": 2,
-   "inputModuleId": 7300000007,
-   "inputId": 0,
-   "color": "#5b6ee1"
-  },
-  {
-   "id": 3,
-   "outputModuleId": 7300000006,
-   "outputId": 0,
-   "inputModuleId": 7300000007,
-   "inputId": 1,
-   "color": "#3cb46e"
-  },
-  {
-   "id": 4,
    "outputModuleId": 7300000007,
    "outputId": 0,
    "inputModuleId": 7300000001,
    "inputId": 4,
+   "color": "#5b6ee1"
+  },
+  {
+   "id": 3,
+   "outputModuleId": 7300000004,
+   "outputId": 2,
+   "inputModuleId": 7300000005,
+   "inputId": 0,
+   "color": "#3cb46e"
+  },
+  {
+   "id": 4,
+   "outputModuleId": 7300000005,
+   "outputId": 0,
+   "inputModuleId": 7300000007,
+   "inputId": 0,
    "color": "#e04e4e"
+  },
+  {
+   "id": 5,
+   "outputModuleId": 7300000006,
+   "outputId": 0,
+   "inputModuleId": 7300000007,
+   "inputId": 1,
+   "color": "#9a6bd6"
+  },
+  {
+   "id": 6,
+   "outputModuleId": 7300000006,
+   "outputId": 0,
+   "inputModuleId": 7300000005,
+   "inputId": 2,
+   "color": "#ee7b1f"
+  },
+  {
+   "id": 7,
+   "outputModuleId": 7300000003,
+   "outputId": 1,
+   "inputModuleId": 7300000006,
+   "inputId": 0,
+   "color": "#3a8dde"
+  },
+  {
+   "id": 8,
+   "outputModuleId": 7300000009,
+   "outputId": 1,
+   "inputModuleId": 7300000005,
+   "inputId": 3,
+   "color": "#f2c230"
+  },
+  {
+   "id": 9,
+   "outputModuleId": 7300000009,
+   "outputId": 0,
+   "inputModuleId": 7300000008,
+   "inputId": 0,
+   "color": "#f0a030"
+  },
+  {
+   "id": 10,
+   "outputModuleId": 7300000007,
+   "outputId": 0,
+   "inputModuleId": 7300000008,
+   "inputId": 1,
+   "color": "#5b6ee1"
   }
  ]
 }

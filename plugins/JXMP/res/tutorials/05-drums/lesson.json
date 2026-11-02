@@ -2,63 +2,375 @@
   "title": "Drums and rhythm",
   "startSide": "back",
   "learned": [
+    "A mixer adds signals: melody and drums together",
     "Triggers play drums",
     "Euclidean rhythms: steps, hits, rotate",
     "Logic: AND of two rhythms",
     "Shaping the kit and swing"
   ],
   "steps": [
-    {"text": "Drums are played by triggers: short pulses that say 'hit now'. A Euclidean sequencer spreads a number of hits as evenly as it can over a number of steps, which is how many rhythms of the world are built.",
-     "done": {"next": true}},
-    {"text": "Patch X4 of the clock to CLOCK of the Euclidean sequencer. It now steps on every sixteenth note.",
-     "side": "back",
-     "highlight": [{"module": "Clock", "output": "x4"}, {"module": "Euclid", "input": "Clock"}],
-     "done": {"cable": {"from": {"module": "Clock", "output": "x4"}, "to": {"module": "Euclid", "input": "Clock"}}}},
-    {"text": "Patch GATE 1 of the Euclidean sequencer to KICK TRIG of the drums.",
-     "side": "back",
-     "highlight": [{"module": "Euclid", "output": "Gate 1"}, {"module": "Drums", "input": "Kick trig"}],
-     "done": {"cable": {"from": {"module": "Euclid", "output": "Gate 1"}, "to": {"module": "Drums", "input": "Kick trig"}}}},
-    {"text": "Patch MIX of the drums to jack 1 of the patchbay. Four kicks in sixteen steps: four on the floor.",
-     "side": "back",
-     "highlight": [{"module": "Drums", "output": "Mix"}, {"module": "Patchbay4", "input": "Ch 1", "side": "back"}],
-     "done": {"all": [
-       {"cable": {"from": {"module": "Drums", "output": "Mix"}, "to": {"module": "Patchbay4", "input": "Ch 1", "side": "back"}}},
-       {"signal": {"module": "HostAudio2", "input": "#1"}, "above": 0.05}]}},
-    {"text": "Press Tab and turn HITS of track 1. Three hits in sixteen steps is a classic off-kilter groove; go back to four for the steady beat.",
-     "side": "front",
-     "highlight": [{"module": "Euclid", "param": "Track 1 hits"}],
-     "done": {"param": {"module": "Euclid", "param": "Track 1 hits"}, "moved": 0.06}},
-    {"text": "Press Tab and patch GATE 2 to SNARE TRIG and GATE 3 to HAT TRIG of the drums.",
-     "side": "back",
-     "highlight": [{"module": "Euclid", "output": "Gate 2"}, {"module": "Drums", "input": "Snare trig"},
-                   {"module": "Euclid", "output": "Gate 3"}, {"module": "Drums", "input": "Hat trig"}],
-     "done": {"all": [
-       {"cable": {"from": {"module": "Euclid", "output": "Gate 2"}, "to": {"module": "Drums", "input": "Snare trig"}}},
-       {"cable": {"from": {"module": "Euclid", "output": "Gate 3"}, "to": {"module": "Drums", "input": "Hat trig"}}}]}},
-    {"text": "Press Tab and turn ROTATE of track 2. Rotate shifts the whole pattern later in time without changing it: find the spot where the snare sits on the backbeat.",
-     "side": "front",
-     "highlight": [{"module": "Euclid", "param": "Track 2 rotate"}],
-     "done": {"param": {"module": "Euclid", "param": "Track 2 rotate"}, "moved": 0.06}},
-    {"text": "A logic module combines gates: AND is high only while both inputs are. Press Tab, patch GATE 1 to A and GATE 3 to B of the logic module, and AND to CLAP TRIG of the drums: a clap only where kick and hat meet.",
-     "side": "back",
-     "highlight": [{"module": "Euclid", "output": "Gate 1"}, {"module": "Logic", "input": "A"},
-                   {"module": "Euclid", "output": "Gate 3"}, {"module": "Logic", "input": "B"},
-                   {"module": "Logic", "output": "And"}, {"module": "Drums", "input": "Clap trig"}],
-     "done": {"all": [
-       {"cable": {"from": {"module": "Euclid", "output": "Gate 1"}, "to": {"module": "Logic", "input": "A"}}},
-       {"cable": {"from": {"module": "Euclid", "output": "Gate 3"}, "to": {"module": "Logic", "input": "B"}}},
-       {"cable": {"from": {"module": "Logic", "output": "And"}, "to": {"module": "Drums", "input": "Clap trig"}}}]}},
-    {"text": "Press Tab and shape the kit: turn KICK DECAY for a short thump or a long boom, and SNARE TONE from drum body to snare wires.",
-     "side": "front",
-     "highlight": [{"module": "Drums", "param": "Kick decay"}, {"module": "Drums", "param": "Snare tone"}],
-     "done": {"all": [
-       {"param": {"module": "Drums", "param": "Kick decay"}, "moved": 0.2},
-       {"param": {"module": "Drums", "param": "Snare tone"}, "moved": 0.2}]}},
-    {"text": "Turn SWING of the clock up a little. Every second sixteenth now comes a bit late and the groove starts to shuffle.",
-     "side": "front",
-     "highlight": [{"module": "Clock", "param": "Swing"}],
-     "done": {"param": {"module": "Clock", "param": "Swing"}, "min": 56}},
-    {"text": "A clock, a Euclidean sequencer, a bit of logic and a drum module make a whole beat. Try other numbers of steps and hits on tracks 3 and 4. Press Next to finish.",
-     "done": {"next": true}}
+    {
+      "text": "The melody from lesson 4 is playing. Drums are played by triggers: short pulses that say 'hit now'. A Euclidean sequencer spreads a number of hits as evenly as it can over a number of steps, which is how many rhythms of the world are built.",
+      "done": {
+        "next": true
+      }
+    },
+    {
+      "text": "Patch X4 of the clock to CLOCK of the Euclidean sequencer. It now steps on every sixteenth note.",
+      "side": "back",
+      "highlight": [
+        {
+          "module": "Clock",
+          "output": "x4"
+        },
+        {
+          "module": "Euclid",
+          "input": "Clock"
+        }
+      ],
+      "done": {
+        "cable": {
+          "from": {
+            "module": "Clock",
+            "output": "x4"
+          },
+          "to": {
+            "module": "Euclid",
+            "input": "Clock"
+          }
+        }
+      }
+    },
+    {
+      "text": "Patch GATE 1 of the Euclidean sequencer to KICK TRIG of the drums.",
+      "side": "back",
+      "highlight": [
+        {
+          "module": "Euclid",
+          "output": "Gate 1"
+        },
+        {
+          "module": "Drums",
+          "input": "Kick trig"
+        }
+      ],
+      "done": {
+        "cable": {
+          "from": {
+            "module": "Euclid",
+            "output": "Gate 1"
+          },
+          "to": {
+            "module": "Drums",
+            "input": "Kick trig"
+          }
+        }
+      }
+    },
+    {
+      "text": "To hear the melody and the drums together you need a mixer: it adds signals. Patch OUT 1 of the amplifier to IN 1 of the mixer, MIX of the drums to IN 2, and MIX of the mixer to jack 1 of the patchbay (the old cable goes).",
+      "side": "back",
+      "highlight": [
+        {
+          "module": "VCA",
+          "output": "Out 1"
+        },
+        {
+          "module": "Mixer",
+          "input": "In 1"
+        },
+        {
+          "module": "Drums",
+          "output": "Mix"
+        },
+        {
+          "module": "Mixer",
+          "input": "In 2"
+        },
+        {
+          "module": "Mixer",
+          "output": "Mix"
+        },
+        {
+          "module": "Patchbay4",
+          "input": "Ch 1",
+          "side": "back"
+        }
+      ],
+      "done": {
+        "all": [
+          {
+            "cable": {
+              "from": {
+                "module": "VCA",
+                "output": "Out 1"
+              },
+              "to": {
+                "module": "Mixer",
+                "input": "In 1"
+              }
+            }
+          },
+          {
+            "cable": {
+              "from": {
+                "module": "Drums",
+                "output": "Mix"
+              },
+              "to": {
+                "module": "Mixer",
+                "input": "In 2"
+              }
+            }
+          },
+          {
+            "cable": {
+              "from": {
+                "module": "Mixer",
+                "output": "Mix"
+              },
+              "to": {
+                "module": "Patchbay4",
+                "input": "Ch 1",
+                "side": "back"
+              }
+            }
+          },
+          {
+            "signal": {
+              "module": "HostAudio2",
+              "input": "#1"
+            },
+            "above": 0.05
+          }
+        ]
+      }
+    },
+    {
+      "text": "Press Tab and turn LEVEL 2 of the mixer until the drums and the melody sit well together. Balancing levels is most of what mixing is.",
+      "side": "front",
+      "highlight": [
+        {
+          "module": "Mixer",
+          "param": "Channel 2 level"
+        }
+      ],
+      "done": {
+        "param": {
+          "module": "Mixer",
+          "param": "Channel 2 level"
+        },
+        "moved": 0.15
+      }
+    },
+    {
+      "text": "Turn HITS of track 1. Three hits in sixteen steps is a classic off-kilter groove; go back to four for the steady beat.",
+      "side": "front",
+      "highlight": [
+        {
+          "module": "Euclid",
+          "param": "Track 1 hits"
+        }
+      ],
+      "done": {
+        "param": {
+          "module": "Euclid",
+          "param": "Track 1 hits"
+        },
+        "moved": 0.06
+      }
+    },
+    {
+      "text": "Press Tab and patch GATE 2 to SNARE TRIG and GATE 3 to HAT TRIG of the drums.",
+      "side": "back",
+      "highlight": [
+        {
+          "module": "Euclid",
+          "output": "Gate 2"
+        },
+        {
+          "module": "Drums",
+          "input": "Snare trig"
+        },
+        {
+          "module": "Euclid",
+          "output": "Gate 3"
+        },
+        {
+          "module": "Drums",
+          "input": "Hat trig"
+        }
+      ],
+      "done": {
+        "all": [
+          {
+            "cable": {
+              "from": {
+                "module": "Euclid",
+                "output": "Gate 2"
+              },
+              "to": {
+                "module": "Drums",
+                "input": "Snare trig"
+              }
+            }
+          },
+          {
+            "cable": {
+              "from": {
+                "module": "Euclid",
+                "output": "Gate 3"
+              },
+              "to": {
+                "module": "Drums",
+                "input": "Hat trig"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "text": "Press Tab and turn ROTATE of track 2. Rotate shifts the whole pattern later in time without changing it: find the spot where the snare sits on the backbeat.",
+      "side": "front",
+      "highlight": [
+        {
+          "module": "Euclid",
+          "param": "Track 2 rotate"
+        }
+      ],
+      "done": {
+        "param": {
+          "module": "Euclid",
+          "param": "Track 2 rotate"
+        },
+        "moved": 0.06
+      }
+    },
+    {
+      "text": "A logic module combines gates: AND is high only while both inputs are. Press Tab, patch GATE 1 to A and GATE 3 to B of the logic module, and AND to CLAP TRIG of the drums: a clap only where kick and hat meet.",
+      "side": "back",
+      "highlight": [
+        {
+          "module": "Euclid",
+          "output": "Gate 1"
+        },
+        {
+          "module": "Logic",
+          "input": "A"
+        },
+        {
+          "module": "Euclid",
+          "output": "Gate 3"
+        },
+        {
+          "module": "Logic",
+          "input": "B"
+        },
+        {
+          "module": "Logic",
+          "output": "And"
+        },
+        {
+          "module": "Drums",
+          "input": "Clap trig"
+        }
+      ],
+      "done": {
+        "all": [
+          {
+            "cable": {
+              "from": {
+                "module": "Euclid",
+                "output": "Gate 1"
+              },
+              "to": {
+                "module": "Logic",
+                "input": "A"
+              }
+            }
+          },
+          {
+            "cable": {
+              "from": {
+                "module": "Euclid",
+                "output": "Gate 3"
+              },
+              "to": {
+                "module": "Logic",
+                "input": "B"
+              }
+            }
+          },
+          {
+            "cable": {
+              "from": {
+                "module": "Logic",
+                "output": "And"
+              },
+              "to": {
+                "module": "Drums",
+                "input": "Clap trig"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "text": "Press Tab and shape the kit: turn KICK DECAY for a short thump or a long boom, and SNARE TONE from drum body to snare wires.",
+      "side": "front",
+      "highlight": [
+        {
+          "module": "Drums",
+          "param": "Kick decay"
+        },
+        {
+          "module": "Drums",
+          "param": "Snare tone"
+        }
+      ],
+      "done": {
+        "all": [
+          {
+            "param": {
+              "module": "Drums",
+              "param": "Kick decay"
+            },
+            "moved": 0.2
+          },
+          {
+            "param": {
+              "module": "Drums",
+              "param": "Snare tone"
+            },
+            "moved": 0.2
+          }
+        ]
+      }
+    },
+    {
+      "text": "Turn SWING of the clock up a little. Every second sixteenth now comes a bit late and the groove starts to shuffle.",
+      "side": "front",
+      "highlight": [
+        {
+          "module": "Clock",
+          "param": "Swing"
+        }
+      ],
+      "done": {
+        "param": {
+          "module": "Clock",
+          "param": "Swing"
+        },
+        "min": 56
+      }
+    },
+    {
+      "text": "A clock, a Euclidean sequencer, a bit of logic and a drum module make a whole beat. Try other numbers of steps and hits on tracks 3 and 4. Press Next to finish.",
+      "done": {
+        "next": true
+      }
+    }
   ]
 }

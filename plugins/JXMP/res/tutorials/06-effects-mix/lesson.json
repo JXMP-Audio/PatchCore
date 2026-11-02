@@ -2,112 +2,15 @@
   "title": "Effects and mix",
   "startSide": "back",
   "learned": [
-    "A mixer adds signals and balances them",
     "Insert effects in a chain: delay, chorus",
     "Reverb last, around the whole mix",
     "Wet and dry: the Mix knob"
   ],
   "steps": [
     {
-      "text": "A melody and a beat are playing in the rack, but nothing reaches the speakers yet. In this lesson a mixer brings them together, and effects give them space.",
+      "text": "Your song from lesson 5 is playing through the mixer. In this lesson effects give it space: echoes, width and a room.",
       "done": {
         "next": true
-      }
-    },
-    {
-      "text": "Patch OUT 1 of the amplifier to IN 1 of the mixer, MIX of the drums to IN 2, and MIX of the mixer to jack 1 of the patchbay.",
-      "side": "back",
-      "highlight": [
-        {
-          "module": "VCA",
-          "output": "Out 1"
-        },
-        {
-          "module": "Mixer",
-          "input": "In 1"
-        },
-        {
-          "module": "Drums",
-          "output": "Mix"
-        },
-        {
-          "module": "Mixer",
-          "input": "In 2"
-        },
-        {
-          "module": "Mixer",
-          "output": "Mix"
-        },
-        {
-          "module": "Patchbay4",
-          "input": "Ch 1",
-          "side": "back"
-        }
-      ],
-      "done": {
-        "all": [
-          {
-            "cable": {
-              "from": {
-                "module": "VCA",
-                "output": "Out 1"
-              },
-              "to": {
-                "module": "Mixer",
-                "input": "In 1"
-              }
-            }
-          },
-          {
-            "cable": {
-              "from": {
-                "module": "Drums",
-                "output": "Mix"
-              },
-              "to": {
-                "module": "Mixer",
-                "input": "In 2"
-              }
-            }
-          },
-          {
-            "cable": {
-              "from": {
-                "module": "Mixer",
-                "output": "Mix"
-              },
-              "to": {
-                "module": "Patchbay4",
-                "input": "Ch 1",
-                "side": "back"
-              }
-            }
-          },
-          {
-            "signal": {
-              "module": "HostAudio2",
-              "input": "#1"
-            },
-            "above": 0.05
-          }
-        ]
-      }
-    },
-    {
-      "text": "Press Tab and turn the LEVEL of channel 2 until the drums and the melody sit well together. Balancing levels is most of what mixing is.",
-      "side": "front",
-      "highlight": [
-        {
-          "module": "Mixer",
-          "param": "Channel 2 level"
-        }
-      ],
-      "done": {
-        "param": {
-          "module": "Mixer",
-          "param": "Channel 2 level"
-        },
-        "moved": 0.15
       }
     },
     {

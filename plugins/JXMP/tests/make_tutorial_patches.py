@@ -34,96 +34,122 @@ OUT_CABLE = (PB, PB_FRONT_OUT_1, HA, 0)  # patchbay front Ch 1 -> Host Audio inp
 lesson1 = patch([module(PB, "JXMP", "Patchbay4", 0), module(HA, "Cardinal", "HostAudio2", 4, params=HOST)],
                 [OUT_CABLE])
 
-voice = [
-    module(CLK, "JXMP", "Clock", 0, params={0: 100, 1: 1}),  # TEMPO 100 BPM, RUN on
-    module(VCO, "JXMP", "VCO", 12),
-    module(VCF, "JXMP", "VCF", 30),
-    module(ADSR, "JXMP", "ADSR", 44),
-    module(VCA, "JXMP", "VCA", 58),
-    module(SCP, "JXMP", "Scope", 66),
-    module(PB, "JXMP", "Patchbay4", 90),
-    module(HA, "Cardinal", "HostAudio2", 94, params=HOST),
-]
-lesson2 = patch(voice, [OUT_CABLE])
-
-# Lesson 3 starts from the finished lesson 2: resonance and envelope amount up
-voice3 = [dict(m) for m in voice]
-voice3[2] = module(VCF, "JXMP", "VCF", 30, params={1: 0.5, 9: 0.5})  # RES_PARAM 1, ENV_AMT_PARAM 9
-voice3 += [module(LFO, "JXMP", "LFO", 0, row=1), module(ATT, "JXMP", "Attenuverter", 10, row=1)]
-lesson3 = patch(voice3, [
-    OUT_CABLE,
-    (VCO, 2, VCF, 0),           # VCO SAW_OUTPUT 2 -> VCF IN_INPUT 0
-    (VCF, 0, VCA, 0),           # VCF OUT_OUTPUT 0 -> VCA IN1_INPUT 0
-    (VCA, 0, PB, PB_BACK_IN_1),  # VCA OUT1_OUTPUT 0 -> Patchbay back Ch 1
-    (CLK, 2, ADSR, 0),          # Clock DIV_OUTPUT+2 "Beat" -> ADSR GATE_INPUT 0
-    (ADSR, 0, VCA, 1),          # ADSR ENV_OUTPUT 0 -> VCA CV1_INPUT 1
-    (ADSR, 0, SCP, 0),          # ADSR ENV -> Scope IN1_INPUT 0
-    (ADSR, 0, VCF, 2),          # ADSR ENV -> VCF ENV_INPUT 2
-])
-
-# Lessons 4-6 (sequences, drums, effects and mix)
+# Each lesson starts where the one before ended (only the new modules of the lesson are added, unpatched), with
+# settings that sound musical: a bass octave, eighth notes, short plucky notes.
 SEQ, QNT, RND, EUC, DRM, LGC, MIX, DLY, CHR, REV = (ID_BASE + k for k in range(11, 21))
-CLOCK = {0: 100, 1: 1}  # TEMPO 100 BPM, RUN on
 # Clock DIV_OUTPUT order: x4, x2, Beat, /2, /4, /8, /16
 CLK_X4, CLK_X2 = 0, 1
-# A little melody for the sequencer (CV_PARAM 0-7, volts; the quantizer makes it a scale)
+CLOCK = {0: 110, 1: 1}                       # TEMPO 110 BPM, RUN on
+VCO_BASS = {6: -1}                           # OCTAVE_PARAM 6: one octave down
+PLUCK = {0: 0.05, 1: 0.35, 2: 0.2, 3: 0.3}   # ADSR attack, decay, sustain, release: short notes
+FILTER = {0: 0.45, 1: 0.55, 9: 0.5}          # VCF cutoff, resonance (RES 1), envelope amount (ENV_AMT 9)
+FILTER_LFO = dict(FILTER, **{}); FILTER_LFO[3] = 0.35  # + Cutoff CV (FREQ_CV 3)
+LFO_SLOW = {0: -2.0}                         # LFO rate 0.25 Hz
+# A little melody for the sequencer (CV_PARAM 0-7, volts; the quantizer makes it A minor)
 MELODY = {0: 0.0, 1: 0.33, 2: 0.58, 3: 0.83, 4: 1.0, 5: 0.83, 6: 0.58, 7: 0.33}
+A_MINOR = {0: 2, 1: 9}                       # Quantizer SCALE 2 = Minor, ROOT 9 = A
 
-lesson4 = patch([
-    module(CLK, "JXMP", "Clock", 0, params=CLOCK),
-    module(SEQ, "JXMP", "SEQ", 12),
-    module(QNT, "JXMP", "Quantizer", 30),
-    module(RND, "JXMP", "Random", 38),
-    module(VCO, "JXMP", "VCO", 46),
-    module(ADSR, "JXMP", "ADSR", 64),
-    module(VCA, "JXMP", "VCA", 78),
-    module(PB, "JXMP", "Patchbay4", 86),
-    module(HA, "Cardinal", "HostAudio2", 90, params=HOST),
-], [
-    OUT_CABLE,
-    (VCO, 2, VCA, 0),            # VCO SAW -> VCA IN 1
-    (ADSR, 0, VCA, 1),           # ADSR ENV -> VCA CV 1
-    (VCA, 0, PB, PB_BACK_IN_1),  # VCA OUT 1 -> Patchbay back Ch 1
+# Row 0: the voice; row 1: modulation and sequencing; row 2: drums, mixer, effects
+def row0(vcf=None, adsr=None, vco=None):
+    mods = [
+        module(VCO, "JXMP", "VCO", 0, params=vco),
+        module(VCA, "JXMP", "VCA", 18),
+        module(SCP, "JXMP", "Scope", 26),
+        module(PB, "JXMP", "Patchbay4", 50),
+        module(HA, "Cardinal", "HostAudio2", 54, params=HOST),
+    ]
+    if vcf is not None:
+        mods += [module(CLK, "JXMP", "Clock", 64, params=CLOCK), module(VCF, "JXMP", "VCF", 76, params=vcf),
+                 module(ADSR, "JXMP", "ADSR", 90, params=adsr)]
+    return mods
+
+VOICE_OUT = (VCA, 0, PB, PB_BACK_IN_1)  # VCA OUT 1 -> Patchbay back Ch 1
+
+# Lesson 2: lesson 1 finished (VCO SIN -> VCA -> speakers, SIN on the scope) + clock, filter, envelope
+lesson2 = patch(row0(vcf={}, adsr=PLUCK, vco=VCO_BASS), [
+    OUT_CABLE, VOICE_OUT,
+    (VCO, 0, VCA, 0),     # VCO SIN -> VCA IN 1
+    (VCO, 0, SCP, 0),     # VCO SIN -> Scope IN 1
 ])
 
-lesson5 = patch([
-    module(CLK, "JXMP", "Clock", 0, params=CLOCK),
-    module(EUC, "JXMP", "Euclid", 12),
-    module(DRM, "JXMP", "Drums", 26),
-    module(LGC, "JXMP", "Logic", 44),
-    module(PB, "JXMP", "Patchbay4", 52),
-    module(HA, "Cardinal", "HostAudio2", 56, params=HOST),
-], [OUT_CABLE])
+# The voice of lesson 2 finished: saw -> filter -> amplifier, envelope on both, eighth notes
+VOICE = [
+    OUT_CABLE, VOICE_OUT,
+    (VCO, 2, VCF, 0),     # VCO SAW -> VCF IN
+    (VCF, 0, VCA, 0),     # VCF OUT -> VCA IN 1
+    (ADSR, 0, VCA, 1),    # ADSR ENV -> VCA CV 1
+    (ADSR, 0, VCF, 2),    # ADSR ENV -> VCF ENV
+]
 
-# Lesson 6: a melody (lesson 4 finished, quantized) and a beat (lesson 5) playing, nothing to the speakers yet
-seq_params = dict(MELODY)
-lesson6 = patch([
-    module(CLK, "JXMP", "Clock", 0, params=CLOCK),
-    module(SEQ, "JXMP", "SEQ", 12, params=seq_params),
-    module(QNT, "JXMP", "Quantizer", 30),
-    module(VCO, "JXMP", "VCO", 38),
-    module(ADSR, "JXMP", "ADSR", 56),
-    module(VCA, "JXMP", "VCA", 70),
-    module(EUC, "JXMP", "Euclid", 0, row=1),
-    module(DRM, "JXMP", "Drums", 14, row=1),
-    module(MIX, "JXMP", "Mixer", 32, row=1),
-    module(DLY, "JXMP", "Delay", 46, row=1),
-    module(CHR, "JXMP", "Chorus", 56, row=1),
-    module(REV, "JXMP", "Reverb", 66, row=1),
-    module(PB, "JXMP", "Patchbay4", 78),
-    module(HA, "Cardinal", "HostAudio2", 82, params=HOST),
-], [
-    OUT_CABLE,
-    (CLK, CLK_X2, SEQ, 0),       # Clock x2 -> SEQ CLOCK
-    (SEQ, 1, ADSR, 0),           # SEQ GATE -> ADSR GATE
-    (SEQ, 0, QNT, 0),            # SEQ CV -> Quantizer IN
-    (QNT, 0, VCO, 0),            # Quantizer OUT -> VCO V/OCT
-    (VCO, 2, VCA, 0),            # VCO SAW -> VCA IN 1
-    (ADSR, 0, VCA, 1),           # ADSR ENV -> VCA CV 1
-    (CLK, CLK_X4, EUC, 0),       # Clock x4 -> Euclid CLOCK
-    (EUC, 0, DRM, 0),            # Euclid GATE 1 -> Drums KICK TRIG
-    (EUC, 1, DRM, 1),            # Euclid GATE 2 -> Drums SNARE TRIG
-    (EUC, 2, DRM, 2),            # Euclid GATE 3 -> Drums HAT TRIG
+# Lesson 3: lesson 2 finished + LFO, attenuverter
+lesson3 = patch(row0(vcf=FILTER, adsr=PLUCK, vco=VCO_BASS) + [
+    module(LFO, "JXMP", "LFO", 0, row=1),
+    module(ATT, "JXMP", "Attenuverter", 10, row=1),
+], VOICE + [
+    (CLK, CLK_X2, ADSR, 0),  # Clock x2 -> ADSR GATE
+    (ADSR, 0, SCP, 0),       # ADSR ENV -> Scope IN 1
+])
+
+# Lesson 4: the voice of lesson 3 with the LFO on the filter (the trill unplugged) + sequencer, quantizer, random
+lesson4 = patch(row0(vcf=FILTER_LFO, adsr=PLUCK, vco=VCO_BASS) + [
+    module(LFO, "JXMP", "LFO", 0, row=1, params=LFO_SLOW),
+    module(ATT, "JXMP", "Attenuverter", 10, row=1),
+    module(SEQ, "JXMP", "SEQ", 20, row=1),
+    module(QNT, "JXMP", "Quantizer", 38, row=1),
+    module(RND, "JXMP", "Random", 46, row=1),
+], VOICE + [
+    (CLK, CLK_X2, ADSR, 0),  # Clock x2 -> ADSR GATE
+    (LFO, 1, VCF, 3),        # LFO TRI -> VCF FREQ CV
+    (LFO, 0, SCP, 0),        # LFO SIN -> Scope IN 1
+    (VCA, 0, SCP, 1),        # VCA OUT 1 -> Scope IN 2
+])
+
+# The melody of lesson 4 finished (sequencer through the quantizer, A minor)
+MELODY_CABLES = VOICE + [
+    (LFO, 1, VCF, 3),        # LFO TRI -> VCF FREQ CV
+    (LFO, 0, SCP, 0),        # LFO SIN -> Scope IN 1
+    (VCA, 0, SCP, 1),        # VCA OUT 1 -> Scope IN 2
+    (CLK, CLK_X2, SEQ, 0),   # Clock x2 -> SEQ CLOCK
+    (SEQ, 1, ADSR, 0),       # SEQ GATE -> ADSR GATE
+    (SEQ, 0, QNT, 0),        # SEQ CV -> Quantizer IN
+    (QNT, 0, VCO, 0),        # Quantizer OUT -> VCO V/OCT
+]
+MELODY_MODULES = row0(vcf=FILTER_LFO, adsr=PLUCK, vco=VCO_BASS) + [
+    module(LFO, "JXMP", "LFO", 0, row=1, params=LFO_SLOW),
+    module(ATT, "JXMP", "Attenuverter", 10, row=1),
+    module(SEQ, "JXMP", "SEQ", 20, row=1, params=MELODY),
+    module(QNT, "JXMP", "Quantizer", 38, row=1, params=A_MINOR),
+    module(RND, "JXMP", "Random", 46, row=1),
+]
+
+# Lesson 5: the melody of lesson 4 playing + Euclid, drums, logic, mixer
+lesson5 = patch(MELODY_MODULES + [
+    module(EUC, "JXMP", "Euclid", 0, row=2),
+    module(DRM, "JXMP", "Drums", 14, row=2),
+    module(LGC, "JXMP", "Logic", 32, row=2),
+    module(MIX, "JXMP", "Mixer", 40, row=2),
+], MELODY_CABLES)
+
+# Lesson 6: lesson 5 finished (melody and drums through the mixer) + delay, chorus, reverb
+lesson6 = patch(MELODY_MODULES + [
+    module(EUC, "JXMP", "Euclid", 0, row=2),
+    module(DRM, "JXMP", "Drums", 14, row=2),
+    module(LGC, "JXMP", "Logic", 32, row=2),
+    module(MIX, "JXMP", "Mixer", 40, row=2, params={1: 0.7}),  # drums (channel 2) a bit lower
+    module(DLY, "JXMP", "Delay", 54, row=2),
+    module(CHR, "JXMP", "Chorus", 64, row=2),
+    module(REV, "JXMP", "Reverb", 74, row=2),
+], [c for c in MELODY_CABLES if c != VOICE_OUT] + [
+    (CLK, CLK_X4, EUC, 0),   # Clock x4 -> Euclid CLOCK
+    (EUC, 0, DRM, 0),        # Euclid GATE 1 -> Drums KICK TRIG
+    (EUC, 1, DRM, 1),        # Euclid GATE 2 -> Drums SNARE TRIG
+    (EUC, 2, DRM, 2),        # Euclid GATE 3 -> Drums HAT TRIG
+    (EUC, 0, LGC, 0),        # Euclid GATE 1 -> Logic A
+    (EUC, 2, LGC, 1),        # Euclid GATE 3 -> Logic B
+    (LGC, 0, DRM, 3),        # Logic AND -> Drums CLAP TRIG
+    (VCA, 0, MIX, 0),        # VCA OUT 1 -> Mixer IN 1
+    (DRM, 4, MIX, 1),        # Drums MIX -> Mixer IN 2
+    (MIX, 0, PB, PB_BACK_IN_1),  # Mixer MIX -> Patchbay back Ch 1
 ])
 
 for name, data in [("01-first-sound", lesson1), ("02-filter-envelope", lesson2), ("03-modulation", lesson3),

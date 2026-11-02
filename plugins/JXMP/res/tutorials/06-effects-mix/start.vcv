@@ -7,6 +7,71 @@
  ],
  "modules": [
   {
+   "id": 7300000004,
+   "plugin": "JXMP",
+   "model": "VCO",
+   "version": "2.0.0",
+   "params": [
+    {
+     "id": 6,
+     "value": -1
+    }
+   ],
+   "pos": [
+    0,
+    0
+   ]
+  },
+  {
+   "id": 7300000007,
+   "plugin": "JXMP",
+   "model": "VCA",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    18,
+    0
+   ]
+  },
+  {
+   "id": 7300000008,
+   "plugin": "JXMP",
+   "model": "Scope",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    26,
+    0
+   ]
+  },
+  {
+   "id": 7300000001,
+   "plugin": "JXMP",
+   "model": "Patchbay4",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    50,
+    0
+   ]
+  },
+  {
+   "id": 7300000002,
+   "plugin": "Cardinal",
+   "model": "HostAudio2",
+   "version": "2.0.0",
+   "params": [
+    {
+     "id": 0,
+     "value": 0.5
+    }
+   ],
+   "pos": [
+    54,
+    0
+   ]
+  },
+  {
    "id": 7300000003,
    "plugin": "JXMP",
    "model": "Clock",
@@ -14,7 +79,7 @@
    "params": [
     {
      "id": 0,
-     "value": 100
+     "value": 110
     },
     {
      "id": 1,
@@ -22,8 +87,91 @@
     }
    ],
    "pos": [
-    0,
+    64,
     0
+   ]
+  },
+  {
+   "id": 7300000005,
+   "plugin": "JXMP",
+   "model": "VCF",
+   "version": "2.0.0",
+   "params": [
+    {
+     "id": 0,
+     "value": 0.45
+    },
+    {
+     "id": 1,
+     "value": 0.55
+    },
+    {
+     "id": 9,
+     "value": 0.5
+    },
+    {
+     "id": 3,
+     "value": 0.35
+    }
+   ],
+   "pos": [
+    76,
+    0
+   ]
+  },
+  {
+   "id": 7300000006,
+   "plugin": "JXMP",
+   "model": "ADSR",
+   "version": "2.0.0",
+   "params": [
+    {
+     "id": 0,
+     "value": 0.05
+    },
+    {
+     "id": 1,
+     "value": 0.35
+    },
+    {
+     "id": 2,
+     "value": 0.2
+    },
+    {
+     "id": 3,
+     "value": 0.3
+    }
+   ],
+   "pos": [
+    90,
+    0
+   ]
+  },
+  {
+   "id": 7300000009,
+   "plugin": "JXMP",
+   "model": "LFO",
+   "version": "2.0.0",
+   "params": [
+    {
+     "id": 0,
+     "value": -2.0
+    }
+   ],
+   "pos": [
+    0,
+    1
+   ]
+  },
+  {
+   "id": 7300000010,
+   "plugin": "JXMP",
+   "model": "Attenuverter",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    10,
+    1
    ]
   },
   {
@@ -66,8 +214,8 @@
     }
    ],
    "pos": [
-    12,
-    0
+    20,
+    1
    ]
   },
   {
@@ -75,43 +223,30 @@
    "plugin": "JXMP",
    "model": "Quantizer",
    "version": "2.0.0",
-   "params": [],
-   "pos": [
-    30,
-    0
-   ]
-  },
-  {
-   "id": 7300000004,
-   "plugin": "JXMP",
-   "model": "VCO",
-   "version": "2.0.0",
-   "params": [],
+   "params": [
+    {
+     "id": 0,
+     "value": 2
+    },
+    {
+     "id": 1,
+     "value": 9
+    }
+   ],
    "pos": [
     38,
-    0
+    1
    ]
   },
   {
-   "id": 7300000006,
+   "id": 7300000013,
    "plugin": "JXMP",
-   "model": "ADSR",
+   "model": "Random",
    "version": "2.0.0",
    "params": [],
    "pos": [
-    56,
-    0
-   ]
-  },
-  {
-   "id": 7300000007,
-   "plugin": "JXMP",
-   "model": "VCA",
-   "version": "2.0.0",
-   "params": [],
-   "pos": [
-    70,
-    0
+    46,
+    1
    ]
   },
   {
@@ -122,7 +257,7 @@
    "params": [],
    "pos": [
     0,
-    1
+    2
    ]
   },
   {
@@ -133,7 +268,18 @@
    "params": [],
    "pos": [
     14,
-    1
+    2
+   ]
+  },
+  {
+   "id": 7300000016,
+   "plugin": "JXMP",
+   "model": "Logic",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    32,
+    2
    ]
   },
   {
@@ -141,10 +287,15 @@
    "plugin": "JXMP",
    "model": "Mixer",
    "version": "2.0.0",
-   "params": [],
+   "params": [
+    {
+     "id": 1,
+     "value": 0.7
+    }
+   ],
    "pos": [
-    32,
-    1
+    40,
+    2
    ]
   },
   {
@@ -154,8 +305,8 @@
    "version": "2.0.0",
    "params": [],
    "pos": [
-    46,
-    1
+    54,
+    2
    ]
   },
   {
@@ -165,8 +316,8 @@
    "version": "2.0.0",
    "params": [],
    "pos": [
-    56,
-    1
+    64,
+    2
    ]
   },
   {
@@ -176,35 +327,8 @@
    "version": "2.0.0",
    "params": [],
    "pos": [
-    66,
-    1
-   ]
-  },
-  {
-   "id": 7300000001,
-   "plugin": "JXMP",
-   "model": "Patchbay4",
-   "version": "2.0.0",
-   "params": [],
-   "pos": [
-    78,
-    0
-   ]
-  },
-  {
-   "id": 7300000002,
-   "plugin": "Cardinal",
-   "model": "HostAudio2",
-   "version": "2.0.0",
-   "params": [
-    {
-     "id": 0,
-     "value": 0.5
-    }
-   ],
-   "pos": [
-    82,
-    0
+    74,
+    2
    ]
   }
  ],
@@ -219,83 +343,171 @@
   },
   {
    "id": 2,
-   "outputModuleId": 7300000003,
-   "outputId": 1,
-   "inputModuleId": 7300000011,
+   "outputModuleId": 7300000004,
+   "outputId": 2,
+   "inputModuleId": 7300000005,
    "inputId": 0,
    "color": "#5b6ee1"
   },
   {
    "id": 3,
-   "outputModuleId": 7300000011,
-   "outputId": 1,
-   "inputModuleId": 7300000006,
+   "outputModuleId": 7300000005,
+   "outputId": 0,
+   "inputModuleId": 7300000007,
    "inputId": 0,
    "color": "#3cb46e"
   },
   {
    "id": 4,
-   "outputModuleId": 7300000011,
-   "outputId": 0,
-   "inputModuleId": 7300000012,
-   "inputId": 0,
-   "color": "#e04e4e"
-  },
-  {
-   "id": 5,
-   "outputModuleId": 7300000012,
-   "outputId": 0,
-   "inputModuleId": 7300000004,
-   "inputId": 0,
-   "color": "#9a6bd6"
-  },
-  {
-   "id": 6,
-   "outputModuleId": 7300000004,
-   "outputId": 2,
-   "inputModuleId": 7300000007,
-   "inputId": 0,
-   "color": "#ee7b1f"
-  },
-  {
-   "id": 7,
    "outputModuleId": 7300000006,
    "outputId": 0,
    "inputModuleId": 7300000007,
    "inputId": 1,
+   "color": "#e04e4e"
+  },
+  {
+   "id": 5,
+   "outputModuleId": 7300000006,
+   "outputId": 0,
+   "inputModuleId": 7300000005,
+   "inputId": 2,
+   "color": "#9a6bd6"
+  },
+  {
+   "id": 6,
+   "outputModuleId": 7300000009,
+   "outputId": 1,
+   "inputModuleId": 7300000005,
+   "inputId": 3,
+   "color": "#ee7b1f"
+  },
+  {
+   "id": 7,
+   "outputModuleId": 7300000009,
+   "outputId": 0,
+   "inputModuleId": 7300000008,
+   "inputId": 0,
    "color": "#3a8dde"
   },
   {
    "id": 8,
-   "outputModuleId": 7300000003,
+   "outputModuleId": 7300000007,
    "outputId": 0,
-   "inputModuleId": 7300000014,
-   "inputId": 0,
+   "inputModuleId": 7300000008,
+   "inputId": 1,
    "color": "#f2c230"
   },
   {
    "id": 9,
-   "outputModuleId": 7300000014,
-   "outputId": 0,
-   "inputModuleId": 7300000015,
+   "outputModuleId": 7300000003,
+   "outputId": 1,
+   "inputModuleId": 7300000011,
    "inputId": 0,
    "color": "#f0a030"
   },
   {
    "id": 10,
-   "outputModuleId": 7300000014,
+   "outputModuleId": 7300000011,
    "outputId": 1,
-   "inputModuleId": 7300000015,
-   "inputId": 1,
+   "inputModuleId": 7300000006,
+   "inputId": 0,
    "color": "#5b6ee1"
   },
   {
    "id": 11,
+   "outputModuleId": 7300000011,
+   "outputId": 0,
+   "inputModuleId": 7300000012,
+   "inputId": 0,
+   "color": "#3cb46e"
+  },
+  {
+   "id": 12,
+   "outputModuleId": 7300000012,
+   "outputId": 0,
+   "inputModuleId": 7300000004,
+   "inputId": 0,
+   "color": "#e04e4e"
+  },
+  {
+   "id": 13,
+   "outputModuleId": 7300000003,
+   "outputId": 0,
+   "inputModuleId": 7300000014,
+   "inputId": 0,
+   "color": "#9a6bd6"
+  },
+  {
+   "id": 14,
+   "outputModuleId": 7300000014,
+   "outputId": 0,
+   "inputModuleId": 7300000015,
+   "inputId": 0,
+   "color": "#ee7b1f"
+  },
+  {
+   "id": 15,
+   "outputModuleId": 7300000014,
+   "outputId": 1,
+   "inputModuleId": 7300000015,
+   "inputId": 1,
+   "color": "#3a8dde"
+  },
+  {
+   "id": 16,
    "outputModuleId": 7300000014,
    "outputId": 2,
    "inputModuleId": 7300000015,
    "inputId": 2,
+   "color": "#f2c230"
+  },
+  {
+   "id": 17,
+   "outputModuleId": 7300000014,
+   "outputId": 0,
+   "inputModuleId": 7300000016,
+   "inputId": 0,
+   "color": "#f0a030"
+  },
+  {
+   "id": 18,
+   "outputModuleId": 7300000014,
+   "outputId": 2,
+   "inputModuleId": 7300000016,
+   "inputId": 1,
+   "color": "#5b6ee1"
+  },
+  {
+   "id": 19,
+   "outputModuleId": 7300000016,
+   "outputId": 0,
+   "inputModuleId": 7300000015,
+   "inputId": 3,
    "color": "#3cb46e"
+  },
+  {
+   "id": 20,
+   "outputModuleId": 7300000007,
+   "outputId": 0,
+   "inputModuleId": 7300000017,
+   "inputId": 0,
+   "color": "#e04e4e"
+  },
+  {
+   "id": 21,
+   "outputModuleId": 7300000015,
+   "outputId": 4,
+   "inputModuleId": 7300000017,
+   "inputId": 1,
+   "color": "#9a6bd6"
+  },
+  {
+   "id": 22,
+   "outputModuleId": 7300000017,
+   "outputId": 0,
+   "inputModuleId": 7300000001,
+   "inputId": 4,
+   "color": "#ee7b1f"
   }
  ]
 }
