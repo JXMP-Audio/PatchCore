@@ -56,19 +56,10 @@ struct Trigger {
 	}
 };
 
-/** From this time base (seconds per division) on the screen rolls, as a DSO does on its slowest settings: the
-trace moves from right to left with the newest sample at the right edge, no trigger */
-constexpr float kRollDiv = 0.5f;
-
-inline bool rolls(float secondsPerDiv) {
-	return secondsPerDiv >= kRollDiv - 1e-6f;
-}
-
 /**
  * Acquisition as on a digital scope (e.g. a Hantek DSO): the trigger point is the middle of the screen, the half
  * before it comes from a history that runs all the time. Only finished acquisitions are shown, whole
- * (`shown*`). From kRollDiv on, the screen rolls instead (`roll*`, oldest to newest from `rollPos`). NORM keeps the
- * last picture without a trigger; AUTO acquires by itself when none comes (waiting 1.5 times the spacing of slow
+ * (`shown*`). NORM keeps the last picture without a trigger; AUTO acquires by itself when none comes (waiting 1.5 times the spacing of slow
  * triggers, up to 10 s). Each point keeps the minimum and maximum of its time slice (no aliasing).
  */
 struct Capture {
@@ -80,9 +71,6 @@ struct Capture {
 
 	float histLo[2][kHalf] = {}, histHi[2][kHalf] = {}, histValue[2][kHalf] = {};
 	int historyPos = 0;
-	/** Roll mode: the last kPoints points, a ring; the oldest is at rollPos */
-	float rollLo[2][kPoints] = {}, rollHi[2][kPoints] = {}, rollValue[2][kPoints] = {};
-	int rollPos = 0;
 	float sinceTake = 0.f;
 	float curLo[2] = {INFINITY, INFINITY}, curHi[2] = {-INFINITY, -INFINITY};
 	float waiting = 0.f, sinceTrigger = 0.f, triggerSpacing = 0.f;
@@ -167,14 +155,13 @@ struct Capture {
 	/** The point just finished goes into the history (it runs all the time, also during an acquisition) */
 	void pushHistory(const float* x) {
 		for (int ch = 0; ch < 2; ++ch) {
-			histLo[ch][historyPos] = rollLo[ch][rollPos] = curLo[ch];
-			histHi[ch][historyPos] = rollHi[ch][rollPos] = curHi[ch];
-			histValue[ch][historyPos] = rollValue[ch][rollPos] = x[ch];
+			histLo[ch][historyPos] = curLo[ch];
+			histHi[ch][historyPos] = curHi[ch];
+			histValue[ch][historyPos] = x[ch];
 			curLo[ch] = INFINITY;
 			curHi[ch] = -INFINITY;
 		}
 		historyPos = (historyPos + 1) % kHalf;
-		rollPos = (rollPos + 1) % kPoints;
 	}
 };
 

@@ -4,7 +4,7 @@
  *
  * JX-SCP: two-channel oscilloscope with a round green CRT, styled after an old lab scope. Y–T with a trigger
  * (level, slope, source CH1 / CH2 / EXT; AUTO / NORM) or X–Y. It acquires as a digital scope (Hantek DSO) does:
- * the trigger point in the middle, a complete picture each time, NORM holds it; from 0.5 s/div the screen rolls. Design: research_docs/14-jxmp-modules-set3-design.md.
+ * the trigger point in the middle, a complete picture each time, NORM holds it. Square tube. Design: research_docs/14-jxmp-modules-set3-design.md.
  */
 
 #include "JXMPWidget.hpp"
@@ -36,8 +36,6 @@ struct Scp : engine::Module {
 	sc::Trigger trigger;
 	sc::Capture capture;
 	float trigLight = 0.f;
-	/** Recent range of the trigger signal (follows it within about 2 s), for the automatic level */
-	float trigLo = 0.f, trigHi = 0.f;
 	int lastTimeStep = -1;
 	/** The level the trigger really uses (the knob, or the middle of the signal), for the display marker */
 	float usedLevel = 0.f;
@@ -55,8 +53,8 @@ struct Scp : engine::Module {
 		    ->description = "How many volts one square up is for the amber trace. Smaller = the wave is drawn taller.";
 		configParam(POS2_PARAM, -4.f, 4.f, 0.f, "CH 2 position", " div")->description = "Moves the amber trace up or down.";
 		configParam(TRIG_LEVEL_PARAM, -10.f, 10.f, 0.f, "Trigger level", " V")
-		    ->description = "The voltage the wave must cross to start a drawing. A level outside the wave is replaced by the "
-		                    "middle of the wave, so the picture always stands still.";
+		    ->description = "The voltage the wave must cross to start a picture (the dashed line). Outside the wave nothing "
+		                    "triggers: AUTO then shows the wave running, NORM keeps the last picture.";
 		// Toggles: lever up = the highest value, so the default (top) choice is the highest value
 		configSwitch(TRIG_SLOPE_PARAM, 0.f, 1.f, 1.f, "Trigger slope", {"Falling", "Rising"})
 		    ->description = "Start the drawing when the wave crosses the level going up (RISE) or going down (FALL).";
@@ -81,17 +79,8 @@ struct Scp : engine::Module {
 		const bool xy = params[MODE_PARAM].getValue() < 0.5f;
 		const bool autoRun = params[TRIG_MODE_PARAM].getValue() > 0.5f;
 
-		// When LEVEL is outside the signal (e.g. a unipolar LFO and LEVEL at 0 V) it would never trigger; then
-		// the middle of the signal is used, as the automatic level of modern scopes
-		// The range follows the signal slowly (about 10 s), so a slow LFO's peaks are still known between them
-		const float k = std::min(1.f, args.sampleTime * 0.1f);
-		trigLo = t < trigLo ? t : trigLo + (t - trigLo) * k;
-		trigHi = t > trigHi ? t : trigHi - (trigHi - t) * k;
-		float level = params[TRIG_LEVEL_PARAM].getValue();
-		const float span = trigHi - trigLo;
-		if (span > 0.1f && (level < trigLo || level > trigHi))
-			level = 0.5f * (trigLo + trigHi);
-
+		// As on a DSO: a level outside the signal simply never triggers (AUTO then runs untriggered)
+		const float level = params[TRIG_LEVEL_PARAM].getValue();
 		usedLevel = level;
 		const bool fired = trigger.process(t, level, params[TRIG_SLOPE_PARAM].getValue() > 0.5f);
 		if (fired && !xy)
@@ -109,12 +98,12 @@ struct Scp : engine::Module {
 };
 
 
-/** The round CRT: bezel, phosphor screen with a graticule, the traces, a glass highlight. */
+/** The CRT, a square tube: bezel, phosphor screen with a graticule, the traces, a glass highlight. */
 struct CrtScreen : widget::TransparentWidget {
 	Scp* module = nullptr;
 
 	float radius() const {
-		return box.size.x / 2 - mm2px(4.5f);  // the screen inside the bezel
+		return box.size.x / 2 - mm2px(2.5f);  // the screen inside a thin bezel
 	}
 
 	/** Screen point of (x, y) in divisions. It may lie off the round screen: trace() clips it. */
@@ -123,45 +112,15 @@ struct CrtScreen : widget::TransparentWidget {
 		return c.plus(math::Vec(xDiv * d, -yDiv * d));
 	}
 
-	/** Part of the segment a–b inside the circle (centre c, radius r), as t0..t1 of the segment; false if none. */
-	static bool clipToCircle(math::Vec a, math::Vec b, math::Vec c, float r, float* t0, float* t1) {
-		const math::Vec d = b.minus(a), f = a.minus(c);
-		const float A = d.dot(d), B = 2.f * f.dot(d), C = f.dot(f) - r * r;
-		if (A <= 1e-9f) {
-			*t0 = 0.f;
-			*t1 = 1.f;
-			return C <= 0.f;
-		}
-		const float disc = B * B - 4.f * A * C;
-		if (disc < 0.f)
-			return false;
-		const float sq = std::sqrt(disc);
-		*t0 = std::max(0.f, (-B - sq) / (2.f * A));
-		*t1 = std::min(1.f, (-B + sq) / (2.f * A));
-		return *t0 < *t1;
-	}
-
-	/** The trace as on a real tube: what leaves the round screen is hidden behind the bezel, not bent onto it. */
+	/** The trace; drawTraces() clips it to the screen (what leaves it is hidden behind the bezel). */
 	void trace(NVGcontext* vg, math::Vec c, float r, const std::vector<math::Vec>& pts, NVGcolor col, float alpha) {
 		if (pts.size() < 2)
 			return;
-		const float rc = r * 0.995f;
 		for (int pass = 0; pass < 2; ++pass) {
 			nvgBeginPath(vg);
-			bool drawing = false;
-			for (size_t i = 1; i < pts.size(); ++i) {
-				float t0, t1;
-				if (!clipToCircle(pts[i - 1], pts[i], c, rc, &t0, &t1)) {
-					drawing = false;
-					continue;
-				}
-				const math::Vec d = pts[i].minus(pts[i - 1]);
-				const math::Vec p0 = pts[i - 1].plus(d.mult(t0)), p1 = pts[i - 1].plus(d.mult(t1));
-				if (!drawing || t0 > 0.f)
-					nvgMoveTo(vg, p0.x, p0.y);
-				nvgLineTo(vg, p1.x, p1.y);
-				drawing = t1 >= 1.f;
-			}
+			nvgMoveTo(vg, pts[0].x, pts[0].y);
+			for (size_t i = 1; i < pts.size(); ++i)
+				nvgLineTo(vg, pts[i].x, pts[i].y);
 			nvgLineJoin(vg, NVG_ROUND);
 			nvgLineCap(vg, NVG_ROUND);
 			// A wide soft glow, then the bright core
@@ -193,25 +152,24 @@ struct CrtScreen : widget::TransparentWidget {
 		const sc::Capture& cap = module->capture;
 
 		const NVGcolor colours[2] = {green, amber};
-		// As a DSO: the last complete acquisition, trigger in the middle; from 0.5 s/div the screen rolls
-		// (newest sample at the right edge). Never half a picture.
-		const bool roll = !xy && sc::rolls(sc::timeDiv((int) std::round(module->params[Scp::TIME_PARAM].getValue())));
+		// As a DSO: the last complete acquisition, the trigger point in the middle. Never half a picture.
+		const float(*lo)[sc::kPoints] = cap.shownLo;
+		const float(*hi)[sc::kPoints] = cap.shownHi;
+		const float(*val)[sc::kPoints] = cap.shownValue;
 		const int count = sc::kPoints;
-		float rl[2][sc::kPoints], rh[2][sc::kPoints], rv[2][sc::kPoints];
-		if (roll) {
-			const int start = cap.rollPos;
-			for (int ch = 0; ch < 2; ++ch)
-				for (int i = 0; i < sc::kPoints; ++i) {
-					const int k = (start + i) % sc::kPoints;
-					rl[ch][i] = cap.rollLo[ch][k];
-					rh[ch][i] = cap.rollHi[ch][k];
-					rv[ch][i] = cap.rollValue[ch][k];
-				}
-		}
-		const float(*lo)[sc::kPoints] = roll ? rl : cap.shownLo;
-		const float(*hi)[sc::kPoints] = roll ? rh : cap.shownHi;
-		const float(*val)[sc::kPoints] = roll ? rv : cap.shownValue;
 
+		// Everything inside the square screen; what leaves it is behind the bezel
+		nvgSave(vg);
+		nvgIntersectScissor(vg, c.x - r, c.y - r, 2 * r, 2 * r);
+		drawWaves(vg, c, r, xy, on1, on2, v1, v2, p1, p2, lo, hi, val, count, colours);
+		nvgRestore(vg);
+		drawMarkers(vg, c, r, v1, v2, p1, p2);
+	}
+
+	void drawWaves(NVGcontext* vg, math::Vec c, float r, bool xy, bool on1, bool on2, float v1, float v2, float p1, float p2,
+	               const float (*lo)[sc::kPoints], const float (*hi)[sc::kPoints], const float (*val)[sc::kPoints], int count,
+	               const NVGcolor* colours) {
+		const NVGcolor green = colours[0];
 		if (xy) {
 			if (!(on1 && on2))
 				return;
@@ -238,14 +196,11 @@ struct CrtScreen : widget::TransparentWidget {
 			}
 			trace(vg, c, r, pts, colours[ch], 1.f);
 		}
+	}
 
-		// Markers as on a DSO: ROLL, or the trigger point (top, middle) and the trigger level (right edge)
+	/** Markers as on a DSO: the trigger point (top, middle) and the trigger level (right edge) */
+	void drawMarkers(NVGcontext* vg, math::Vec c, float r, float v1, float v2, float p1, float p2) {
 		const NVGcolor mark = nvgRGBA(0xff, 0xff, 0xff, 0xb0);
-		if (roll) {
-			jxmp::style::text(vg, math::Vec(c.x - r * 0.62f, c.y - r * 0.62f), "ROLL", 9.f, mark, jxmp::style::FONT_LABEL,
-			                  NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, 1.f);
-			return;
-		}
 		const float top = c.y - r + 2.f;
 		nvgBeginPath(vg);
 		nvgMoveTo(vg, c.x - 4.f, top);
@@ -258,9 +213,17 @@ struct CrtScreen : widget::TransparentWidget {
 		const int source = (int) std::round(module->params[Scp::TRIG_SOURCE_PARAM].getValue());
 		const float lvDiv = source == 1 ? sc::divisions(module->usedLevel, v2, p2) : sc::divisions(module->usedLevel, v1, p1);
 		const float ly = c.y - lvDiv * r / 4.f;
-		const float half = std::sqrt(std::max(0.f, r * r - (ly - c.y) * (ly - c.y)));
-		if (half > 6.f) {
-			const float rx = c.x + half - 2.f;
+		if (ly > c.y - r + 4.f && ly < c.y + r - 4.f) {
+			// A thin dashed grey line across the screen at the trigger level
+			nvgBeginPath(vg);
+			for (float x = c.x - r + 2.f; x < c.x + r - 8.f; x += 7.f) {
+				nvgMoveTo(vg, x, ly);
+				nvgLineTo(vg, std::min(x + 4.f, c.x + r - 8.f), ly);
+			}
+			nvgStrokeWidth(vg, 0.8f);
+			nvgStrokeColor(vg, nvgRGBA(0xc8, 0xcc, 0xd0, 0x70));
+			nvgStroke(vg);
+			const float rx = c.x + r - 2.f;
 			nvgBeginPath(vg);
 			nvgMoveTo(vg, rx, ly - 4.f);
 			nvgLineTo(vg, rx, ly + 4.f);
@@ -278,33 +241,33 @@ struct CrtScreen : widget::TransparentWidget {
 
 		// Bezel: a grey cast ring with a dark rubber lip around the tube
 		nvgBeginPath(vg);
-		nvgCircle(vg, c.x + 1.5f, c.y + 2.5f, outer);
+		nvgRoundedRect(vg, c.x - outer + 1.5f, c.y - outer + 2.5f, 2 * outer, 2 * outer, mm2px(4.f));
 		nvgFillColor(vg, nvgRGBAf(0, 0, 0, 0.4f));
 		nvgFill(vg);
 		nvgBeginPath(vg);
-		nvgCircle(vg, c.x, c.y, outer);
+		nvgRoundedRect(vg, c.x - outer, c.y - outer, 2 * outer, 2 * outer, mm2px(4.f));
 		nvgFillPaint(vg, nvgLinearGradient(vg, c.x, c.y - outer, c.x, c.y + outer, nvgRGB(0x8e, 0x91, 0x96), nvgRGB(0x4a, 0x4c, 0x51)));
 		nvgFill(vg);
 		nvgBeginPath(vg);
-		nvgCircle(vg, c.x, c.y, outer - mm2px(1.4f));
+		nvgRoundedRect(vg, c.x - outer + mm2px(1.4f), c.y - outer + mm2px(1.4f), 2 * (outer - mm2px(1.4f)), 2 * (outer - mm2px(1.4f)), mm2px(3.f));
 		nvgFillPaint(vg, nvgLinearGradient(vg, c.x, c.y - outer, c.x, c.y + outer, nvgRGB(0x5a, 0x5c, 0x61), nvgRGB(0x9a, 0x9d, 0xa2)));
 		nvgFill(vg);
 		nvgBeginPath(vg);
-		nvgCircle(vg, c.x, c.y, r + mm2px(1.2f));
+		nvgRoundedRect(vg, c.x - r - mm2px(1.2f), c.y - r - mm2px(1.2f), 2 * (r + mm2px(1.2f)), 2 * (r + mm2px(1.2f)), mm2px(2.5f));
 		nvgFillColor(vg, nvgRGB(0x0d, 0x0e, 0x0f));
 		nvgFill(vg);
 		// Phosphor screen, dark green, a little lighter in the middle
 		nvgBeginPath(vg);
-		nvgCircle(vg, c.x, c.y, r);
-		nvgFillPaint(vg, nvgRadialGradient(vg, c.x, c.y, r * 0.1f, r, nvgRGB(0x10, 0x2a, 0x1c), nvgRGB(0x05, 0x10, 0x0a)));
+		nvgRoundedRect(vg, c.x - r, c.y - r, 2 * r, 2 * r, mm2px(2.f));
+		nvgFillPaint(vg, nvgRadialGradient(vg, c.x, c.y, r * 0.1f, r * 1.3f, nvgRGB(0x10, 0x2a, 0x1c), nvgRGB(0x05, 0x10, 0x0a)));
 		nvgFill(vg);
 
-		// Graticule: 8 × 8 divisions over the diameter, lines as chords of the circle, ticks on the axes
+		// Graticule: 8 × 8 divisions over the square screen, ticks on the axes
 		const float d = r / 4.f;
 		const NVGcolor grid = nvgRGBA(0x6a, 0xc8, 0x90, 0x38);
 		nvgStrokeWidth(vg, 0.7f);
 		for (int i = -3; i <= 3; ++i) {
-			const float o = i * d, half = std::sqrt(std::max(0.f, r * r - o * o));
+			const float o = i * d, half = r;
 			nvgBeginPath(vg);
 			nvgMoveTo(vg, c.x + o, c.y - half);
 			nvgLineTo(vg, c.x + o, c.y + half);
@@ -330,12 +293,12 @@ struct CrtScreen : widget::TransparentWidget {
 
 		// Curved glass: a soft highlight top left and a darker rim
 		nvgBeginPath(vg);
-		nvgCircle(vg, c.x, c.y, r);
+		nvgRoundedRect(vg, c.x - r, c.y - r, 2 * r, 2 * r, mm2px(2.f));
 		nvgFillPaint(vg, nvgRadialGradient(vg, c.x - r * 0.35f, c.y - r * 0.45f, r * 0.05f, r * 0.75f, nvgRGBAf(1, 1, 1, 0.10f), nvgRGBAf(1, 1, 1, 0)));
 		nvgFill(vg);
 		nvgBeginPath(vg);
-		nvgCircle(vg, c.x, c.y, r);
-		nvgFillPaint(vg, nvgRadialGradient(vg, c.x, c.y, r * 0.8f, r, nvgRGBAf(0, 0, 0, 0), nvgRGBAf(0, 0, 0, 0.45f)));
+		nvgRoundedRect(vg, c.x - r, c.y - r, 2 * r, 2 * r, mm2px(2.f));
+		nvgFillPaint(vg, nvgBoxGradient(vg, c.x - r, c.y - r, 2 * r, 2 * r, mm2px(2.f), r * 0.25f, nvgRGBAf(0, 0, 0, 0), nvgRGBAf(0, 0, 0, 0.45f)));
 		nvgFill(vg);
 	}
 };
@@ -350,8 +313,9 @@ struct ScpWidget : JXMPModuleWidget {
 		// The tube, left
 		CrtScreen* const crt = new CrtScreen;
 		crt->module = module;
-		const float crtR = 33.5f;  // mm, bezel outside
-		crt->box = math::Rect(mm2px(math::Vec(42.f - crtR, 59.f - crtR)), mm2px(math::Vec(2 * crtR, 2 * crtR)));
+		// The tube fills the left side; its top lines up with the TIME / DIV header
+		const float crtR = 36.f;  // mm, half the bezel
+		crt->box = math::Rect(mm2px(math::Vec(42.f - crtR, 56.5f - crtR)), mm2px(math::Vec(2 * crtR, 2 * crtR)));
 		addChild(crt);
 
 		// TIME/DIV, right top
