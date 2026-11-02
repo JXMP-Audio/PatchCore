@@ -36,11 +36,6 @@ float textWidth(std::shared_ptr<window::Font> font, float size, const std::strin
 }
 
 
-static bool isHovered(widget::Widget* const w) {
-	return APP->event->hoveredWidget == w;
-}
-
-
 void drawBarBackground(NVGcontext* const vg, math::Vec size, bool topEdgeIsBorder) {
 	nvgBeginPath(vg);
 	nvgRect(vg, 0, 0, size.x, size.y);
@@ -132,11 +127,11 @@ struct ViewSegment : widget::OpaqueWidget {
 		float w;
 	};
 	std::vector<Item> items = {
-		{"Rack", "F1"},
-		{"Back", "F2"},
-		{"Search", "Enter"},
-		{"Mixer", "F3"},
-		{"Learn", ""},
+		{"Rack", "F1", 0.f, 0.f},
+		{"Back", "F2", 0.f, 0.f},
+		{"Search", "Enter", 0.f, 0.f},
+		{"Mixer", "F3", 0.f, 0.f},
+		{"Learn", "", 0.f, 0.f},
 	};
 
 	bool isOn(size_t i) const {
