@@ -877,7 +877,7 @@ struct InfoLabel : ui::Label {
 			text += "     ";
 		}
 
-		text += "Cardinal " + APP_EDITION + " " + CARDINAL_VERSION;
+		text += "PatchCore " + APP_EDITION + " " + CARDINAL_VERSION;
 
 		Label::step();
 	}

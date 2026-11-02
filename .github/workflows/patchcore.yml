@@ -2,7 +2,7 @@ name: patchcore
 
 # PatchCore builds: the standalone app and the VST3 plugins (PatchCore, PatchCore FX) for Linux x86_64 and
 # Windows 64-bit. Started by hand only (Actions tab → patchcore → Run workflow, or `gh workflow run patchcore`):
-# the user decides when a build runs.
+# the user decides when a build runs. Every successful build is published as a GitHub release.
 on:
   workflow_dispatch:
 
@@ -54,7 +54,12 @@ jobs:
         run: |
           echo "SHA8=$(echo ${{ github.sha }} | cut -c1-8)" >> $GITHUB_ENV
           mkdir -p dist/PatchCore
-          cp -rL bin/Cardinal bin/CardinalSynth.vst3 bin/CardinalFX.vst3 dist/PatchCore/
+          # the Cardinal build names become PatchCore names (a VST3 binary must be named like its bundle)
+          cp -L bin/Cardinal dist/PatchCore/PatchCore
+          cp -rL bin/CardinalSynth.vst3 dist/PatchCore/PatchCore.vst3
+          mv dist/PatchCore/PatchCore.vst3/Contents/x86_64-linux/CardinalSynth.so dist/PatchCore/PatchCore.vst3/Contents/x86_64-linux/PatchCore.so
+          cp -rL bin/CardinalFX.vst3 dist/PatchCore/PatchCoreFX.vst3
+          mv dist/PatchCore/PatchCoreFX.vst3/Contents/x86_64-linux/CardinalFX.so dist/PatchCore/PatchCoreFX.vst3/Contents/x86_64-linux/PatchCoreFX.so
           cp -rL bin/CardinalSynth.vst3/Contents/Resources dist/PatchCore/resources  # the standalone finds it next to itself
           cp LICENSE README.md docs/LICENSES.md dist/PatchCore/  # LICENSES.md: the licences and authors of the bundled modules
           tar -c -J -f PatchCore-linux-x86_64-$(echo ${{ github.sha }} | cut -c1-8).tar.xz -C dist PatchCore
@@ -122,7 +127,12 @@ jobs:
         run: |
           echo "SHA8=$(echo ${{ github.sha }} | cut -c1-8)" >> $GITHUB_ENV
           mkdir -p dist/PatchCore
-          cp -rL bin/Cardinal.exe bin/CardinalSynth.vst3 bin/CardinalFX.vst3 dist/PatchCore/
+          # the Cardinal build names become PatchCore names (a VST3 binary must be named like its bundle)
+          cp -L bin/Cardinal.exe dist/PatchCore/PatchCore.exe
+          cp -rL bin/CardinalSynth.vst3 dist/PatchCore/PatchCore.vst3
+          mv dist/PatchCore/PatchCore.vst3/Contents/x86_64-win/CardinalSynth.vst3 dist/PatchCore/PatchCore.vst3/Contents/x86_64-win/PatchCore.vst3
+          cp -rL bin/CardinalFX.vst3 dist/PatchCore/PatchCoreFX.vst3
+          mv dist/PatchCore/PatchCoreFX.vst3/Contents/x86_64-win/CardinalFX.vst3 dist/PatchCore/PatchCoreFX.vst3/Contents/x86_64-win/PatchCoreFX.vst3
           cp -rL bin/CardinalSynth.vst3/Contents/Resources dist/PatchCore/resources  # the standalone finds it next to itself
           cp LICENSE README.md docs/LICENSES.md dist/PatchCore/  # LICENSES.md: the licences and authors of the bundled modules
           cd dist && zip -r -9 ../PatchCore-windows-x86_64-$(echo ${{ github.sha }} | cut -c1-8).zip PatchCore
@@ -130,3 +140,22 @@ jobs:
         with:
           name: PatchCore-windows-x86_64-${{ env.SHA8 }}
           path: '*.zip'
+
+  release:
+    needs: [linux-x86_64, windows-x86_64]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHA8=$(echo ${{ github.sha }} | cut -c1-8)
+          TAG="v$(date -u +%Y.%m.%d)-${SHA8}"
+          gh release create "$TAG" dist/* --repo ${{ github.repository }} --target ${{ github.sha }} --title "PatchCore $TAG" \
+            --notes "PatchCore build of ${{ github.sha }}. Linux x86_64 (.tar.xz) and Windows 64-bit (.zip): the PatchCore app, PatchCore.vst3 (instrument) and PatchCoreFX.vst3 (effect)."

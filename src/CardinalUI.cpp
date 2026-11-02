@@ -359,7 +359,7 @@ public:
 
             for (int i=1;; ++i)
             {
-                std::snprintf(uidBuf, sizeof(uidBuf), "Cardinal.%04d", i);
+                std::snprintf(uidBuf, sizeof(uidBuf), "PatchCore.%04d", i);
                 const std::string trypath = rack::system::join(tmp, uidBuf);
 
                 if (! rack::system::exists(trypath))

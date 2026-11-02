@@ -658,7 +658,7 @@ Initializer::Initializer(const CardinalBasePlugin* const plugin, const CardinalB
 
     if (asset::userDir.empty())
     {
-        asset::userDir = system::join(getSpecialDir(kSpecialDirDocuments), "Cardinal");
+        asset::userDir = system::join(getSpecialDir(kSpecialDirDocuments), "PatchCore");
 
         if (isRealInstance)
         {
@@ -677,7 +677,7 @@ Initializer::Initializer(const CardinalBasePlugin* const plugin, const CardinalB
    #ifndef CARDINAL_COMMON_DSP_ONLY
     if (asset::configDir.empty())
     {
-        asset::configDir = system::join(getSpecialDir(kSpecialDirConfig), "Cardinal");
+        asset::configDir = system::join(getSpecialDir(kSpecialDirConfig), "PatchCore");
 
         if (isRealInstance)
             system::createDirectory(asset::configDir);
