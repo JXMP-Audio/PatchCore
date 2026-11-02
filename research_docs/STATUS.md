@@ -27,7 +27,11 @@ or weekly limit ends). Newest first.
 - Code check done (8379901): the core UI read by hand (QuickSearch, TopBar, MixerView, Navigator; Tutorial and
   AudioSettings were reviewed before) and every module's process() scanned for allocation / locks (none). Fixed: the
   Mixer open state was global (opened in every plugin instance), quick-search hover and favourites, Navigator colours
-  and legend, LCD clip. Next: the build the user announces, then the screen checks, then the Editor.
+  and legend, LCD clip.
+- Second pass (7c9367a): clang-tidy (bugprone, clang-analyzer) over JXMP and src/patchcore found nothing real;
+  TopBar compiler warnings fixed. PATCHCORE_DEV_CHECK also saves/loads every module (toJson → fromJson → toJson
+  must match) and checks every shipped patch (patches/jxmp-*.vcv, lesson start.vcv): all clean.
+  Next: the build the user announces, then the screen checks, then the Editor.
 
 ### Not checked yet (needs the user at the screen)
 
