@@ -505,4 +505,279 @@ inline bool holds(const Condition& c, const RackState& s, StepContext& ctx, doub
 	return false;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// Step runner
+
+struct Runner {
+	enum Phase { ACTIVE, DONE, FINISHED };
+	static constexpr double kHold = 0.3;
+	static constexpr double kAdvance = 0.8;
+
+	const Lesson* lesson = nullptr;
+	int step = 0;
+	Phase phase = ACTIVE;
+	/** Entered with Back: the step is only shown again, Next moves on */
+	bool reviewing = false;
+	double holdSince = -1.0;
+	double doneAt = 0.0;
+	StepContext ctx;
+	/** Module slugs that were in the rack at some point of the lesson */
+	std::set<std::string> seen;
+
+	void start(const Lesson& l, double t) {
+		lesson = &l;
+		step = 0;
+		phase = ACTIVE;
+		reviewing = false;
+		seen.clear();
+		enter(t);
+	}
+
+	const Step& current() const {
+		return lesson->steps[step];
+	}
+
+	bool isTask() const {
+		return current().done.type != Cond::Next;
+	}
+
+	bool nextEnabled() const {
+		return lesson != nullptr && phase == ACTIVE && (!isTask() || reviewing);
+	}
+
+	/** The step wants the other side of the rack first */
+	bool needsTurn(const RackState& s) const {
+		return lesson != nullptr && phase != FINISHED && current().side != SIDE_ANY && current().side != s.side;
+	}
+
+	void update(const RackState& s, double t) {
+		for (const ModuleState& m : s.modules)
+			seen.insert(m.slug);
+		if (lesson == nullptr || phase == FINISHED)
+			return;
+		if (phase == DONE) {
+			if (t - doneAt >= kAdvance - 1e-9)
+				advance(s, t);
+			return;
+		}
+		if (reviewing || !isTask())
+			return;
+		const Condition& c = current().done;
+		if (!holds(c, s, ctx, t)) {
+			holdSince = -1.0;
+			return;
+		}
+		if (holdSince < 0.0)
+			holdSince = t;
+		if (c.type == Cond::Wait || t - holdSince >= kHold - 1e-9) {
+			phase = DONE;
+			doneAt = t;
+		}
+	}
+
+	void pressNext(const RackState& s, double t) {
+		if (nextEnabled())
+			advance(s, t);
+	}
+
+	void back(double t) {
+		if (lesson == nullptr)
+			return;
+		if (phase == FINISHED) {
+			phase = ACTIVE;
+			reviewing = true;
+			enter(t);
+			return;
+		}
+		if (step == 0)
+			return;
+		--step;
+		phase = ACTIVE;
+		reviewing = true;
+		enter(t);
+	}
+
+private:
+	void enter(double t) {
+		ctx = StepContext();
+		ctx.stepStart = t;
+		holdSince = -1.0;
+	}
+
+	/** To the next step; a task that already holds is skipped */
+	void advance(const RackState& s, double t) {
+		reviewing = false;
+		phase = ACTIVE;
+		for (;;) {
+			if (step + 1 >= (int) lesson->steps.size()) {
+				phase = FINISHED;
+				return;
+			}
+			++step;
+			enter(t);
+			const Condition& c = current().done;
+			if (c.type != Cond::Next && c.type != Cond::Wait && holds(c, s, ctx, t))
+				continue;
+			return;
+		}
+	}
+};
+
+
+inline void collectModules(const Condition& c, std::vector<std::string>* out) {
+	if (c.type == Cond::Module || c.type == Cond::Param || c.type == Cond::Signal || (c.type == Cond::Cable && c.hasFrom))
+		out->push_back(c.ref.module);
+	if (c.type == Cond::Cable && c.hasTo)
+		out->push_back(c.to.module);
+	for (const Condition& part : c.parts)
+		collectModules(part, out);
+}
+
+/** Modules the step needs that were in the rack earlier in the lesson and are gone now */
+inline std::vector<std::string> goneModules(const Step& step, const RackState& s, const std::set<std::string>& seen) {
+	std::vector<std::string> names;
+	for (const Ref& r : step.highlight)
+		names.push_back(r.module);
+	collectModules(step.done, &names);
+	std::vector<std::string> gone;
+	for (const std::string& n : names) {
+		if (seen.count(n) == 0 || findModule(s, n) != nullptr)
+			continue;
+		bool listed = false;
+		for (const std::string& g : gone)
+			listed = listed || g == n;
+		if (!listed)
+			gone.push_back(n);
+	}
+	return gone;
+}
+
+/** None of the lesson's start modules is left: the user opened another patch */
+inline bool patchReplaced(const std::vector<int64_t>& startIds, const RackState& s) {
+	if (startIds.empty())
+		return false;
+	for (int64_t id : startIds)
+		for (const ModuleState& m : s.modules)
+			if (m.id == id)
+				return false;
+	return true;
+}
+
+
+// ---------------------------------------------------------------------------------------------------------
+// Show me
+
+struct Action {
+	enum Type { ADD_MODULE, ADD_CABLE, SET_PARAM, MOVE_PARAM, SET_SIDE };
+	Type type = ADD_MODULE;
+	/** ADD_MODULE: model slug */
+	std::string module;
+	/** ADD_CABLE */
+	Ref from, to;
+	/** SET_PARAM / MOVE_PARAM */
+	Ref param;
+	/** SET_PARAM: displayed value; MOVE_PARAM: fraction of the range */
+	double value = 0.0;
+	/** SET_SIDE */
+	int side = SIDE_ANY;
+};
+
+inline bool canDo(const Condition& c) {
+	switch (c.type) {
+		case Cond::Module:
+		case Cond::Param:
+		case Cond::Side:
+			return true;
+		case Cond::Cable:
+			return c.hasFrom && c.hasTo;
+		case Cond::All:
+			for (const Condition& part : c.parts)
+				if (canDo(part))
+					return true;
+			return false;
+		case Cond::Any:
+			return canDo(c.parts[0]);
+		default:
+			return false;
+	}
+}
+
+inline bool canShowMe(const Step& step) {
+	return step.showMe && canDo(step.done);
+}
+
+inline void addModuleAction(const std::string& slug, const RackState& s, std::vector<Action>* out) {
+	if (findModule(s, slug) != nullptr)
+		return;
+	for (const Action& a : *out)
+		if (a.type == Action::ADD_MODULE && a.module == slug)
+			return;
+	Action a;
+	a.type = Action::ADD_MODULE;
+	a.module = slug;
+	out->push_back(a);
+}
+
+inline void conditionActions(const Condition& c, const RackState& s, std::vector<Action>* out) {
+	Action a;
+	switch (c.type) {
+		case Cond::Module:
+			addModuleAction(c.ref.module, s, out);
+			break;
+		case Cond::Side:
+			a.type = Action::SET_SIDE;
+			a.side = c.side;
+			out->push_back(a);
+			break;
+		case Cond::Cable:
+			if (!c.hasFrom || !c.hasTo)
+				break;
+			addModuleAction(c.ref.module, s, out);
+			addModuleAction(c.to.module, s, out);
+			a.type = Action::ADD_CABLE;
+			a.from = c.ref;
+			a.to = c.to;
+			out->push_back(a);
+			break;
+		case Cond::Param:
+			addModuleAction(c.ref.module, s, out);
+			a.param = c.ref;
+			if (c.moved > 0.0) {
+				a.type = Action::MOVE_PARAM;
+				a.value = c.moved + 0.05;
+			}
+			else {
+				a.type = Action::SET_PARAM;
+				a.value = c.hasMin && c.hasMax ? (c.min + c.max) / 2.0 : c.hasMin ? c.min : c.max;
+			}
+			out->push_back(a);
+			break;
+		case Cond::All:
+			for (const Condition& part : c.parts)
+				if (canDo(part))
+					conditionActions(part, s, out);
+			break;
+		case Cond::Any:
+			conditionActions(c.parts[0], s, out);
+			break;
+		default:
+			break;
+	}
+}
+
+/** What Show me does for the step, in order: turn the rack, add modules, then cables and knobs */
+inline std::vector<Action> showMeActions(const Step& step, const RackState& s) {
+	std::vector<Action> out;
+	if (!canShowMe(step))
+		return out;
+	if (step.side != SIDE_ANY && step.side != s.side) {
+		Action a;
+		a.type = Action::SET_SIDE;
+		a.side = step.side;
+		out.push_back(a);
+	}
+	conditionActions(step.done, s, &out);
+	return out;
+}
+
 } // namespace patchcore_tutorial

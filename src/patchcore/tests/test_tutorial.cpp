@@ -235,9 +235,150 @@ static void testConditions() {
 	assert(holds(any, s, ctx, 0.0));
 }
 
+static Lesson runnerLesson() {
+	Lesson l;
+	std::string err;
+	const bool ok = parseLesson(R"({"title": "t", "steps": [
+		{"text": "intro", "done": {"next": true}},
+		{"text": "add vca", "done": {"module": "VCA"}},
+		{"text": "level", "side": "front", "done": {"param": {"module": "VCA", "param": "Channel 1 level"}, "min": 50, "max": 80}},
+		{"text": "end", "done": {"next": true}}
+	]})", &l, &err);
+	assert(ok);
+	return l;
+}
+
+static void testRunner() {
+	const Lesson l = runnerLesson();
+	RackState s = demoRack();
+	s.modules.erase(s.modules.begin() + 2);  // no VCA yet
+	Runner r;
+	r.start(l, 0.0);
+	assert(r.step == 0 && r.phase == Runner::ACTIVE && !r.isTask() && r.nextEnabled());
+
+	// Next on an explanation step moves on at once
+	r.pressNext(s, 1.0);
+	assert(r.step == 1 && r.isTask() && !r.nextEnabled());
+
+	// A task: must hold 0.3 s, then DONE, then the next step 0.8 s later
+	RackState withVca = demoRack();
+	withVca.params[0].display = 100.f;  // outside 50..80, so step 3 is not skipped
+	r.update(withVca, 2.0);
+	assert(r.phase == Runner::ACTIVE);
+	r.update(s, 2.1);  // VCA gone again: the hold restarts
+	r.update(withVca, 2.2);
+	r.update(withVca, 2.45);
+	assert(r.phase == Runner::ACTIVE);
+	r.update(withVca, 2.5);
+	assert(r.phase == Runner::DONE && r.step == 1);
+	r.update(withVca, 3.0);
+	assert(r.step == 1);
+	r.update(withVca, 3.3);
+	assert(r.step == 2 && r.phase == Runner::ACTIVE);
+
+	// The step needs the front, the rack shows the back
+	assert(r.needsTurn(withVca));
+	withVca.side = SIDE_FRONT;
+	assert(!r.needsTurn(withVca));
+
+	// Sweeping the knob through 50..80 in less than 0.3 s does not count (Review Focus 3)
+	withVca.params[0].display = 60.f;
+	r.update(withVca, 4.0);
+	r.update(withVca, 4.2);
+	withVca.params[0].display = 90.f;
+	r.update(withVca, 4.25);
+	withVca.params[0].display = 60.f;
+	r.update(withVca, 4.3);
+	r.update(withVca, 4.5);
+	assert(r.phase == Runner::ACTIVE);
+	r.update(withVca, 4.6);
+	assert(r.phase == Runner::DONE);
+	r.update(withVca, 5.4);
+	assert(r.step == 3);
+
+	// Back to a done task: reviewing, Next enabled, no bounce forward (Review Focus 1)
+	r.back(6.0);
+	assert(r.step == 2 && r.reviewing && r.nextEnabled());
+	r.update(withVca, 6.5);
+	r.update(withVca, 8.0);
+	assert(r.step == 2 && r.phase == Runner::ACTIVE);
+	r.pressNext(withVca, 8.1);
+	assert(r.step == 3 && !r.reviewing);
+
+	// Next on the last step finishes the lesson; Back from the summary returns to the last step
+	r.pressNext(withVca, 9.0);
+	assert(r.phase == Runner::FINISHED);
+	r.back(9.5);
+	assert(r.phase == Runner::ACTIVE && r.step == 3 && r.reviewing);
+
+	// Advancing skips a task that already holds
+	Runner r2;
+	r2.start(l, 0.0);
+	RackState done = demoRack();
+	done.params[0].display = 60.f;
+	r2.pressNext(done, 0.1);
+	assert(r2.step == 3);
+
+	// Modules the user deleted after they were in the rack
+	Runner r3;
+	r3.start(l, 0.0);
+	r3.update(demoRack(), 0.0);
+	RackState noVca = demoRack();
+	noVca.modules.erase(noVca.modules.begin() + 2);
+	std::vector<std::string> gone = goneModules(l.steps[2], noVca, r3.seen);
+	assert(gone.size() == 1 && gone[0] == "VCA");
+	std::set<std::string> neverSeen;
+	assert(goneModules(l.steps[1], noVca, neverSeen).empty());
+
+	// Another patch loaded (Review Focus 2)
+	assert(!patchReplaced({40, 50}, demoRack()));
+	RackState other;
+	other.modules = {{99, "VCO"}};
+	assert(patchReplaced({40, 50}, other));
+	assert(!patchReplaced({}, other));
+}
+
+static void testShowMe() {
+	Lesson l;
+	std::string err;
+	const bool ok = parseLesson(R"({"title": "t", "steps": [
+		{"text": "a", "done": {"next": true}},
+		{"text": "b", "side": "back", "done": {"all": [
+			{"cable": {"from": {"module": "LFO", "output": "Tri"}, "to": {"module": "VCA", "input": "In 1"}}},
+			{"signal": {"module": "HostAudio2", "input": "#1"}, "above": 0.05}]}},
+		{"text": "c", "done": {"param": {"module": "VCA", "param": "Channel 1 level"}, "min": 20, "max": 40}},
+		{"text": "d", "done": {"param": {"module": "VCA", "param": "Channel 1 level"}, "moved": 0.2}},
+		{"text": "e", "done": {"cable": {"from": {"module": "VCO", "output": "Saw"}}}},
+		{"text": "f", "done": {"module": "VCO"}, "showMe": "none"}
+	]})", &l, &err);
+	assert(ok);
+	RackState s = demoRack();
+	s.side = SIDE_FRONT;
+
+	assert(!canShowMe(l.steps[0]));
+	assert(canShowMe(l.steps[1]));
+	assert(canShowMe(l.steps[2]) && canShowMe(l.steps[3]));
+	assert(!canShowMe(l.steps[4]));  // a cable without both ends cannot be made
+	assert(!canShowMe(l.steps[5]));  // showMe: none
+
+	// Turn the rack, add the missing LFO, then the cable (the signal part has nothing to do)
+	std::vector<Action> a = showMeActions(l.steps[1], s);
+	assert(a.size() == 3);
+	assert(a[0].type == Action::SET_SIDE && a[0].side == SIDE_BACK);
+	assert(a[1].type == Action::ADD_MODULE && a[1].module == "LFO");
+	assert(a[2].type == Action::ADD_CABLE && a[2].from.name == "Tri" && a[2].to.name == "In 1");
+
+	a = showMeActions(l.steps[2], s);
+	assert(a.size() == 1 && a[0].type == Action::SET_PARAM && a[0].value == 30.0);
+	a = showMeActions(l.steps[3], s);
+	assert(a.size() == 1 && a[0].type == Action::MOVE_PARAM && a[0].value > 0.2);
+}
+
 int main() {
 	testParse();
 	testConditions();
+	testRunner();
+	testShowMe();
 	std::printf("tutorial logic: all tests passed\n");
 	return 0;
 }
