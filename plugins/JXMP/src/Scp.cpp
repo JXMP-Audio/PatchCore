@@ -210,7 +210,7 @@ struct CrtScreen : widget::TransparentWidget {
 	/** Markers as on a DSO: the trigger point (top, middle) and the trigger level (right edge) */
 	void drawMarkers(NVGcontext* vg, math::Vec c, float r, float v1, float v2, float p1, float p2) {
 		const NVGcolor mark = nvgRGBA(0xff, 0xff, 0xff, 0xb0);
-		// Where in time the trigger point of the shown picture is (the middle, a quarter on slow sweeps)
+		// Where in time the trigger point of the shown picture is (the middle)
 		const float tx = point(c, r, (float) module->capture.shownPre / (sc::kPoints - 1) * 8.f - 4.f, 0.f).x;
 		const float top = c.y - r + 2.f;
 		nvgBeginPath(vg);

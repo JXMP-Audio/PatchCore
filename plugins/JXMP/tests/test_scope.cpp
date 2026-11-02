@@ -56,7 +56,7 @@ int main() {
 			const float x = 5.f * std::sin(2.f * float(M_PI) * lfoHz[k] * i / fs);
 			l.process(x, 0.f, lt.process(x, 0.f, true), dt, spd[k]);
 		}
-		// The trigger point: the middle, a quarter from the left on slow sweeps
+		// The trigger point: always the middle
 		assert(l.shownPre == pretrigger(spd[k]));
 		assert(std::fabs(l.shownValue[0][l.shownPre]) < 0.1f);
 		for (int i = 1; i < kPoints; ++i)

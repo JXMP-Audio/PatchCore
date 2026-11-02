@@ -56,21 +56,19 @@ struct Trigger {
 	}
 };
 
-/** From this sweep length (seconds) on, the trigger point moves to a quarter of the screen (less to wait for) */
-constexpr float kQuarterSweep = 0.4f;
 
 /** Coarse memory for redrawing at once when the time base changes: 1 kHz, 10 s */
 constexpr int kCoarseRate = 1000;
 constexpr int kCoarse = 10 * kCoarseRate;
 
-/** Points before the trigger: half the screen, a quarter on slow sweeps */
-inline int pretrigger(float secondsPerDiv) {
-	return secondsPerDiv * kDivisions >= kQuarterSweep ? kPoints / 4 : kPoints / 2;
+/** Points before the trigger: always half the screen, so the trigger point is the centre of the graticule */
+inline int pretrigger(float) {
+	return kPoints / 2;
 }
 
 /**
- * Acquisition as on a digital scope (e.g. a Hantek DSO): the trigger point is in the middle of the screen (a
- * quarter from the left on slow sweeps), the part before it comes from a history that runs all the time. Only
+ * Acquisition as on a digital scope (e.g. a Hantek DSO): the trigger point is in the middle of the screen, the
+ * part before it comes from a history that runs all the time. Only
  * finished acquisitions are shown, whole (`shown*`, `shownPre` = where its trigger point is). NORM keeps the
  * last picture without a trigger; AUTO acquires by itself when none comes (waiting 1.5 times the spacing of
  * slow triggers, up to 10 s). Each point keeps the minimum and maximum of its time slice (no aliasing). A 1 kHz
