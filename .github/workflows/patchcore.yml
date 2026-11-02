@@ -110,7 +110,10 @@ jobs:
           export PATH="/usr/lib/ccache:${PATH}"
           source deps/PawPaw/local.env win64
           make features
-          xvfb-run make NOOPT=true -j $(nproc)
+          # only what PatchCore ships: the standalone and the VST3 plugins (not the Mini variant, not LV2/CLAP)
+          xvfb-run make NOOPT=true carla deps dgl plugins resources -j $(nproc)
+          xvfb-run make NOOPT=true jack -j 2
+          xvfb-run make NOOPT=true vst3 -j 2
       - name: Pack
         shell: bash
         run: |
