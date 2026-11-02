@@ -392,22 +392,19 @@ protected:
     const char* getDescription() const override
     {
         return ""
-        "Cardinal is a free and open-source virtual modular synthesizer plugin.\n"
-        "It is based on the popular VCV Rack but with a focus on being a fully self-contained plugin version.\n"
-        "It is not an official VCV project, and it is not affiliated with it in any way.\n"
-        "\n"
-        "Cardinal contains Rack, some 3rd-party modules and a few internal utilities.\n"
-        "It does not load external modules and does not connect to the official Rack library/store.\n";
+        "PatchCore is a free and open-source virtual modular synthesizer by JXMP Audio.\n"
+        "It is a fork of Cardinal (DISTRHO), which is based on VCV Rack.\n"
+        "It is not an official VCV or DISTRHO project, and it is not affiliated with them in any way.\n";
     }
 
     const char* getMaker() const override
     {
-        return "DISTRHO";
+        return DISTRHO_PLUGIN_BRAND;
     }
 
     const char* getHomePage() const override
     {
-        return "https://github.com/DISTRHO/Cardinal";
+        return "https://github.com/JXMP-Audio/PatchCore";
     }
 
     const char* getLicense() const override
