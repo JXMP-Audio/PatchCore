@@ -25,7 +25,9 @@ int main() {
 	assert(near(f.bpm(), 120.0, 0.01));
 	assert(near(f.beats(), 4.0, 0.03));
 	// Between pulses the position moves on smoothly, never past the next pulse
+	// (measured from a pulse: after the loop above the position already sits just before the next pulse)
 	PulseFollower g = f;
+	g.process(true, dt);
 	const double b0 = g.beats();
 	for (int i = 0; i < samplesPerPulse / 2; ++i)
 		g.process(false, dt);

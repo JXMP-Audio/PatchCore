@@ -208,7 +208,7 @@ static math::Vec freeSpot() {
 	math::Vec pos(0.f, 0.f);
 	for (app::ModuleWidget* mw : APP->scene->rack->getModules()) {
 		if (mw->box.getRight() > pos.x)
-			pos = math::Vec(mw->box.getRight() + RACK_GRID_WIDTH, mw->box.pos.y);
+			pos = math::Vec(mw->box.getRight() + app::RACK_GRID_WIDTH, mw->box.pos.y);
 	}
 	return pos;
 }
@@ -490,7 +490,7 @@ struct TutorialLayer : widget::Widget {
 		const math::Rect view = scroll->box;
 		if (a.x >= view.pos.x && b.x <= view.getRight() && a.y >= view.pos.y && b.y <= view.getBottom())
 			return;
-		scroll->setGridOffset(mw->box.pos.minus(RACK_OFFSET).div(RACK_GRID_SIZE).minus(math::Vec(4.f, 0.f)));
+		scroll->setGridOffset(mw->box.pos.minus(app::RACK_OFFSET).div(app::RACK_GRID_SIZE).minus(math::Vec(4.f, 0.f)));
 	}
 
 	void onButton(const ButtonEvent& e) override {

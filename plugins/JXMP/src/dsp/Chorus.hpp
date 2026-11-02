@@ -32,7 +32,8 @@ struct DelayLine {
 	float read(float delay) const {
 		const int n = (int) buf.size();
 		delay = std::min(std::max(delay, 1.f), (float) (n - 2));
-		const float p = pos - delay;
+		// the sample just written is 0 samples ago, at pos - 1
+		const float p = pos - 1 - delay;
 		const int i = (int) std::floor(p);
 		const float f = p - i;
 		const float a = buf[(i % n + n) % n], b = buf[((i + 1) % n + n) % n];

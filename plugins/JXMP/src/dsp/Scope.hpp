@@ -169,7 +169,9 @@ struct Capture {
 		if (!running()) {
 			waiting += dt;
 			if (trigger || freeRun || (autoRun && waiting > autoTimeout(sweepTime))) {
-				// The part before the trigger from the history (oldest first), the trigger sample after it
+				// The part before the trigger from the history (oldest first). The trigger point itself is written at
+				// the next take: its min/max then covers a whole slice like every other point (a slice of one sample
+				// left a notch in the peak bands at the centre), its value stays the trigger sample.
 				pre = pretrigger(secondsPerDiv);
 				acquiringDiv = secondsPerDiv;
 				for (int ch = 0; ch < 2; ++ch) {
@@ -179,14 +181,11 @@ struct Capture {
 						hi[ch][i] = histHi[ch][h];
 						value[ch][i] = histValue[ch][h];
 					}
-					lo[ch][pre] = curLo[ch];
-					hi[ch][pre] = curHi[ch];
-					value[ch][pre] = x[ch];
+					triggerValue[ch] = x[ch];
 				}
-				index = pre + 1;
+				index = pre;
 				waiting = 0.f;
 				sinceTake = 0.f;
-				pushHistory(x);
 				return;
 			}
 		}
@@ -196,7 +195,7 @@ struct Capture {
 			for (int ch = 0; ch < 2; ++ch) {
 				lo[ch][index] = curLo[ch];
 				hi[ch][index] = curHi[ch];
-				value[ch][index] = x[ch];
+				value[ch][index] = index == pre ? triggerValue[ch] : x[ch];
 			}
 			if (++index >= kPoints)
 				publish(lo, hi, value, pre, acquiringDiv);
@@ -205,6 +204,7 @@ struct Capture {
 	}
 
 	float acquiringDiv = 0.f;  // the time base of the running acquisition
+	float triggerValue[2] = {};  // the sample at the trigger, the value of the centre point
 
 	void publish(const float (*l)[kPoints], const float (*h)[kPoints], const float (*v)[kPoints], int trigAt, float div) {
 		const int back = 1 - front.load(std::memory_order_relaxed);
@@ -231,7 +231,7 @@ struct Capture {
 		const double after = (kPoints - p) * stepSamples;
 		// The newest trigger with enough signal after it (and before it, inside the memory)
 		long trig = -1;
-		for (int n = 1; n <= std::min(triggerCount, kTriggers); ++n) {
+		for (int n = 1; n <= std::min(triggerCount, (int) kTriggers); ++n) {
 			const long t = triggers[(triggerCount - n) % kTriggers];
 			if (t + after <= coarseCount && coarseCount - (t - p * stepSamples) < kCoarse) {
 				trig = t;
