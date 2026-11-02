@@ -222,6 +222,54 @@
       "tags": [
         "Reverb"
       ]
+    },
+    {
+      "slug": "Chorus",
+      "name": "Chorus",
+      "description": "JX-CHR: stereo chorus and ensemble with rate, depth and mix",
+      "tags": [
+        "Chorus"
+      ]
+    },
+    {
+      "slug": "Folder",
+      "name": "Folder",
+      "description": "JX-FLD: wavefolder with fold, symmetry and CV",
+      "tags": [
+        "Waveshaper"
+      ]
+    },
+    {
+      "slug": "Ring",
+      "name": "Ring",
+      "description": "JX-RNG: ring modulator with dry/wet",
+      "tags": [
+        "Ring modulator"
+      ]
+    },
+    {
+      "slug": "Logic",
+      "name": "Logic",
+      "description": "JX-LGC: AND, OR, XOR, NOT and a comparator",
+      "tags": [
+        "Logic"
+      ]
+    },
+    {
+      "slug": "Switch",
+      "name": "Switch",
+      "description": "JX-SW: sequential switch 4 to 1 and 1 to 4",
+      "tags": [
+        "Switch"
+      ]
+    },
+    {
+      "slug": "Poly",
+      "name": "Poly",
+      "description": "JX-PLY: poly split, merge, voice count and mult",
+      "tags": [
+        "Polyphonic"
+      ]
     }
   ]
 }

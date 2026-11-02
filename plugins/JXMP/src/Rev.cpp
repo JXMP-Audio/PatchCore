@@ -80,7 +80,7 @@ struct RevWidget : JXMPModuleWidget {
 		setup(module, "JX-REV", nvgRGB(0x8f, 0xc8, 0xf0), 12);
 		styled();
 		section(3.f, 20.5f, 54.96f, 30.f, "SPACE");
-		toggle(math::Vec(12.f, 36.f), Rev::ALGO_PARAM, 3, {"PLATE", "HALL", "ROOM"});
+		toggle(math::Vec(15.f, 36.f), Rev::ALGO_PARAM, 3, {"PLATE", "HALL", "ROOM"});
 		label(math::Vec(38.f, 25.f), "SIZE", 6.5f);
 		knob(math::Vec(38.f, 37.f), Rev::SIZE_PARAM, 13.f, st::CAP_MAIN, 0.25f, 2.f,
 		     st::marks(0.25f, 2.f, 0.25f, 7, [](float v) { return v < 1.f ? std::string("S") : std::string("L"); }));

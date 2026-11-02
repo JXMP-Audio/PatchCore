@@ -299,6 +299,10 @@
     {
      "id": 80,
      "value": 0.48
+    },
+    {
+     "id": 15,
+     "value": 0.35
     }
    ],
    "pos": [
@@ -369,6 +373,77 @@
    "pos": [
     18,
     3
+   ]
+  },
+  {
+   "id": 19,
+   "plugin": "JXMP",
+   "model": "Chorus",
+   "version": "2.0.0",
+   "params": [
+    {
+     "id": 3,
+     "value": 1.0
+    }
+   ],
+   "pos": [
+    30,
+    3
+   ]
+  },
+  {
+   "id": 20,
+   "plugin": "JXMP",
+   "model": "Folder",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    0,
+    4
+   ]
+  },
+  {
+   "id": 21,
+   "plugin": "JXMP",
+   "model": "Ring",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    6,
+    4
+   ]
+  },
+  {
+   "id": 22,
+   "plugin": "JXMP",
+   "model": "Logic",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    12,
+    4
+   ]
+  },
+  {
+   "id": 23,
+   "plugin": "JXMP",
+   "model": "Switch",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    20,
+    4
+   ]
+  },
+  {
+   "id": 24,
+   "plugin": "JXMP",
+   "model": "Poly",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    28,
+    4
    ]
   }
  ],
@@ -620,6 +695,62 @@
    "inputModuleId": 13,
    "inputId": 9,
    "color": "#8fc8f0"
+  },
+  {
+   "id": 53,
+   "outputModuleId": 13,
+   "outputId": 3,
+   "inputModuleId": 19,
+   "inputId": 0,
+   "color": "#b9a2ee"
+  },
+  {
+   "id": 54,
+   "outputModuleId": 19,
+   "outputId": 0,
+   "inputModuleId": 13,
+   "inputId": 10,
+   "color": "#b9a2ee"
+  },
+  {
+   "id": 55,
+   "outputModuleId": 19,
+   "outputId": 1,
+   "inputModuleId": 13,
+   "inputId": 11,
+   "color": "#b9a2ee"
+  },
+  {
+   "id": 56,
+   "outputModuleId": 16,
+   "outputId": 0,
+   "inputModuleId": 22,
+   "inputId": 0,
+   "color": "#9aa6b4"
+  },
+  {
+   "id": 57,
+   "outputModuleId": 16,
+   "outputId": 1,
+   "inputModuleId": 22,
+   "inputId": 1,
+   "color": "#9aa6b4"
+  },
+  {
+   "id": 58,
+   "outputModuleId": 15,
+   "outputId": 2,
+   "inputModuleId": 23,
+   "inputId": 5,
+   "color": "#d6c08a"
+  },
+  {
+   "id": 59,
+   "outputModuleId": 15,
+   "outputId": 7,
+   "inputModuleId": 23,
+   "inputId": 6,
+   "color": "#d6c08a"
   }
  ]
 }

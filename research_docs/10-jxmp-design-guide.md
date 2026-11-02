@@ -111,13 +111,13 @@ inputs have light text. All JXMP sockets are on the back (Patchbay front jacks a
   is the Mixer view (F4) — [11](11-views-console-editor-design.md)
 - [ ] Next: plugin/standalone modes and audio settings ([12](12-standalone-plugin-audio-design.md)), then the
   piano-roll Editor — [11](11-views-console-editor-design.md)
-- [ ] Third set (2026-11-01), design [14](14-jxmp-modules-set3-design.md), same procedure, in this order:
-  1. [ ] JX-SCP (Scope, 24 HP) — phosphor mint `#5ff0a0`: round green CRT, 2 channels + trigger, X–Y, afterglow
-  2. [ ] JX-CLK (Clock) — coral `#ff7f6a`: transport / CLOCK IN (front or back, one side at a time), dividers, swing
-  3. [ ] JX-EUC (Euclidean) — rose `#e05a8a`: 4 tracks, steps/hits/rotate
-  4. [ ] JX-DRM (Drums, ~24 HP) — brick `#b5462e`: kick, snare, hat, clap, individual outs + mix
-  5. [ ] JX-REV (Reverb) — ice blue `#8fc8f0`: plate/hall/room, stereo
-  6. [ ] JX-CHR (Chorus/ensemble) — lavender `#b9a2ee`
-  7. [ ] JX-FLD (Wavefolder) — lime `#b6e04a`; JX-RNG (Ring mod) — copper `#c07a3e`
-  8. [ ] JX-LGC (Logic) — steel `#9aa6b4`; JX-SW (Switch) — sand `#d6c08a`; JX-PLY (Poly utils) — navy `#3f5fa8`
+- [x] Third set (2026-11-01, done 2026-11-02 on branch jxmp-set3), design [14](14-jxmp-modules-set3-design.md), same procedure, in this order:
+  1. [x] JX-SCP (Scope, 24 HP) — phosphor mint `#5ff0a0`: round green CRT, 2 channels + trigger, X–Y, afterglow
+  2. [x] JX-CLK (Clock) — coral `#ff7f6a`: transport / CLOCK IN (front or back, one side at a time), dividers, swing
+  3. [x] JX-EUC (Euclidean) — rose `#e05a8a`: 4 tracks, steps/hits/rotate
+  4. [x] JX-DRM (Drums, ~24 HP) — brick `#b5462e`: kick, snare, hat, clap, individual outs + mix
+  5. [x] JX-REV (Reverb) — ice blue `#8fc8f0`: plate/hall/room, stereo
+  6. [x] JX-CHR (Chorus/ensemble) — lavender `#b9a2ee`
+  7. [x] JX-FLD (Wavefolder) — lime `#b6e04a`; JX-RNG (Ring mod) — copper `#c07a3e`
+  8. [x] JX-LGC (Logic) — steel `#9aa6b4`; JX-SW (Switch) — sand `#d6c08a`; JX-PLY (Poly utils) — navy `#3f5fa8`
 - Cancelled: realistic cables (07/08) — the original cables stay

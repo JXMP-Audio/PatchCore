@@ -1252,6 +1252,12 @@ static void initStatic__JXMP()
         p->addModel(modelJXMPEuclid);
         p->addModel(modelJXMPDrums);
         p->addModel(modelJXMPReverb);
+        p->addModel(modelJXMPChorus);
+        p->addModel(modelJXMPFolder);
+        p->addModel(modelJXMPRing);
+        p->addModel(modelJXMPLogic);
+        p->addModel(modelJXMPSwitch);
+        p->addModel(modelJXMPPoly);
     }
 }
 

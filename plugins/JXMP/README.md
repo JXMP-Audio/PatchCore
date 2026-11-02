@@ -20,6 +20,17 @@ Built-in modules by JXMP Audio for PatchCore. Their sockets are on the back of t
 | JX-AMP | VCA | 8 HP | Two VCAs with level knobs, linear or exponential response; channel 2 is normalled to channel 1's input. Polyphonic. |
 | JX-ENV | ADSR | 14 HP | Envelope with CV for each stage, curve (linear to exponential), ADSR / AD / loop modes, push button, ENV, inverted and end-of-cycle outputs. Polyphonic. |
 | JX-CONSOLE | Console 4 / 8 / 16 / 32 | 18 HP | The project's main mixer (one per project; a second one stays silent with a notice). Per channel: 3-band EQ (low shelf 100 Hz, mid 200 Hz–5 kHz, high shelf 8 kHz, ±15 dB), sends A/B (pre/post), constant-power pan, mute/solo, fader to +6 dB, peak LED meter in dBFS. Two stereo returns, stereo master, two send outputs, all sockets on the back. Front: two VU meters (IEC ballistics; 0 VU = −9, −14 or −18 dBFS in the module menu), meter source, master mute and fader. Double-click (or F4) opens the Mixer view with all controls. |
+| JX-SCP | Scope | 24 HP | Two-channel oscilloscope with a square green CRT, behaving as a digital scope: trigger point in the centre (level, rise/fall, source CH1/CH2/EXT, AUTO/NORM, dashed level line), whole pictures, X-Y mode, TIME/DIV 0.1 ms-1 s redrawn at once. |
+| JX-CLK | Clock | 12 HP | Master clock: CLOCK IN (24/4/1 PPQN, e.g. Host MIDI), else the transport, else its own tempo with RUN; x4, x2, beat, /2, /4, /8, /16 with swing, RESET, RUN; BPM window. |
+| JX-EUC | Euclid | 14 HP | Four Euclidean rhythm tracks (steps, hits, rotate), gate and accent outputs, pattern display. |
+| JX-DRM | Drums | 18 HP | Kick, snare, hi-hat (closed/open, choke) and clap with tune, decay, tone, trigger and accent; outputs per voice and a mix. |
+| JX-REV | Reverb | 12 HP | Stereo plate / hall / room reverb: size, decay 0.2-12 s, predelay, tone, mix, CV. |
+| JX-CHR | Chorus | 10 HP | Stereo chorus and ensemble: rate, depth, mix, CV. |
+| JX-FLD | Folder | 6 HP | Wavefolder: fold up to 10x, symmetry, fold CV amount. Polyphonic. |
+| JX-RNG | Ring | 6 HP | Ring modulator A x B with dry/wet. Polyphonic. |
+| JX-LGC | Logic | 8 HP | AND, OR, XOR, NOT A of two gates, and a comparator with threshold. Polyphonic. |
+| JX-SW | Switch | 8 HP | Sequential switch 4 > 1 and 1 > 4, length 2-4, clock and reset. |
+| JX-PLY | Poly | 10 HP | Poly split (1 > 8), merge (8 > 1), voice count, mult 1 > 4. |
 | JX-PB4 / PB8 / PB16 | Patchbay 4 / 8 / 16 | 4 / 4 / 8 HP | Passes channels between the front and the back. Plug something into front jack *n* and it comes out of back jack *n*, or the other way round. The first cable decides the direction; the LEDs show it (green → back, yellow → front). |
 
 DSP of JX-OSC, JX-FLT, JX-LFO, JX-NSE and the JX-AMP gain law is based on VCV Fundamental (GPL-3.0-or-later).

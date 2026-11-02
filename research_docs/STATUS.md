@@ -15,7 +15,11 @@ or weekly limit ends). Newest first.
   - [x] JX-EUC Euclidean rhythms (4 tracks, display, gate + accent)
   - [x] JX-DRM drums (kick, snare, hat open/closed, clap; accent; outs + mix)
   - [x] JX-REV reverb (plate/hall/room FDN, RT60, predelay, tone, mix)
-  - [ ] JX-CHR, JX-FLD, JX-RNG, JX-LGC, JX-SW, JX-PLY
+  - [x] JX-CHR, JX-FLD, JX-RNG, JX-LGC, JX-SW, JX-PLY (2026-11-02 night, checked by screenshots front/back;
+        all in patches/jxmp-workbench.vcv rows 3-4)
+  - Menus cleaned up (no light mode, no Cardinal/Rack-only options), one-click menu switching.
+  - VU "drops" investigated: DSP logging and 300 screen grabs showed no dropouts, only the dips of the
+    showcase sequence (a step without gate every ~6 s).
 - `run-patchcore.sh` with no argument opens `patches/jxmp-workbench.vcv` (showcase + console, scope, clock,
   euclid — add every new module there) and rebuilds first when sources are newer.
 
