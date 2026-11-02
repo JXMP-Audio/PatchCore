@@ -237,14 +237,15 @@ struct PatchNameLcd : widget::Widget {
 		std::string name = APP->patch->path.empty() ? "Untitled patch" : system::getFilename(APP->patch->path);
 		const bool edited = !APP->history->isSaved();
 
-		nvgScissor(vg, 0, 0, box.size.x, box.size.y);
+		nvgSave(vg);
+		nvgIntersectScissor(vg, 0, 0, box.size.x, box.size.y);
 		const float cy = box.size.y * 0.5f + 1.f;
 		draw::lcdText(vg, 13.f, math::Vec(12.f, cy), NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, name, t.lcdFg);
 		if (edited) {
 			const float x = 12.f + textWidth(monoFont(), 13.f, name, 0.f) + 10.f;
 			draw::lcdText(vg, 11.f, math::Vec(x, cy), NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, "* edited", t.lcdDim);
 		}
-		nvgResetScissor(vg);
+		nvgRestore(vg);
 	}
 };
 

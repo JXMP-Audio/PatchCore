@@ -18,8 +18,6 @@
 namespace rack {
 namespace patchcore {
 
-static bool mixerOpen = false;
-
 static std::map<plugin::Model*, std::string>& singletonGroups() {
 	static std::map<plugin::Model*, std::string> groups;
 	return groups;
@@ -54,13 +52,13 @@ static app::ModuleWidget* findConsole() {
 	return nullptr;
 }
 
-void showMixer(bool show) {
-	mixerOpen = show && enabled() && findConsole() != nullptr;
-}
+struct MixerView;
+/** The Mixer view of the current scene: each plugin instance has its own (a global flag opened the Mixer in every
+instance of a DAW session) */
+static MixerView* currentView();
 
-bool mixerShown() {
-	return mixerOpen;
-}
+void showMixer(bool show);
+bool mixerShown();
 
 bool mixerAvailable() {
 	return enabled() && findConsole() != nullptr;
@@ -68,6 +66,7 @@ bool mixerAvailable() {
 
 
 struct MixerView : widget::OpaqueWidget {
+	bool open = false;
 	app::ModuleWidget* owner = nullptr;
 	widget::Widget* content = nullptr;
 
@@ -82,9 +81,9 @@ struct MixerView : widget::OpaqueWidget {
 
 	void step() override {
 		// Checked before the children step: the content's controls point at the console module
-		app::ModuleWidget* const console = mixerOpen && enabled() ? findConsole() : nullptr;
+		app::ModuleWidget* const console = open && enabled() ? findConsole() : nullptr;
 		if (!console) {
-			mixerOpen = false;
+			open = false;
 			dropContent();
 			hide();
 			return;
@@ -119,6 +118,25 @@ struct MixerView : widget::OpaqueWidget {
 		}
 	}
 };
+
+static MixerView* currentView() {
+	if (APP == nullptr || APP->scene == nullptr)
+		return nullptr;
+	for (widget::Widget* w : APP->scene->children)
+		if (MixerView* const v = dynamic_cast<MixerView*>(w))
+			return v;
+	return nullptr;
+}
+
+void showMixer(bool show) {
+	if (MixerView* const v = currentView())
+		v->open = show && enabled() && findConsole() != nullptr;
+}
+
+bool mixerShown() {
+	MixerView* const v = currentView();
+	return v != nullptr && v->open;
+}
 
 widget::Widget* createMixerView() {
 	MixerView* const v = new MixerView;

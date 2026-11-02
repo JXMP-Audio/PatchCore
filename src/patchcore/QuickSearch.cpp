@@ -88,6 +88,7 @@ struct QsList : widget::OpaqueWidget {
 	void draw(const DrawArgs& args) override;
 	void onButton(const ButtonEvent& e) override;
 	void onHover(const HoverEvent& e) override;
+	void onLeave(const LeaveEvent& e) override;
 	void onHoverScroll(const HoverScrollEvent& e) override;
 };
 
@@ -441,6 +442,11 @@ void QsList::onHover(const HoverEvent& e) {
 	qs->hovered = qs->scroll + (int) (e.pos.y / kRowHeight);
 }
 
+void QsList::onLeave(const LeaveEvent& e) {
+	OpaqueWidget::onLeave(e);
+	qs->hovered = -1;  // no row stays lit after the mouse left the list
+}
+
 void QsList::onHoverScroll(const HoverScrollEvent& e) {
 	const int maxScroll = std::max(0, (int) qs->rows.size() - kVisibleRows);
 	qs->scroll = math::clamp(qs->scroll + (e.scrollDelta.y < 0 ? 2 : -2), 0, maxScroll);
@@ -456,7 +462,15 @@ void QsList::onButton(const ButtonEvent& e) {
 	if (row < 0 || row >= (int) qs->rows.size() || qs->rows[row].header)
 		return;
 	if ((e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
-		qs->rows[row].model->setFavorite(!qs->rows[row].model->isFavorite());
+		plugin::Model* const m = qs->rows[row].model;
+		m->setFavorite(!m->isFavorite());
+		// The FAVOURITES section follows at once; the list stays where it was
+		const int i = qs->indexOf(m);
+		if (i >= 0)
+			qs->entries[i].favorite = m->isFavorite();
+		const int keepScroll = qs->scroll;
+		qs->refresh();
+		qs->scroll = std::min(keepScroll, std::max(0, (int) qs->rows.size() - kVisibleRows));
 		return;
 	}
 	qs->add(row);

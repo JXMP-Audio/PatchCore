@@ -48,7 +48,8 @@ struct Navigator : widget::OpaqueWidget {
 	static constexpr const float kMapTop = 34.f;
 	static constexpr const float kMaxMapHeight = 220.f;
 
-	std::map<app::ModuleWidget*, NVGcolor> colors;
+	/** Panel colour per module id (a widget address can be reused by the next module) */
+	std::map<int64_t, NVGcolor> colors;
 	size_t lastModuleCount = 0;
 
 	// Layout of the last draw, used to map clicks back to rack coordinates
@@ -122,11 +123,13 @@ struct Navigator : widget::OpaqueWidget {
 			lastModuleCount = modules.size();
 		}
 
-		nvgScissor(vg, RECT_ARGS(map));
+		nvgSave(vg);
+		nvgIntersectScissor(vg, RECT_ARGS(map));
 		for (app::ModuleWidget* const mw : modules) {
-			std::map<app::ModuleWidget*, NVGcolor>::iterator it = colors.find(mw);
+			const int64_t id = mw->module ? mw->module->id : -1;
+			std::map<int64_t, NVGcolor>::iterator it = colors.find(id);
 			if (it == colors.end())
-				it = colors.emplace(mw, panelColor(mw)).first;
+				it = colors.emplace(id, panelColor(mw)).first;
 			const math::Vec p0 = toMap(mw->box.pos);
 			const math::Vec p1 = toMap(mw->box.pos.plus(mw->box.size));
 			nvgBeginPath(vg);
@@ -149,13 +152,14 @@ struct Navigator : widget::OpaqueWidget {
 		nvgStrokeWidth(vg, 1.5f);
 		nvgStrokeColor(vg, t.accent);
 		nvgStroke(vg);
-		nvgResetScissor(vg);
+		nvgRestore(vg);
 
 		// Shortcut legend
 		static const std::vector<std::pair<std::string, std::string>> keys = {
 			{"Tab", "flip rack"},
 			{"Enter", "find module"},
 			{"Space", "play/stop"},
+			{"F1-F3", "rack · back · mixer"},
 			{"", "shift+click: select"},
 			{"", "ctrl+drag: select area"},
 			{"", "shift+drag: move module"},
@@ -163,6 +167,9 @@ struct Navigator : widget::OpaqueWidget {
 			{"", "wheel: turn knobs"},
 		};
 		float y = box.size.y - 14.f - (keys.size() - 1) * 19.f;
+		// A short window: the legend would cover the map, so it is left out
+		if (y - 10.f < map.getBottom() + 8.f)
+			return;
 		for (const std::pair<std::string, std::string>& k : keys) {
 			float x = kPad;
 			if (!k.first.empty()) {
