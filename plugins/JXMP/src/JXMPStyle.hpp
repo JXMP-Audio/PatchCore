@@ -572,15 +572,23 @@ inline void icon(NVGcontext* vg, Icon type, math::Vec c, float w, NVGcolor color
 }
 
 
-/** Green vacuum fluorescent display (VFD): every readout of a JXMP module uses it. */
+/** Vacuum fluorescent display (VFD): every readout of a JXMP module uses it, glowing in the module colour. */
 inline NVGcolor vfdLit() { return nvgRGB(0x5c, 0xff, 0xb8); }
+
+/** The glow of a module colour: brightened to full intensity and a little towards white, so dark colours
+(navy, indigo) still read as a lit display */
+inline NVGcolor vfdTint(NVGcolor c) {
+	const float m = std::max(std::max(c.r, c.g), std::max(c.b, 0.01f));
+	auto ch = [&](float v) { return std::min(1.f, v / m) * 0.8f + 0.2f; };
+	return nvgRGBf(ch(c.r), ch(c.g), ch(c.b));
+}
 
 /** Bezel width: 1 mm, thinner on small windows */
 inline float vfdBezel(math::Vec size) { return std::min(mm2px(1.f), size.y * 0.12f); }
 
-/** The VFD window: black bezel, dark green-tinted glass, the fine grid mesh and the filament wires behind it,
+/** The VFD window: black bezel, dark glass tinted like the lit colour (green, or a module colour), the fine grid mesh and the filament wires behind it,
 a soft reflection on top. Draw it first, then the digits and annunciators. */
-inline void vfdWindow(NVGcontext* vg, math::Vec size) {
+inline void vfdWindow(NVGcontext* vg, math::Vec size, NVGcolor lit = vfdLit()) {
 	const float bz = vfdBezel(size);
 	// Bezel with a darker upper and a lighter lower edge (the window sits in the panel)
 	nvgBeginPath(vg);
@@ -591,7 +599,8 @@ inline void vfdWindow(NVGcontext* vg, math::Vec size) {
 	const math::Rect g(math::Vec(bz, bz), size.minus(math::Vec(2 * bz, 2 * bz)));
 	nvgBeginPath(vg);
 	nvgRoundedRect(vg, RECT_ARGS(g), 1.5f);
-	nvgFillPaint(vg, nvgLinearGradient(vg, 0, g.pos.y, 0, g.pos.y + g.size.y, nvgRGB(0x03, 0x0d, 0x0b), nvgRGB(0x06, 0x16, 0x12)));
+	nvgFillPaint(vg, nvgLinearGradient(vg, 0, g.pos.y, 0, g.pos.y + g.size.y,
+	                                   nvgRGBf(lit.r * 0.045f, lit.g * 0.045f, lit.b * 0.045f), nvgRGBf(lit.r * 0.08f, lit.g * 0.08f, lit.b * 0.08f)));
 	nvgFill(vg);
 	nvgSave(vg);
 	nvgIntersectScissor(vg, RECT_ARGS(g));
@@ -607,7 +616,7 @@ inline void vfdWindow(NVGcontext* vg, math::Vec size) {
 		nvgLineTo(vg, g.pos.x + g.size.x, y);
 	}
 	nvgStrokeWidth(vg, 0.4f);
-	nvgStrokeColor(vg, nvgRGBAf(0.36f, 1.f, 0.72f, 0.035f));
+	nvgStrokeColor(vg, nvgRGBAf(lit.r, lit.g, lit.b, 0.035f));
 	nvgStroke(vg);
 	// Filament wires across the glass
 	nvgBeginPath(vg);
@@ -695,7 +704,7 @@ inline void vfdDigits(NVGcontext* vg, float right, float bottom, float height, i
 	}
 	while ((int) row.size() < cells)
 		row.insert(row.begin(), Cell{0, false});
-	const float w = height * 0.5f, t = height * 0.12f, pitch = w + height * 0.28f;
+	const float w = height * 0.5f, t = height * 0.1f, pitch = w + height * 0.32f;
 	const NVGcolor ghost = nvgRGBAf(lit.r, lit.g, lit.b, 0.06f);
 	const int n = row.size();
 	for (int i = 0; i < n; ++i) {
@@ -710,9 +719,9 @@ inline void vfdDigits(NVGcontext* vg, float right, float bottom, float height, i
 			vfdSegment(vg, seg, w, height, t);
 			if (on) {
 				// Glow: a wide faint halo, then the bright core
-				nvgStrokeWidth(vg, t * 1.4f);
+				nvgStrokeWidth(vg, t * 0.7f);
 				nvgLineJoin(vg, NVG_ROUND);
-				nvgStrokeColor(vg, nvgRGBAf(lit.r, lit.g, lit.b, lit.a * 0.16f));
+				nvgStrokeColor(vg, nvgRGBAf(lit.r, lit.g, lit.b, lit.a * 0.12f));
 				nvgStroke(vg);
 				nvgFillColor(vg, lit);
 			}

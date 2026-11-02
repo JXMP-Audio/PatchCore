@@ -93,15 +93,17 @@ struct Euc : engine::Module {
 };
 
 
-/** Four rows of 16 dots on a green VFD: the pattern of each track (faint past its length), the current step ringed. */
+/** Four rows of 16 dots on a VFD in the module colour: the pattern of each track (faint past its length), the current step ringed. */
 struct PatternDisplay : widget::TransparentWidget {
 	Euc* module = nullptr;
+	NVGcolor colour;
 
 	void draw(const DrawArgs& args) override {
 		namespace st = jxmp::style;
 		NVGcontext* const vg = args.vg;
-		st::vfdWindow(vg, box.size);
-		const NVGcolor lit = st::vfdLit();
+		// A VFD in the module colour (rose phosphor)
+		const NVGcolor lit = st::vfdTint(colour);
+		st::vfdWindow(vg, box.size, lit);
 		const float padX = mm2px(2.5f), padY = mm2px(2.2f);
 		const float dx = (box.size.x - 2 * padX) / eu::kMaxSteps, dy = (box.size.y - 2 * padY) / kTracks;
 		const float rad = std::min(dx, dy) * 0.3f;
@@ -126,8 +128,8 @@ struct PatternDisplay : widget::TransparentWidget {
 				nvgFill(vg);
 				if (i == current) {
 					nvgBeginPath(vg);
-					nvgCircle(vg, x, y, rad + 1.8f);
-					nvgStrokeWidth(vg, 1.2f);
+					nvgCircle(vg, x, y, rad * 1.5f);
+					nvgStrokeWidth(vg, 0.9f);
 					nvgStrokeColor(vg, lit);
 					nvgStroke(vg);
 				}
@@ -149,6 +151,7 @@ struct EucWidget : JXMPModuleWidget {
 		section(3.f, 20.5f, w - 6.f, 24.f, "PATTERNS");
 		PatternDisplay* const display = new PatternDisplay;
 		display->module = module;
+		display->colour = colour;
 		display->box = math::Rect(mm2px(math::Vec(5.f, 24.f)), mm2px(math::Vec(w - 10.f, 18.f)));
 		addChild(display);
 

@@ -73,17 +73,18 @@ struct Qnt : engine::Module {
 };
 
 
-/** Shows the scale and root by name on a green VFD. */
+/** Shows the scale and root by name on a VFD in the module colour. */
 struct ScaleDisplay : widget::TransparentWidget {
 	Qnt* module = nullptr;
 
 	void draw(const DrawArgs& args) override {
 		namespace st = jxmp::style;
 		NVGcontext* const vg = args.vg;
-		st::vfdWindow(vg, box.size);
+		const NVGcolor lit = st::vfdTint(nvgRGB(0xc9, 0x4f, 0x9c));
+		st::vfdWindow(vg, box.size, lit);
 		static const char* const roots[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 		const std::string text = module ? std::string(roots[module->root()]) + " " + jxmp::scaleName(module->scale()) : "C Major";
-		st::vfdText(vg, box.size.div(2), string::uppercase(text), 7.5f);
+		st::vfdText(vg, box.size.div(2), string::uppercase(text), 7.5f, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, lit);
 		st::vfdGlare(vg, box.size);
 	}
 };

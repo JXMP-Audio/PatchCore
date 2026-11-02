@@ -56,20 +56,20 @@ struct Ply : engine::Module {
 	}
 };
 
-/** The voice count of SPLIT IN on a green VFD: two digits and a bar of 16 voice marks */
+/** The voice count of SPLIT IN on a VFD in the module colour: two digits and a bar of 16 voice marks */
 struct VoiceDisplay : widget::TransparentWidget {
 	Ply* module = nullptr;
 	void draw(const DrawArgs& args) override {
 		namespace st = jxmp::style;
 		NVGcontext* const vg = args.vg;
-		st::vfdWindow(vg, box.size);
+		const NVGcolor lit = st::vfdTint(nvgRGB(0x3f, 0x5f, 0xa8));
+		st::vfdWindow(vg, box.size, lit);
 		const int v = module ? module->voices : 4;
-		const float h = box.size.y * 0.46f;
-		st::vfdDigits(vg, box.size.x * 0.5f + h * 0.8f, box.size.y * 0.12f + h + mm2px(1.f), h, 2, v > 0 ? string::f("%d", v) : "-");
+		const float h = box.size.y * 0.4f;
+		st::vfdDigits(vg, box.size.x * 0.5f + h * 0.8f, box.size.y * 0.12f + h + mm2px(1.f), h, 2, v > 0 ? string::f("%d", v) : "-", lit);
 		// One mark per voice, lit up to the count
 		const float x0 = mm2px(3.f), x1 = box.size.x - mm2px(3.f), y = box.size.y * 0.8f;
 		const float dx = (x1 - x0) / 16.f;
-		const NVGcolor lit = st::vfdLit();
 		for (int i = 0; i < 16; ++i) {
 			nvgBeginPath(vg);
 			nvgRect(vg, x0 + i * dx + dx * 0.15f, y - mm2px(0.7f), dx * 0.7f, mm2px(1.4f));

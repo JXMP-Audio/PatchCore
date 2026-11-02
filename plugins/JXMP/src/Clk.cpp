@@ -135,23 +135,24 @@ struct Clk : engine::Module {
 };
 
 
-/** Tempo window: a green VFD with the BPM and where the tempo comes from. */
+/** Tempo window: a VFD in the module colour with the BPM and where the tempo comes from. */
 struct BpmDisplay : widget::TransparentWidget {
 	Clk* module = nullptr;
 
 	void draw(const DrawArgs& args) override {
 		namespace st = jxmp::style;
 		NVGcontext* const vg = args.vg;
-		st::vfdWindow(vg, box.size);
+		const NVGcolor tint = st::vfdTint(nvgRGB(0xff, 0x7f, 0x6a));
+		st::vfdWindow(vg, box.size, tint);
 		const float bpm = module ? module->shownBpm : 120.f;
 		const Source src = module ? module->source : SRC_STOPPED;
 		// Stopped: the digits dim, as a tube on standby
-		const NVGcolor lit = src == SRC_STOPPED ? color::alpha(st::vfdLit(), 0.4f) : st::vfdLit();
+		const NVGcolor lit = src == SRC_STOPPED ? color::alpha(tint, 0.4f) : tint;
 		const float h = box.size.y * 0.52f;
 		st::vfdDigits(vg, box.size.x * 0.66f, box.size.y * 0.5f + h / 2, h, 4, string::f("%.1f", bpm), lit);
 		st::vfdLegend(vg, math::Vec(box.size.x * 0.7f, box.size.y * 0.34f), "BPM", box.size.y * 0.22f, true, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, lit);
 		const char* const what = src == SRC_EXT ? "CLOCK IN" : src == SRC_HOST ? "TRANSPORT" : src == SRC_INT ? "OWN TEMPO" : "STOPPED";
-		st::vfdLegend(vg, math::Vec(box.size.x * 0.7f, box.size.y * 0.66f), what, box.size.y * 0.18f, true);
+		st::vfdLegend(vg, math::Vec(box.size.x * 0.7f, box.size.y * 0.66f), what, box.size.y * 0.18f, true, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, tint);
 		st::vfdGlare(vg, box.size);
 	}
 };
