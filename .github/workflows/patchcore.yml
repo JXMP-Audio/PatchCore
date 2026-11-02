@@ -1,0 +1,122 @@
+name: patchcore
+
+# PatchCore builds: the standalone app and the VST3 plugins (PatchCore, PatchCore FX) for Linux x86_64 and
+# Windows 64-bit. Started by hand only (Actions tab → patchcore → Run workflow, or `gh workflow run patchcore`):
+# the user decides when a build runs.
+on:
+  workflow_dispatch:
+
+env:
+  CACHE_VERSION: 1
+  CIBUILD: true
+  DEBIAN_FRONTEND: noninteractive
+  LIBGL_ALWAYS_SOFTWARE: true
+  PAWPAW_CI: 1
+  PAWPAW_FAST_MATH: 1
+  PAWPAW_SKIP_GLIB: 1
+  PAWPAW_SKIP_LTO: 1
+  PAWPAW_SKIP_LV2: 1
+  PAWPAW_SKIP_OPENSSL: 1
+  PAWPAW_SKIP_SAMPLERATE: 1
+  PAWPAW_SKIP_TESTS: 1
+
+jobs:
+  linux-x86_64:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Set up dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -yqq libasound2-dev libdbus-1-dev libgl1-mesa-dev liblo-dev libsdl2-dev libx11-dev libxcursor-dev libxext-dev libxrandr-dev libjansson-dev gperf meson
+          sudo apt-get clean
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ccache-linux-x86_64-v${{ env.CACHE_VERSION }}
+      - name: Build
+        env:
+          LDFLAGS: -static-libgcc -static-libstdc++
+        run: |
+          export PATH="/usr/lib/ccache:${PATH}"
+          make features
+          make carla deps dgl plugins resources -j $(nproc)
+          # the final stages one job at a time, else the runner may run out of memory
+          make HAVE_PULSEAUDIO=false jack -j 1
+          make HAVE_PULSEAUDIO=false vst3 -j 1
+      - name: Tests
+        run: |
+          bash src/patchcore/tests/run.sh
+          bash plugins/JXMP/tests/run.sh
+      - name: Pack
+        run: |
+          echo "SHA8=$(echo ${{ github.sha }} | cut -c1-8)" >> $GITHUB_ENV
+          mkdir -p dist/PatchCore
+          cp -rL bin/Cardinal bin/CardinalSynth.vst3 bin/CardinalFX.vst3 dist/PatchCore/
+          cp -rL bin/CardinalSynth.vst3/Contents/Resources dist/PatchCore/resources  # the standalone finds it next to itself
+          cp LICENSE README.md dist/PatchCore/
+          tar -c -J -f PatchCore-linux-x86_64-$(echo ${{ github.sha }} | cut -c1-8).tar.xz -C dist PatchCore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PatchCore-linux-x86_64-${{ env.SHA8 }}
+          path: '*.tar.xz'
+
+  windows-x86_64:
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:22.04
+    steps:
+      - name: Install git
+        run: |
+          apt-get update -qq && apt-get install -yqq --no-install-recommends ca-certificates git openssl
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Set up cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/PawPawBuilds
+            src/Rack/dep/bin
+            src/Rack/dep/include
+            src/Rack/dep/lib
+            src/Rack/dep/share
+            src/Rack/dep/jansson-2.12
+            src/Rack/dep/libarchive-3.4.3
+            src/Rack/dep/libsamplerate-0.1.9
+            src/Rack/dep/zstd-1.4.5
+          key: win64-v${{ env.CACHE_VERSION }}
+      - name: Set up dependencies
+        run: |
+          ./deps/PawPaw/.github/workflows/bootstrap-deps.sh win64
+          apt-get install -yqq wget xvfb zip
+          apt-get clean
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ccache-win64-v${{ env.CACHE_VERSION }}
+      - name: Build extra dependencies
+        run: |
+          ./deps/PawPaw/bootstrap-cardinal.sh win64 && ./deps/PawPaw/.cleanup.sh win64
+      - name: Build (cross-compiled)
+        shell: bash
+        run: |
+          export PATH="/usr/lib/ccache:${PATH}"
+          source deps/PawPaw/local.env win64
+          make features
+          xvfb-run make NOOPT=true -j $(nproc)
+      - name: Pack
+        shell: bash
+        run: |
+          echo "SHA8=$(echo ${{ github.sha }} | cut -c1-8)" >> $GITHUB_ENV
+          mkdir -p dist/PatchCore
+          cp -rL bin/Cardinal.exe bin/CardinalSynth.vst3 bin/CardinalFX.vst3 dist/PatchCore/
+          cp -rL bin/CardinalSynth.vst3/Contents/Resources dist/PatchCore/resources  # the standalone finds it next to itself
+          cp LICENSE README.md dist/PatchCore/
+          cd dist && zip -r -9 ../PatchCore-windows-x86_64-$(echo ${{ github.sha }} | cut -c1-8).zip PatchCore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PatchCore-windows-x86_64-${{ env.SHA8 }}
+          path: '*.zip'

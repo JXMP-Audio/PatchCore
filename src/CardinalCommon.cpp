@@ -615,6 +615,20 @@ Initializer::Initializer(const CardinalBasePlugin* const plugin, const CardinalB
                 asset::bundlePath = system::join(asset::systemDir, "PluginManifests");
             }
         }
+
+        // PatchCore: a portable standalone finds its "resources" folder next to the program (the release zip/tar)
+        if (asset::systemDir.empty())
+        {
+            if (const char* const binary = getBinaryFilename())
+            {
+                const std::string dir = system::join(system::getDirectory(binary), "resources");
+                if (system::exists(system::join(dir, "PluginManifests")))
+                {
+                    asset::systemDir = dir;
+                    asset::bundlePath = system::join(dir, "PluginManifests");
+                }
+            }
+        }
        #endif
 
         if (asset::systemDir.empty() || ! system::exists(asset::systemDir) || ! system::exists(asset::bundlePath))

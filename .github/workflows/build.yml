@@ -1,6 +1,8 @@
 name: build
 
-on: [push, pull_request]
+# PatchCore: upstream Cardinal matrix, by hand only (the PatchCore builds are in patchcore.yml)
+on:
+  workflow_dispatch:
 
 env:
   CACHE_VERSION: 15

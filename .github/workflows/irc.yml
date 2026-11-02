@@ -1,6 +1,8 @@
 name: irc
 
-on: [push, pull_request]
+# PatchCore: never sent to the DISTRHO IRC channel; kept only so upstream merges stay simple
+on:
+  workflow_dispatch:
 
 jobs:
   notification:
