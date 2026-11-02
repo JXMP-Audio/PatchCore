@@ -25,6 +25,9 @@ or weekly limit ends). Newest first.
 - VU needles "dying": investigated, not a bug (dips were the old showcase sequence's gateless steps).
 - Tests in `plugins/JXMP/tests` (scope, clock, euclid, drums, reverb, chorus, shapers) are written, NOT run:
   user rule = no builds/tests/Actions until the user says "build".
+- The 9 deferred review minors of `standalone-audio` (M2–M6, M8, M9, M11, M12) are all fixed in 48e6e6c (checked
+  again 2026-11-02); M3 (JACK buffer is server-wide) and M5 (a card PipeWire holds cannot be listed under ALSA)
+  are limits of JACK/ALSA, the dialog hint and the notice say so. Nothing is left to fix before the build.
 - PluginCollection submodule pointer not bumped (it follows `main`; branches are not merged yet).
 
 ### JX-SCP: accepted (2026-11-02, "super, paráda")
@@ -80,7 +83,7 @@ Also on the branch: a plain click on a module panel no longer selects it (the ra
 needs a 6 px drag), and scratches in the patina never cross each other.
 
 Final review (fresh reviewer) done: the Critical (link) and all Important findings are fixed in 5e1db44,
-uncompiled. Deferred minors (see `.superpowers/sdd/13-plan-standalone-plugin-audio/progress.md`): Linux restart
+uncompiled. The deferred minors below were fixed later in 48e6e6c. Deferred minors (see `.superpowers/sdd/13-plan-standalone-plugin-audio/progress.md`): Linux restart
 skips Rack's normal shutdown; JACK ignores the chosen rate and its buffer change is server-wide; ALSA default
 output + named input opens the default input; a card held by PipeWire is not listed under ALSA; config parse
 keeps `\r`; info-text truncation cuts UTF-8; CardinalRemote lacks AudioSettings.cpp; main and Synth variants
