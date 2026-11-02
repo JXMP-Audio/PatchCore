@@ -61,13 +61,22 @@ int main() {
 			assert(std::fabs(l.value[0][i] - l.value[0][i - 1]) < 0.5f);
 	}
 
-	// No trigger: the picture holds (no new sweep); a trigger starts one
+	// NORM without a trigger: no sweep, and what was written fades out (the phosphor); a trigger starts one
 	Capture hold;
 	for (int i = 0; i < 4800; ++i)
-		hold.process(2.f, 0.f, false, dt, 0.001f);
+		hold.process(2.f, 0.f, false, dt, 0.001f, false, false);
 	assert(hold.sweeps == 0 && !hold.running());
-	hold.process(2.f, 0.f, true, dt, 0.001f);
-	assert(hold.running());
+	hold.process(2.f, 0.f, true, dt, 0.001f, false, false);
+	assert(hold.running() && hold.glow(0) > 0.99f);
+	for (int i = 0; i < 48000; ++i)
+		hold.process(2.f, 0.f, false, dt, 0.001f, false, false);
+	assert(hold.glow(0) < 0.05f);
+
+	// AUTO without a trigger: the beam runs by itself, so a steady voltage still shows
+	Capture autoRun;
+	for (int i = 0; i < 9600; ++i)
+		autoRun.process(2.f, 0.f, false, dt, 0.001f);
+	assert(autoRun.sweeps >= 1 && near(autoRun.value[0][100], 2.f));
 
 	// Free run: sweeps back to back without a trigger
 	Capture free;

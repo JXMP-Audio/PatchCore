@@ -56,18 +56,30 @@ struct Trigger {
 	}
 };
 
+/** Phosphor persistence: a written point fades to dark over about this many seconds (P31-like green) */
+constexpr float kPersistence = 0.25f;
+
 /**
- * The capture, as VCV Fundamental's Scope does it: one buffer of kPoints points that the display draws live.
- * A sweep starts on a trigger (or right away in free run) at the left edge and overwrites the buffer point by
- * point; without a trigger the buffer stays — the picture holds. Each point keeps the minimum and maximum of
- * the samples in its time slice, so slow time bases do not alias. `value` is the last sample of each point.
+ * The beam of an analogue scope: a sweep starts on a trigger at the left edge (AUTO also by itself when no
+ * trigger comes) and writes point by point at the real speed. Each point remembers when it was written
+ * (`stamp`, in `time` seconds); the display lights it by its age, as the phosphor fades. Each point keeps the
+ * minimum and maximum of its time slice (no aliasing). AUTO waits for slow triggers: while they keep coming it
+ * waits 1.5 times their spacing (up to 10 s) before running free.
  */
 struct Capture {
 	float lo[2][kPoints] = {}, hi[2][kPoints] = {}, value[2][kPoints] = {};
+	double stamp[kPoints] = {};
+	double time = 0.0;  // seconds since the start, for the stamps
 	int sweeps = 0;
-	int index = kPoints;  // kPoints = holding, waiting for a trigger
+	int index = kPoints;  // kPoints = beam waiting at the left (retrace done)
 	float sinceTake = 0.f;
 	float curLo[2] = {INFINITY, INFINITY}, curHi[2] = {-INFINITY, -INFINITY};
+	float waiting = 0.f, sinceTrigger = 0.f, triggerSpacing = 0.f;
+
+	Capture() {
+		for (double& s : stamp)
+			s = -1e9;  // never written: dark
+	}
 
 	bool running() const {
 		return index < kPoints;
@@ -78,20 +90,38 @@ struct Capture {
 		index = kPoints;
 	}
 
-	/** One audio sample. `freeRun`: sweeps back to back without a trigger (FREE mode, X–Y). */
-	void process(float a, float b, bool trigger, float dt, float secondsPerDiv, bool freeRun = false) {
+	float autoTimeout(float sweepTime) const {
+		if (triggerSpacing > 0.f)
+			return std::min(std::max(1.5f * triggerSpacing, 0.1f), 10.f);
+		return std::min(2.f * sweepTime + 0.05f, 0.1f);
+	}
+
+	/** One audio sample. `freeRun`: back to back without a trigger (X–Y). `autoRun`: AUTO, else NORM. */
+	void process(float a, float b, bool trigger, float dt, float secondsPerDiv, bool freeRun = false, bool autoRun = true) {
+		time += dt;
 		const float x[2] = {a, b};
+		const float sweepTime = secondsPerDiv * kDivisions;
+		sinceTrigger += dt;
+		if (trigger) {
+			triggerSpacing = sinceTrigger;
+			sinceTrigger = 0.f;
+		}
+		else if (sinceTrigger > std::max(3.f, 2.f * triggerSpacing))
+			triggerSpacing = 0.f;  // the triggers stopped: AUTO runs free again soon
+
 		if (!running()) {
-			if (!(trigger || freeRun))
+			waiting += dt;
+			if (!(trigger || freeRun || (autoRun && waiting > autoTimeout(sweepTime))))
 				return;
 			index = 0;
+			waiting = 0.f;
 			sinceTake = 0.f;
 			for (int ch = 0; ch < 2; ++ch) {
 				curLo[ch] = INFINITY;
 				curHi[ch] = -INFINITY;
 			}
 		}
-		const float step = secondsPerDiv * kDivisions / kPoints;
+		const float step = sweepTime / kPoints;
 		for (int ch = 0; ch < 2; ++ch) {
 			curLo[ch] = std::min(curLo[ch], x[ch]);
 			curHi[ch] = std::max(curHi[ch], x[ch]);
@@ -108,8 +138,15 @@ struct Capture {
 			curLo[ch] = INFINITY;
 			curHi[ch] = -INFINITY;
 		}
+		stamp[index] = time;
 		if (++index >= kPoints)
 			++sweeps;
+	}
+
+	/** Brightness of a point now: 1 when just written, fading with the phosphor */
+	float glow(int i) const {
+		const double age = time - stamp[i];
+		return age < 0.0 ? 0.f : (float) std::exp(-age / kPersistence);
 	}
 };
 
