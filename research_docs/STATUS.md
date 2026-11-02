@@ -24,8 +24,10 @@ or weekly limit ends). Newest first.
   edge) plus a DSP fuzz (random inputs and knobs, NaN burst, CPU load); logs "DEV CHECK DONE: n problem(s)" and
   closes. It found a crash: a NaN at JX-OSC MORPH indexed outside an array (fixed, test added) and 8 missing
   tooltips (added). Now: 31 models, 0 problems.
-- Bug hunt still to do: read the core UI code (QuickSearch, TopBar, MixerView, Navigator, AudioSettings,
-  Tutorial) and the older modules' process() by hand.
+- Code check done (8379901): the core UI read by hand (QuickSearch, TopBar, MixerView, Navigator; Tutorial and
+  AudioSettings were reviewed before) and every module's process() scanned for allocation / locks (none). Fixed: the
+  Mixer open state was global (opened in every plugin instance), quick-search hover and favourites, Navigator colours
+  and legend, LCD clip. Next: the build the user announces, then the screen checks, then the Editor.
 
 ### Not checked yet (needs the user at the screen)
 
