@@ -206,6 +206,14 @@
       "tags": [
         "Sequencer"
       ]
+    },
+    {
+      "slug": "Drums",
+      "name": "Drums",
+      "description": "JX-DRM: kick, snare, hi-hat (closed/open) and clap with tune, decay, tone, accent, outputs and mix",
+      "tags": [
+        "Drum"
+      ]
     }
   ]
 }
