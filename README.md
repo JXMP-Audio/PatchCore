@@ -5,6 +5,12 @@ the front, our JXMP modules on the back: press `Tab` to turn the rack around, an
 It comes as a **standalone app** and as two **VST3 plugins**, **PatchCore** (instrument) and **PatchCore FX**
 (effect), for Linux and Windows.
 
+<p>
+<img src="docs/screenshots/patchcore-rack.png" alt="PatchCore rack, front" width="32%">
+<img src="docs/screenshots/patchcore-back.png" alt="PatchCore rack, back with cables" width="32%">
+<img src="docs/screenshots/patchcore-mixer.png" alt="PatchCore Mixer view" width="32%">
+</p>
+
 ## Features
 
 - A rack with a back side for the cables of the JXMP modules (`Tab`), Patchbay 4 / 8 / 16 between front and back
