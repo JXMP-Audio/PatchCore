@@ -128,11 +128,14 @@ static tu::RackState snapshot(std::map<std::string, PeakHold>& peaks, double t) 
 		tu::ModuleState ms;
 		ms.id = id;
 		ms.slug = m->model->slug;
+		ms.plugin = m->model->plugin ? m->model->plugin->slug : "";
 		s.modules.push_back(ms);
 		app::ModuleWidget* const mw = APP->scene->rack->getModule(id);
 		for (int out = 0; out < 2; ++out) {
-			std::vector<engine::Port>& ports = out ? m->outputs : m->inputs;
-			for (int i = 0; i < (int) ports.size(); ++i) {
+			// inputs and outputs are vectors of different types (Input / Output), both Ports
+			const int n = (int) (out ? m->outputs.size() : m->inputs.size());
+			for (int i = 0; i < n; ++i) {
+				engine::Port& port = out ? (engine::Port&) m->outputs[i] : (engine::Port&) m->inputs[i];
 				engine::PortInfo* const info = out ? m->outputInfos[i] : m->inputInfos[i];
 				tu::PortState p;
 				p.moduleId = id;
@@ -140,7 +143,7 @@ static tu::RackState snapshot(std::map<std::string, PeakHold>& peaks, double t) 
 				p.index = i;
 				p.name = info ? info->name : "";
 				p.side = sideOf(mw, p.output, i);
-				p.peak = portPeak(ports[i], peaks[std::to_string(id) + (out ? "/o" : "/i") + std::to_string(i)], t);
+				p.peak = portPeak(port, peaks[std::to_string(id) + (out ? "/o" : "/i") + std::to_string(i)], t);
 				s.ports.push_back(p);
 			}
 		}
@@ -286,7 +289,8 @@ static void perform(const tu::Action& a, std::map<std::string, PeakHold>& peaks,
 // The layer: panel + highlight + first-start offer
 
 struct TutorialLayer;
-static TutorialLayer* sLayer = nullptr;
+/** The tutorial layer of the current scene (each plugin instance has its own scene and layer) */
+static TutorialLayer* currentLayer();
 
 struct TutorialPanel : widget::OpaqueWidget {
 	TutorialLayer* layer;
@@ -321,7 +325,11 @@ struct TutorialLayer : widget::Widget {
 	tu::Runner runner;
 	std::string lessonId;
 	bool active = false;
-	std::vector<int64_t> startIds;
+	std::vector<tu::ModuleState> startModules;
+	/** The lesson after this one ("" for the last), read once when the lesson begins */
+	std::string nextId;
+	/** runner.finishCount already recorded */
+	int finishSeen = 0;
 	std::map<std::string, PeakHold> peaks;
 	tu::RackState state;
 	TutorialPanel* panel;
@@ -333,12 +341,6 @@ struct TutorialLayer : widget::Widget {
 		panel = new TutorialPanel(this);
 		panel->hide();
 		addChild(panel);
-		sLayer = this;
-	}
-
-	~TutorialLayer() {
-		if (sLayer == this)
-			sLayer = nullptr;
 	}
 
 	double now() const {
@@ -350,7 +352,9 @@ struct TutorialLayer : widget::Widget {
 		lesson = l;
 		active = true;
 		peaks.clear();
-		startIds = APP->engine->getModuleIds();
+		startModules = snapshot(peaks, now()).modules;
+		nextId = findNextLessonId();
+		finishSeen = 0;
 		setViewSide(lesson.startSide == tu::SIDE_BACK ? VIEW_BACK : VIEW_FRONT);
 		runner.start(lesson, now());
 		scrolledStep = -1;
@@ -370,8 +374,8 @@ struct TutorialLayer : widget::Widget {
 		}
 	}
 
-	/** The lesson after this one, "" if it is the last */
-	std::string nextLessonId() const {
+	/** The lesson after this one, "" if it is the last (reads index.json and the lessons: not every frame) */
+	std::string findNextLessonId() const {
 		const std::vector<TutorialInfo> list = tutorialList();
 		for (size_t i = 0; i + 1 < list.size(); ++i)
 			if (list[i].id == lessonId)
@@ -401,14 +405,16 @@ struct TutorialLayer : widget::Widget {
 		if (active) {
 			const double t = now();
 			state = snapshot(peaks, t);
-			if (tu::patchReplaced(startIds, state)) {
+			if (tu::patchReplaced(startModules, state)) {
 				end();
 			}
 			else {
-				const tu::Runner::Phase before = runner.phase;
 				runner.update(state, t);
-				if (before != tu::Runner::FINISHED && runner.phase == tu::Runner::FINISHED)
+				// The lesson ends through Next on its summary step (in the panel's click) or here
+				if (runner.finishCount != finishSeen) {
+					finishSeen = runner.finishCount;
 					finishLesson();
+				}
 				scrollToTarget();
 			}
 		}
@@ -442,7 +448,7 @@ struct TutorialLayer : widget::Widget {
 		const math::Rect view = scroll->box;
 		if (a.x >= view.pos.x && b.x <= view.getRight() && a.y >= view.pos.y && b.y <= view.getBottom())
 			return;
-		scroll->setGridOffset(mw->box.pos.div(RACK_GRID_SIZE).minus(math::Vec(4.f, 0.f)));
+		scroll->setGridOffset(mw->box.pos.minus(RACK_OFFSET).div(RACK_GRID_SIZE).minus(math::Vec(4.f, 0.f)));
 	}
 
 	void onButton(const ButtonEvent& e) override {
@@ -526,7 +532,7 @@ void TutorialPanel::onButton(const ButtonEvent& e) {
 	}
 	if (nextRect.contains(e.pos)) {
 		if (r.phase == tu::Runner::FINISHED) {
-			const std::string next = layer->nextLessonId();
+			const std::string next = layer->nextId;
 			layer->end();
 			if (!next.empty())
 				openTutorial(next);
@@ -609,7 +615,7 @@ void TutorialPanel::draw(const DrawArgs& args) {
 		drawPanelButton(vg, showMeRect, "Show me", r.phase == tu::Runner::ACTIVE, false);
 	drawPanelButton(vg, exitRect, "Exit", true, false);
 	if (finished)
-		drawPanelButton(vg, nextRect, layer->nextLessonId().empty() ? "Close" : "Next lesson", true, true);
+		drawPanelButton(vg, nextRect, layer->nextId.empty() ? "Close" : "Next lesson", true, true);
 	else
 		drawPanelButton(vg, nextRect, "Next", r.nextEnabled(), true);
 
@@ -624,12 +630,22 @@ void openTutorial(const std::string& id) {
 		WARN("PatchCore tutorials: %s: %s", id.c_str(), error.c_str());
 		return;
 	}
-	if (sLayer != nullptr)
-		sLayer->end();
+	if (TutorialLayer* const layer = currentLayer())
+		layer->end();
 	patchUtils::loadPathDialog(system::join(tutorialsDir(), id, "start.vcv"), true, [id, lesson]() {
-		if (sLayer != nullptr)
-			sLayer->begin(id, lesson);
+		if (TutorialLayer* const layer = currentLayer())
+			layer->begin(id, lesson);
 	});
+}
+
+
+static TutorialLayer* currentLayer() {
+	if (APP == nullptr || APP->scene == nullptr)
+		return nullptr;
+	for (widget::Widget* w : APP->scene->children)
+		if (TutorialLayer* const layer = dynamic_cast<TutorialLayer*>(w))
+			return layer;
+	return nullptr;
 }
 
 

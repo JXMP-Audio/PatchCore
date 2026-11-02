@@ -356,6 +356,8 @@ inline bool parseIndex(const std::string& text, std::vector<IndexEntry>* out, st
 struct ModuleState {
 	int64_t id;
 	std::string slug;
+	/** Brand (plugin slug): "JXMP", "Cardinal", "Fundamental"… */
+	std::string plugin;
 };
 
 struct PortState {
@@ -393,11 +395,18 @@ struct RackState {
 	int side = SIDE_FRONT;
 };
 
+/** Lessons teach JXMP modules; Host Audio is Cardinal's. Same-named modules of other brands (Fundamental VCO…)
+do not count. */
+inline std::string pluginFor(const std::string& slug) {
+	return slug == "HostAudio2" ? "Cardinal" : "JXMP";
+}
+
 /** The first module of that model (lowest id) */
 inline const ModuleState* findModule(const RackState& s, const std::string& slug) {
+	const std::string plugin = pluginFor(slug);
 	const ModuleState* best = nullptr;
 	for (const ModuleState& m : s.modules)
-		if (m.slug == slug && (best == nullptr || m.id < best->id))
+		if (m.slug == slug && m.plugin == plugin && (best == nullptr || m.id < best->id))
 			best = &m;
 	return best;
 }
@@ -523,6 +532,8 @@ struct Runner {
 	StepContext ctx;
 	/** Module slugs that were in the rack at some point of the lesson */
 	std::set<std::string> seen;
+	/** Counts the times the lesson reached its end (the app records the lesson as done on a change) */
+	int finishCount = 0;
 
 	void start(const Lesson& l, double t) {
 		lesson = &l;
@@ -530,6 +541,7 @@ struct Runner {
 		phase = ACTIVE;
 		reviewing = false;
 		seen.clear();
+		finishCount = 0;
 		enter(t);
 	}
 
@@ -552,7 +564,8 @@ struct Runner {
 
 	void update(const RackState& s, double t) {
 		for (const ModuleState& m : s.modules)
-			seen.insert(m.slug);
+			if (m.plugin == pluginFor(m.slug))
+				seen.insert(m.slug);
 		if (lesson == nullptr || phase == FINISHED)
 			return;
 		if (phase == DONE) {
@@ -611,6 +624,7 @@ private:
 		for (;;) {
 			if (step + 1 >= (int) lesson->steps.size()) {
 				phase = FINISHED;
+				++finishCount;
 				return;
 			}
 			++step;
@@ -652,13 +666,14 @@ inline std::vector<std::string> goneModules(const Step& step, const RackState& s
 	return gone;
 }
 
-/** None of the lesson's start modules is left: the user opened another patch */
-inline bool patchReplaced(const std::vector<int64_t>& startIds, const RackState& s) {
-	if (startIds.empty())
+/** None of the lesson's start modules is left: the user opened another patch. Matched by id and model, since
+patch files reuse small ids (the start patches use large ones). */
+inline bool patchReplaced(const std::vector<ModuleState>& start, const RackState& s) {
+	if (start.empty())
 		return false;
-	for (int64_t id : startIds)
+	for (const ModuleState& a : start)
 		for (const ModuleState& m : s.modules)
-			if (m.id == id)
+			if (m.id == a.id && m.slug == a.slug && m.plugin == a.plugin)
 				return false;
 	return true;
 }

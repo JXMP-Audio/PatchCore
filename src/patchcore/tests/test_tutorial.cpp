@@ -82,7 +82,7 @@ static void testParse() {
 static RackState demoRack() {
 	RackState s;
 	s.side = SIDE_BACK;
-	s.modules = {{20, "VCO"}, {10, "VCO"}, {30, "VCA"}, {40, "Patchbay4"}, {50, "HostAudio2"}};
+	s.modules = {{20, "VCO", "JXMP"}, {10, "VCO", "JXMP"}, {30, "VCA", "JXMP"}, {40, "Patchbay4", "JXMP"}, {50, "HostAudio2", "Cardinal"}};
 	// VCO 10 is the first VCO (lowest id)
 	s.ports = {
 		{10, true, 2, "Saw", SIDE_BACK, 5.f},
@@ -103,6 +103,12 @@ static void testConditions() {
 	const RackState s = demoRack();
 	assert(findModule(s, "VCO")->id == 10);
 	assert(findModule(s, "LFO") == nullptr);
+	// A same-named module of another brand does not count (Fundamental VCO in a JXMP lesson)
+	RackState fund;
+	fund.modules = {{5, "VCO", "Fundamental"}};
+	assert(findModule(fund, "VCO") == nullptr);
+	fund.modules.push_back({9, "VCO", "JXMP"});
+	assert(findModule(fund, "VCO")->id == 9);
 
 	Ref saw;
 	saw.module = "VCO";
@@ -306,8 +312,9 @@ static void testRunner() {
 	assert(r.step == 3 && !r.reviewing);
 
 	// Next on the last step finishes the lesson; Back from the summary returns to the last step
+	assert(r.finishCount == 0);
 	r.pressNext(withVca, 9.0);
-	assert(r.phase == Runner::FINISHED);
+	assert(r.phase == Runner::FINISHED && r.finishCount == 1);
 	r.back(9.5);
 	assert(r.phase == Runner::ACTIVE && r.step == 3 && r.reviewing);
 
@@ -330,12 +337,17 @@ static void testRunner() {
 	std::set<std::string> neverSeen;
 	assert(goneModules(l.steps[1], noVca, neverSeen).empty());
 
-	// Another patch loaded (Review Focus 2)
-	assert(!patchReplaced({40, 50}, demoRack()));
+	// Another patch loaded (Review Focus 2): the start modules are matched by id and model, since patch files
+	// reuse small ids (File → New's template has ids 2-4)
+	const std::vector<ModuleState> start = {{40, "Patchbay4", "JXMP"}, {50, "HostAudio2", "Cardinal"}};
+	assert(!patchReplaced(start, demoRack()));
 	RackState other;
-	other.modules = {{99, "VCO"}};
-	assert(patchReplaced({40, 50}, other));
-	assert(!patchReplaced({}, other));
+	other.modules = {{99, "VCO", "JXMP"}};
+	assert(patchReplaced(start, other));
+	RackState sameIds;
+	sameIds.modules = {{40, "HostMIDI", "Cardinal"}, {50, "VCO", "JXMP"}};
+	assert(patchReplaced(start, sameIds));
+	assert(!patchReplaced(std::vector<ModuleState>(), other));
 }
 
 static void testShowMe() {
