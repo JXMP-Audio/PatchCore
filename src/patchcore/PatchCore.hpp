@@ -51,9 +51,9 @@ struct Theme {
 
 /** Persistent PatchCore options, stored in the `PatchCore.json` sidecar next to Cardinal's own settings. */
 struct Settings {
-	/** Panel gloss/vignette amount, 0..1 */
+	/** Panel gloss/vignette amount, 0..1 (JXMP panels only) */
 	float sheen = 0.6f;
-	/** Draw mount screws on modules whose panel has no screw widgets */
+	/** Draw mount screws on JXMP panels that have no screw widgets */
 	bool mountScrews = true;
 	bool navigatorVisible = true;
 	bool transportVisible = true;

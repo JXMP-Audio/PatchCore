@@ -339,6 +339,9 @@ static void ModuleWidget_drawPatchCoreFront(ModuleWidget* const mw, const widget
 	const float w = mw->box.size.x;
 	const float h = mw->box.size.y;
 	ModuleWidget::Internal* const internal = mw->internal;
+	// Screws and the sheen only on our own panels: much of the third-party artwork is CC-BY-NC-ND
+	// (no derivatives, docs/LICENSES.md), so it is drawn as it is
+	const bool ours = mw->model != nullptr && mw->model->plugin != nullptr && mw->model->plugin->slug == "JXMP";
 
 	// Mount screws, unless the panel already has screw widgets
 	if (internal->hasScrews == -1) {
@@ -347,7 +350,7 @@ static void ModuleWidget_drawPatchCoreFront(ModuleWidget* const mw, const widget
 			internal->hasScrews = 1;
 		});
 	}
-	if (internal->hasScrews == 0 && patchcore::settings.mountScrews) {
+	if (ours && internal->hasScrews == 0 && patchcore::settings.mountScrews) {
 		const float r = 4.5f;
 		const float y1 = RACK_GRID_WIDTH * 0.5f;
 		const float y2 = h - RACK_GRID_WIDTH * 0.5f;
@@ -369,7 +372,7 @@ static void ModuleWidget_drawPatchCoreFront(ModuleWidget* const mw, const widget
 
 	// Panel sheen: top-left gloss and bottom-right falloff (CSS 162deg in the mockup)
 	const float sheen = patchcore::settings.sheen;
-	if (sheen > 0.f) {
+	if (ours && sheen > 0.f) {
 		const math::Vec dir(0.309f, 0.951f);
 		const float len = std::fabs(w * dir.x) + std::fabs(h * dir.y);
 		const math::Vec c(w * 0.5f, h * 0.5f);

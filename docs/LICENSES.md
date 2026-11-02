@@ -13,6 +13,8 @@ Below follows a list of all code licenses used in Cardinal and linked submodules
 | Carla                   | GPL-2.0-or-later         | Used as plugin host within Cardinal |
 | DPF                     | ISC                      | Used as the plugin framework |
 | Rack                    | GPL-3.0-or-later         | The actual Rack code, internal dependencies are compatible with GPLv3+ |
+| JXMP (PatchCore)        | GPL-3.0-or-later         | JXMP Audio's modules; DSP of JX-OSC, JX-FLT, JX-LFO, JX-NSE and the JX-AMP gain law based on VCV Fundamental (GPL-3.0-or-later) |
+| ASIO SDK 2.3.4          | GPL-3.0                  | Steinberg's dual-licensed SDK, used under its GPLv3 option (Windows standalone only) |
 | 21kHz                   | MIT                      | |
 | 8Mode                   | BSD-3-Clause             | |
 | Aaron Static            | MIT                      | |
@@ -191,6 +193,7 @@ Below is a list of artwork licenses from plugins
 | FehlerFabrik/*                          | GPL-3.0-or-later | No artwork specific license provided, see [FehlerFabrik#17](https://github.com/RCameron93/FehlerFabrik/issues/17) |
 | forsitan-modulare/*                     | GPL-3.0-or-later | No artwork specific license provided |
 | Fundamental/*                           | GPL-3.0-or-later | Same license as source code |
+| JXMP/*                                  | GPL-3.0-or-later | PatchCore's own panels, drawn in code; fonts Barlow / Barlow Condensed under OFL-1.1 (`res/fonts/`) |
 | GlueTheGiant/*                          | GPL-3.0-or-later | Same license as source code |
 | GlueTheGiant/fonts/DSEG7-*              | OFL-1.1-RFN      | |
 | GoodSheperd/*                           | GPL-3.0-or-later | No artwork specific license provided |

@@ -52,7 +52,7 @@ jobs:
           mkdir -p dist/PatchCore
           cp -rL bin/Cardinal bin/CardinalSynth.vst3 bin/CardinalFX.vst3 dist/PatchCore/
           cp -rL bin/CardinalSynth.vst3/Contents/Resources dist/PatchCore/resources  # the standalone finds it next to itself
-          cp LICENSE README.md dist/PatchCore/
+          cp LICENSE README.md docs/LICENSES.md dist/PatchCore/  # LICENSES.md: the licences and authors of the bundled modules
           tar -c -J -f PatchCore-linux-x86_64-$(echo ${{ github.sha }} | cut -c1-8).tar.xz -C dist PatchCore
       - uses: actions/upload-artifact@v4
         with:
@@ -117,7 +117,7 @@ jobs:
           mkdir -p dist/PatchCore
           cp -rL bin/Cardinal.exe bin/CardinalSynth.vst3 bin/CardinalFX.vst3 dist/PatchCore/
           cp -rL bin/CardinalSynth.vst3/Contents/Resources dist/PatchCore/resources  # the standalone finds it next to itself
-          cp LICENSE README.md dist/PatchCore/
+          cp LICENSE README.md docs/LICENSES.md dist/PatchCore/  # LICENSES.md: the licences and authors of the bundled modules
           cd dist && zip -r -9 ../PatchCore-windows-x86_64-$(echo ${{ github.sha }} | cut -c1-8).zip PatchCore
       - uses: actions/upload-artifact@v4
         with:
