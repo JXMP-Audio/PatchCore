@@ -67,6 +67,10 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ubuntu:22.04
+    env:
+      # Carla's Qt/Python frontend is not needed (PatchCore uses only the Carla backend) and it needs wine, which
+      # does not run in this container ("wine: socket: Function not implemented")
+      PAWPAW_SKIP_QT: 1
     steps:
       - name: Install git
         run: |
