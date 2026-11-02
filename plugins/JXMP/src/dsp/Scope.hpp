@@ -56,38 +56,34 @@ struct Trigger {
 	}
 };
 
-/** Phosphor persistence: a written point fades over about this many seconds (P31-like green); on slow sweeps
-the trail lasts about one sweep (as a long-persistence tube), so the whole wave stays until it is rewritten */
-constexpr float kPersistence = 0.25f;
+/** From this sweep length (seconds) on, the acquisition is shown while it runs (scan), as a DSO does */
+constexpr float kScanSweep = 0.4f;
 
 /**
- * The beam of an analogue scope: a sweep starts on a trigger at the left edge (AUTO also by itself when no
- * trigger comes) and writes point by point at the real speed. Each point remembers when it was written
- * (`stamp`, in `time` seconds); the display lights it by its age, as the phosphor fades. Each point keeps the
- * minimum and maximum of its time slice (no aliasing). AUTO waits for slow triggers: while they keep coming it
- * waits 1.5 times their spacing (up to 10 s) before running free.
+ * Acquisition as on a digital scope (e.g. a Hantek DSO): the trigger point is the middle of the screen, the half
+ * before it comes from a history that runs all the time. A finished acquisition is shown whole (`shown*`); on
+ * slow time bases the running one is shown as it fills (`lo/hi/value` up to `index`). NORM keeps the last
+ * picture without a trigger; AUTO acquires by itself when none comes (waiting 1.5 times the spacing of slow
+ * triggers, up to 10 s). Each point keeps the minimum and maximum of its time slice (no aliasing).
  */
 struct Capture {
+	static constexpr int kHalf = kPoints / 2;
 	float lo[2][kPoints] = {}, hi[2][kPoints] = {}, value[2][kPoints] = {};
-	double stamp[kPoints] = {};
-	double time = 0.0;  // seconds since the start, for the stamps
+	float shownLo[2][kPoints] = {}, shownHi[2][kPoints] = {}, shownValue[2][kPoints] = {};
 	int sweeps = 0;
-	int index = kPoints;  // kPoints = beam waiting at the left (retrace done)
+	int index = kPoints;  // kPoints = waiting for a trigger
+
+	float histLo[2][kHalf] = {}, histHi[2][kHalf] = {}, histValue[2][kHalf] = {};
+	int historyPos = 0;
 	float sinceTake = 0.f;
 	float curLo[2] = {INFINITY, INFINITY}, curHi[2] = {-INFINITY, -INFINITY};
 	float waiting = 0.f, sinceTrigger = 0.f, triggerSpacing = 0.f;
-	float persistence = kPersistence;
-
-	Capture() {
-		for (double& s : stamp)
-			s = -1e9;  // never written: dark
-	}
 
 	bool running() const {
 		return index < kPoints;
 	}
 
-	/** Stops the sweep (e.g. the time base changed): the next trigger starts a fresh one */
+	/** Drops the running acquisition (e.g. the time base changed): the next trigger starts a fresh one */
 	void restart() {
 		index = kPoints;
 	}
@@ -100,56 +96,76 @@ struct Capture {
 
 	/** One audio sample. `freeRun`: back to back without a trigger (X–Y). `autoRun`: AUTO, else NORM. */
 	void process(float a, float b, bool trigger, float dt, float secondsPerDiv, bool freeRun = false, bool autoRun = true) {
-		time += dt;
 		const float x[2] = {a, b};
 		const float sweepTime = secondsPerDiv * kDivisions;
-		persistence = std::max(kPersistence, 1.2f * sweepTime);
+		const float step = sweepTime / kPoints;
 		sinceTrigger += dt;
 		if (trigger) {
 			triggerSpacing = sinceTrigger;
 			sinceTrigger = 0.f;
 		}
 		else if (sinceTrigger > std::max(3.f, 2.f * triggerSpacing))
-			triggerSpacing = 0.f;  // the triggers stopped: AUTO runs free again soon
+			triggerSpacing = 0.f;
 
-		if (!running()) {
-			waiting += dt;
-			if (!(trigger || freeRun || (autoRun && waiting > autoTimeout(sweepTime))))
-				return;
-			index = 0;
-			waiting = 0.f;
-			sinceTake = 0.f;
-			for (int ch = 0; ch < 2; ++ch) {
-				curLo[ch] = INFINITY;
-				curHi[ch] = -INFINITY;
-			}
-		}
-		const float step = sweepTime / kPoints;
 		for (int ch = 0; ch < 2; ++ch) {
 			curLo[ch] = std::min(curLo[ch], x[ch]);
 			curHi[ch] = std::max(curHi[ch], x[ch]);
 		}
 		sinceTake += dt;
-		// The first point is the trigger sample; then one point per time step (at most one per sample)
-		if (index > 0 && sinceTake < step)
+		const bool take = sinceTake >= step;
+		if (take)
+			sinceTake = std::min(sinceTake - step, step);
+
+		if (!running()) {
+			waiting += dt;
+			if (trigger || freeRun || (autoRun && waiting > autoTimeout(sweepTime))) {
+				// The half before the trigger from the history (oldest first), the trigger sample in the middle
+				for (int ch = 0; ch < 2; ++ch) {
+					for (int i = 0; i < kHalf; ++i) {
+						const int h = (historyPos + i) % kHalf;
+						lo[ch][i] = histLo[ch][h];
+						hi[ch][i] = histHi[ch][h];
+						value[ch][i] = histValue[ch][h];
+					}
+					lo[ch][kHalf] = curLo[ch];
+					hi[ch][kHalf] = curHi[ch];
+					value[ch][kHalf] = x[ch];
+				}
+				index = kHalf + 1;
+				waiting = 0.f;
+				sinceTake = 0.f;
+				pushHistory(x);
+				return;
+			}
+		}
+		if (!take)
 			return;
-		sinceTake = index > 0 ? std::min(sinceTake - step, step) : 0.f;
+		if (running()) {
+			for (int ch = 0; ch < 2; ++ch) {
+				lo[ch][index] = curLo[ch];
+				hi[ch][index] = curHi[ch];
+				value[ch][index] = x[ch];
+			}
+			if (++index >= kPoints) {
+				std::copy(&lo[0][0], &lo[0][0] + 2 * kPoints, &shownLo[0][0]);
+				std::copy(&hi[0][0], &hi[0][0] + 2 * kPoints, &shownHi[0][0]);
+				std::copy(&value[0][0], &value[0][0] + 2 * kPoints, &shownValue[0][0]);
+				++sweeps;
+			}
+		}
+		pushHistory(x);
+	}
+
+	/** The point just finished goes into the history (it runs all the time, also during an acquisition) */
+	void pushHistory(const float* x) {
 		for (int ch = 0; ch < 2; ++ch) {
-			lo[ch][index] = curLo[ch];
-			hi[ch][index] = curHi[ch];
-			value[ch][index] = x[ch];
+			histLo[ch][historyPos] = curLo[ch];
+			histHi[ch][historyPos] = curHi[ch];
+			histValue[ch][historyPos] = x[ch];
 			curLo[ch] = INFINITY;
 			curHi[ch] = -INFINITY;
 		}
-		stamp[index] = time;
-		if (++index >= kPoints)
-			++sweeps;
-	}
-
-	/** Brightness of a point now: 1 when just written, fading with the phosphor */
-	float glow(int i) const {
-		const double age = time - stamp[i];
-		return age < 0.0 ? 0.f : (float) std::exp(-age / persistence);
+		historyPos = (historyPos + 1) % kHalf;
 	}
 };
 

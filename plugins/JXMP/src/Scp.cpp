@@ -3,9 +3,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * JX-SCP: two-channel oscilloscope with a round green CRT, styled after an old lab scope. Y–T with a trigger
- * (level, slope, source CH1 / CH2 / EXT; AUTO / NORM) or X–Y, behaving as an analogue scope: the beam sweeps
- * from the left edge at the real speed and the phosphor fades, so repeated sweeps make a steady picture and a
- * slow sweep shows a moving spot with a fading trail. Design: research_docs/14-jxmp-modules-set3-design.md.
+ * (level, slope, source CH1 / CH2 / EXT; AUTO / NORM) or X–Y. It acquires as a digital scope does: the trigger
+ * point in the middle, a complete picture each time (on slow time bases it fills as it comes), NORM holds it. Design: research_docs/14-jxmp-modules-set3-design.md.
  */
 
 #include "JXMPWidget.hpp"
@@ -64,9 +63,8 @@ struct Scp : engine::Module {
 		configSwitch(MODE_PARAM, 0.f, 1.f, 1.f, "Display", {"X–Y (CH 1 across, CH 2 up)", "Y–T (time)"})
 		    ->description = "Y-T draws the waves over time. X-Y draws CH 1 against CH 2 (Lissajous figures, stereo width).";
 		configSwitch(TRIG_MODE_PARAM, 0.f, 1.f, 1.f, "Trigger mode", {"Normal: only on a trigger", "Auto: runs by itself without a trigger"})
-		    ->description = "AUTO: the beam always runs, locked to the trigger when one comes, so you always see "
-		                    "something. NORM: the beam runs only on a trigger; without one the screen goes dark. "
-		                    "TRIG'D lights on every trigger.";
+		    ->description = "AUTO: always shows something, locked to the trigger when one comes. NORM: a new picture only on "
+		                    "a trigger; without one the last picture stays. TRIG'D lights on every trigger.";
 		configInput(IN1_INPUT, "In 1")->description = "Channel 1, the green trace (X in X–Y mode). Polyphonic: the first voice is drawn.";
 		configInput(IN2_INPUT, "In 2")->description = "Channel 2, the amber trace (Y in X–Y mode).";
 		configInput(TRIG_INPUT, "Trig")->description = "External trigger, used when the trigger source is EXT.";
@@ -107,7 +105,7 @@ struct Scp : engine::Module {
 };
 
 
-/** The round CRT: bezel, phosphor screen with a graticule, the traces with afterglow, a glass highlight. */
+/** The round CRT: bezel, phosphor screen with a graticule, the traces, a glass highlight. */
 struct CrtScreen : widget::TransparentWidget {
 	Scp* module = nullptr;
 
@@ -191,56 +189,40 @@ struct CrtScreen : widget::TransparentWidget {
 		const sc::Capture& cap = module->capture;
 
 		const NVGcolor colours[2] = {green, amber};
+		// A slow time base shows the running acquisition as it fills (scan); otherwise the last complete one.
+		// Never both: the new picture is not joined to the old one.
+		const float sweepTime = sc::timeDiv((int) std::round(module->params[Scp::TIME_PARAM].getValue())) * sc::kDivisions;
+		const bool scan = !xy && sweepTime >= sc::kScanSweep && cap.running();
+		const int count = scan ? cap.index : sc::kPoints;
+		const float(*lo)[sc::kPoints] = scan ? cap.lo : cap.shownLo;
+		const float(*hi)[sc::kPoints] = scan ? cap.hi : cap.shownHi;
+		const float(*val)[sc::kPoints] = scan ? cap.value : cap.shownValue;
 
 		if (xy) {
 			if (!(on1 && on2))
 				return;
-			// Chunks of points, each lit by the phosphor's age
-			for (int c0 = 0; c0 < sc::kPoints; c0 += 8) {
-				std::vector<math::Vec> pts;
-				for (int i = std::max(0, c0 - 1); i < std::min(sc::kPoints, c0 + 8); ++i)
-					pts.push_back(point(c, r, sc::divisions(cap.value[0][i], v1, p1), sc::divisions(cap.value[1][i], v2, p2)));
-				const float g = cap.glow(std::min(sc::kPoints - 1, c0 + 7));
-				if (g > 0.02f)
-					trace(vg, c, r, pts, green, g);
-			}
+			std::vector<math::Vec> pts(sc::kPoints);
+			for (int i = 0; i < sc::kPoints; ++i)
+				pts[i] = point(c, r, sc::divisions(val[0][i], v1, p1), sc::divisions(val[1][i], v2, p2));
+			trace(vg, c, r, pts, green, 1.f);
 			return;
 		}
 
-		// The beam's trail: each point drawn from its minimum to its maximum, lit by how long ago the beam wrote
-		// it (the phosphor fades); repeated sweeps keep it bright, a slow sweep leaves a fading trail
+		// Each point from its minimum to its maximum, so audio at a slow time base is a solid band
 		for (int ch = 0; ch < 2; ++ch) {
 			if (!(ch == 0 ? on1 : on2))
 				continue;
 			const float vd = ch == 0 ? v1 : v2, pd = ch == 0 ? p1 : p2;
-			for (int c0 = 0; c0 < sc::kPoints; c0 += 8) {
-				const float g = cap.glow(std::min(sc::kPoints - 1, c0 + 7));
-				if (g <= 0.02f)
+			std::vector<math::Vec> pts;
+			pts.reserve(2 * count);
+			for (int i = 0; i < count; ++i) {
+				if (!std::isfinite(lo[ch][i]) || !std::isfinite(hi[ch][i]))
 					continue;
-				std::vector<math::Vec> pts;
-				for (int i = std::max(0, c0 - 1); i < std::min(sc::kPoints, c0 + 8); ++i) {
-					const float lo = cap.lo[ch][i], hi = cap.hi[ch][i];
-					if (!std::isfinite(lo) || !std::isfinite(hi))
-						continue;
-					const float x = (float) i / (sc::kPoints - 1) * 8.f - 4.f;
-					pts.push_back(point(c, r, x, sc::divisions(i % 2 ? lo : hi, vd, pd)));
-					pts.push_back(point(c, r, x, sc::divisions(i % 2 ? hi : lo, vd, pd)));
-				}
-				trace(vg, c, r, pts, colours[ch], g);
+				const float x = (float) i / (sc::kPoints - 1) * 8.f - 4.f;
+				pts.push_back(point(c, r, x, sc::divisions(i % 2 ? lo[ch][i] : hi[ch][i], vd, pd)));
+				pts.push_back(point(c, r, x, sc::divisions(i % 2 ? hi[ch][i] : lo[ch][i], vd, pd)));
 			}
-
-			// The spot where the beam is now (seen on slow sweeps)
-			const int at = cap.index - 1;
-			if (cap.running() && at >= 0) {
-				const math::Vec head = point(c, r, (float) at / (sc::kPoints - 1) * 8.f - 4.f, sc::divisions(cap.value[ch][at], vd, pd));
-				if (head.minus(c).norm() <= r) {
-					const NVGcolor col = colours[ch];
-					nvgBeginPath(vg);
-					nvgCircle(vg, head.x, head.y, 3.f);
-					nvgFillPaint(vg, nvgRadialGradient(vg, head.x, head.y, 0.5f, 4.5f, nvgRGBAf(1, 1, 1, 0.9f), nvgRGBAf(col.r, col.g, col.b, 0)));
-					nvgFill(vg);
-				}
-			}
+			trace(vg, c, r, pts, colours[ch], 1.f);
 		}
 	}
 
