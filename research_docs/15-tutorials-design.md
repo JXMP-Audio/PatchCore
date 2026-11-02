@@ -51,18 +51,22 @@ side, the step first says "Press Tab to turn the rack around" and waits for the 
 ## Lesson files
 
 ```
-res/tutorials/index.json              order, id, title, one-line description
-res/tutorials/01-first-sound/lesson.json
-res/tutorials/01-first-sound/start.vcv
-res/tutorials/02-filter-envelope/…
-res/tutorials/03-modulation/…
+plugins/JXMP/res/tutorials/index.json              order, id, title, one-line description
+plugins/JXMP/res/tutorials/01-first-sound/lesson.json
+plugins/JXMP/res/tutorials/01-first-sound/start.vcv
+plugins/JXMP/res/tutorials/02-filter-envelope/…
+plugins/JXMP/res/tutorials/03-modulation/…
 ```
+
+The lessons live in the JXMP plugin's resources (they teach JXMP modules, and `src/Rack/res` is the Rack
+submodule); the core finds them through `plugin::getPlugin("JXMP")`. `plugins/Makefile` bundles the folder like
+other plugin resource folders (`RESOURCE_FILES += JXMP/res/tutorials`).
 
 ### References
 
 - **Module**: `"module": "<slug>"` (e.g. `"VCO"`, `"VCA"`, `"HostAudio2"`), the first module of that model in
-  the rack. When a start patch has two of a kind, the module carries `"data": {"tutorialTag": "<tag>"}` in
-  `start.vcv` and the reference adds `"tag": "<tag>"`.
+  the rack (lowest module id). No lesson of the first version uses two modules of one kind; tags for that case are
+  left for later.
 - **Port / param**: by the name the module configures (`configInput`/`configOutput`/`configParam`), e.g.
   `"output": "Saw"`, `"input": "In 1"`, `"param": "Cutoff frequency"`. Ports without a name are referenced by
   number: `"input": "#1"` (1-based). Names are not unique on a Patchbay (front and back are both "Ch 1"), so a
@@ -89,7 +93,7 @@ res/tutorials/03-modulation/…
 | Condition | True when |
 |---|---|
 | `{"next": true}` | the user clicks Next (explanation step) |
-| `{"module": ref}` | a module of that slug (and tag) is in the rack |
+| `{"module": ref}` | a module of that slug is in the rack |
 | `{"cable": {"from": ref, "to": ref}}` | a cable connects the two ports; `to` or `from` may be left out ("anywhere") |
 | `{"param": ref, "min": a, "max": b}` | the param value (in the displayed unit) is in [a, b] |
 | `{"param": ref, "moved": d}` | the param moved by at least `d` (fraction of its range) since the step began |
@@ -114,8 +118,9 @@ holds is skipped.
 ### `src/patchcore/TutorialLogic.hpp` (pure logic, no Rack)
 
 - `Lesson parseLesson(const std::string& json, std::string* error)`: parse and validate (required fields,
-  known condition names, references well-formed). Uses jansson like the rest of Rack.
-- `struct RackState`: modules (slug, tag, id), cables (from/to as module id + port name + side), params (module
+  known condition names, references well-formed). Uses jansson like the rest of Rack (the tests link the
+  system `libjansson`).
+- `struct RackState`: modules (slug, id), cables (from/to as module id + port name + side), params (module
   id + name → value, min, max), port peaks (module id + port → volts), the shown side, time.
 - `struct Resolved`: the references resolved against a `RackState` (module id, or "missing").
 - `bool holds(const Condition&, const RackState&, const StepContext&)`, where `StepContext` keeps the param
@@ -125,7 +130,7 @@ holds is skipped.
 
 ### `src/patchcore/Tutorial.cpp` (Rack side)
 
-- Builds a `RackState` every frame from `APP->engine` and the scene: module slugs and the `tutorialTag`, cables,
+- Builds a `RackState` every frame from `APP->engine` and the scene: module slugs, cables,
   `paramQuantities` (displayed values), `portInfos` names, `PortWidget` sides through `portSide()`, the shown
   side through `isBackView()`. Port peaks: the max |voltage| of each referenced port, read in the UI step
   (`Port::getVoltage`), kept over 0.3 s; no change to module DSP.
@@ -218,10 +223,10 @@ Start patch: the finished patch of lesson 2, plus LFO and Attenuverter. Back sid
 Pure-logic tests in `src/patchcore/tests/test_tutorial.cpp`, run by `src/patchcore/tests/run.sh`:
 
 - Parsing: valid lesson; rejects a missing `done`, an unknown condition, a bad reference.
-- Each condition against hand-made `RackState`s (true and false cases), including tags, `#n` port numbers and
+- Each condition against hand-made `RackState`s (true and false cases), including `#n` port numbers and
   the Patchbay `side`.
 - The 0.3 s hold; `moved` measured from the step start; Next / Back / skip of a step that already holds.
-- **Content check**: every `lesson.json` in `res/tutorials` parses; every module reference exists in
+- **Content check**: every `lesson.json` in `plugins/JXMP/res/tutorials` parses; every module reference exists in
   `plugins/JXMP/plugin.json` (or is `HostAudio2`); every port/param name exists in the module's source
   (`configInput` / `configOutput` / `configParam` / `configSwitch` names; `string::f("In %d", …)` patterns match
   any number); every `start.vcv` loads as JSON and holds the modules the lesson expects at start. A failure names

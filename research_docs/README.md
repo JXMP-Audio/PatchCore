@@ -19,6 +19,7 @@ A Reason-inspired, realistic frontend for Cardinal (a VCV Rack fork).
 | [13-plan-standalone-plugin-audio.md](13-plan-standalone-plugin-audio.md) | Implementation plan for 12, task by task |
 | [14-jxmp-modules-set3-design.md](14-jxmp-modules-set3-design.md) | Design: third JXMP set — Scope (round CRT), Clock, Euclidean, Drums, Reverb, Chorus, Folder, Ring mod, Logic, Switch, Poly utils |
 | [15-tutorials-design.md](15-tutorials-design.md) | Design: interactive tutorials — step panel that watches cables/knobs, lessons as data (First sound, Filter and envelope, Modulation) |
+| [16-plan-tutorials.md](16-plan-tutorials.md) | Plan: tutorials in 6 tasks — parser, conditions, runner + Show me, lessons 1–3 + content check, panel/highlight in the app, Help menu |
 | [STATUS.md](STATUS.md) | Handoff: what is done, what is in progress, what comes next (kept current every session) |
 | [mockups/index.html](mockups/index.html) | Interactive HTML mockup. Open it in a browser |
 | [mockups/screens/](mockups/screens/) | `front.png`, `back.png`, `play.png` captures at 1600×940 |

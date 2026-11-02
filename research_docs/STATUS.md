@@ -35,7 +35,8 @@ or weekly limit ends). Newest first.
 Interactive lessons (Help → Tutorials), designed with the user 2026-11-02: step panel that watches cables /
 knobs / sound and moves on, Show me, highlight; lessons as data in `res/tutorials`; lessons 1–3 (First sound,
 Filter and envelope, Modulation); English; also in VST3. Spec [15](15-tutorials-design.md) waits for the user's
-review; then the plan (writing-plans). Implementation comes after the requested build of the other branches.
+review → approved; plan [16](16-plan-tutorials.md) written (6 tasks), waits for the user's review and the choice
+of execution. Implementation comes after the requested build of the other branches.
 
 ### JX-SCP: accepted (2026-11-02, "super, paráda")
 
