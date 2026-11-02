@@ -30,7 +30,8 @@ jobs:
       - name: Set up dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -yqq libasound2-dev libdbus-1-dev libgl1-mesa-dev liblo-dev libsdl2-dev libx11-dev libxcursor-dev libxext-dev libxrandr-dev libjansson-dev gperf meson
+          # no liblo-dev: OSC remote control is off in PatchCore, and the plugin must not need liblo on the user's system
+          sudo apt-get install -yqq libasound2-dev libdbus-1-dev libgl1-mesa-dev libsdl2-dev libx11-dev libxcursor-dev libxext-dev libxrandr-dev libjansson-dev gperf meson
           sudo apt-get clean
       - name: Set up ccache
         uses: hendrikmuhs/ccache-action@v1.2
