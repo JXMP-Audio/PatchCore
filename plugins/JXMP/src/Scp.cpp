@@ -314,8 +314,9 @@ struct ScpWidget : JXMPModuleWidget {
 		CrtScreen* const crt = new CrtScreen;
 		crt->module = module;
 		// The tube fills the left side; its top lines up with the TIME / DIV header
-		const float crtR = 36.f;  // mm, half the bezel
-		crt->box = math::Rect(mm2px(math::Vec(42.f - crtR, 56.5f - crtR)), mm2px(math::Vec(2 * crtR, 2 * crtR)));
+		// 21..89 mm: clear of the CH 1 / CH 2 line at 95 mm
+		const float crtR = 34.f;  // mm, half the bezel
+		crt->box = math::Rect(mm2px(math::Vec(42.f - crtR, 55.f - crtR)), mm2px(math::Vec(2 * crtR, 2 * crtR)));
 		addChild(crt);
 
 		// TIME/DIV, right top
