@@ -2,7 +2,7 @@
   "title": "First sound",
   "startSide": "front",
   "learned": [
-    "Adding modules with the quick search",
+    "Finding our modules: quick search, @jxmp (brand) and # (purpose)",
     "Turning the rack around with Tab",
     "Patching cables from outputs to inputs",
     "Oscillator: pitch and wave shape",
@@ -10,47 +10,221 @@
     "Seeing a wave on the scope"
   ],
   "steps": [
-    {"text": "Welcome! A modular synth is built from modules. Each module makes or changes a voltage, and cables carry the voltages from module to module. At the end of this lesson you will hear a sound you patched yourself.",
-     "done": {"next": true}},
-    {"text": "First a sound source: an oscillator. Right-click an empty spot in the rack (or press Enter), type VCO and press Enter.",
-     "done": {"module": "VCO"}},
-    {"text": "Now an amplifier, the same way: right-click an empty spot, type VCA, press Enter. It will set how loud the sound is.",
-     "done": {"module": "VCA"}},
-    {"text": "The jacks of JXMP modules are on the back of the rack, like on real studio gear. Press Tab to turn the rack around.",
-     "done": {"side": "back"}},
-    {"text": "Drag a cable from SAW of the oscillator to IN 1 of the amplifier. The oscillator now sends its sawtooth wave into the amplifier.",
-     "side": "back",
-     "highlight": [{"module": "VCO", "output": "Saw"}, {"module": "VCA", "input": "In 1"}],
-     "done": {"cable": {"from": {"module": "VCO", "output": "Saw"}, "to": {"module": "VCA", "input": "In 1"}}}},
-    {"text": "Drag a cable from OUT 1 of the amplifier to jack 1 of the patchbay. The patchbay is the way out of the rack: its front is wired to your speakers. You should hear a buzzing tone now.",
-     "side": "back",
-     "highlight": [{"module": "VCA", "output": "Out 1"}, {"module": "Patchbay4", "input": "Ch 1", "side": "back"}],
-     "done": {"all": [
-       {"cable": {"from": {"module": "VCA", "output": "Out 1"}, "to": {"module": "Patchbay4", "input": "Ch 1", "side": "back"}}},
-       {"signal": {"module": "HostAudio2", "input": "#1"}, "above": 0.05}]}},
-    {"text": "Press Tab to turn the rack back to the front, then turn LEVEL 1 of the amplifier. The amplifier sets the volume: down is quiet, up is loud.",
-     "side": "front",
-     "highlight": [{"module": "VCA", "param": "Channel 1 level"}],
-     "done": {"param": {"module": "VCA", "param": "Channel 1 level"}, "moved": 0.2}},
-    {"text": "Turn the FREQUENCY knob of the oscillator. The frequency is the pitch: how high or low the tone is.",
-     "side": "front",
-     "highlight": [{"module": "VCO", "param": "Frequency"}],
-     "done": {"param": {"module": "VCO", "param": "Frequency"}, "moved": 0.1}},
-    {"text": "Press Tab and drag a cable from SQR of the oscillator to IN 1 of the amplifier. An input holds one cable, so the old one goes. A square wave sounds hollow, a sawtooth bright.",
-     "side": "back",
-     "highlight": [{"module": "VCO", "output": "Sqr"}, {"module": "VCA", "input": "In 1"}],
-     "done": {"cable": {"from": {"module": "VCO", "output": "Sqr"}, "to": {"module": "VCA", "input": "In 1"}}}},
-    {"text": "Now patch SIN to IN 1. The sine is the purest tone, with no overtones at all. The shape of the wave is what you hear as the timbre.",
-     "side": "back",
-     "highlight": [{"module": "VCO", "output": "Sin"}, {"module": "VCA", "input": "In 1"}],
-     "done": {"cable": {"from": {"module": "VCO", "output": "Sin"}, "to": {"module": "VCA", "input": "In 1"}}}},
-    {"text": "Let's see the wave. Add a scope (type Scope) and drag a second cable from SIN of the oscillator to IN 1 of the scope. One output can feed many inputs.",
-     "side": "back",
-     "highlight": [{"module": "VCO", "output": "Sin"}],
-     "done": {"all": [
-       {"module": "Scope"},
-       {"cable": {"from": {"module": "VCO", "output": "Sin"}, "to": {"module": "Scope", "input": "In 1"}}}]}},
-    {"text": "That's a patch! The oscillator makes the sound, the amplifier sets its volume, and cables carry voltages from outputs to inputs. Press Next to finish.",
-     "done": {"next": true}}
+    {
+      "text": "Welcome! A modular synth is built from modules. Each module makes or changes a voltage, and cables carry the voltages from module to module. At the end of this lesson you will hear a sound you patched yourself.",
+      "done": {
+        "next": true
+      }
+    },
+    {
+      "text": "Every module is in the quick search: right-click an empty spot in the rack or press Enter. Our own modules come first, under JXMP AUDIO, and this course uses only those. Their panels say JX-OSC, JX-AMP and so on; in the list they are called VCO, VCA and the like.",
+      "done": {
+        "next": true
+      }
+    },
+    {
+      "text": "Open the quick search and type VCO @jxmp, then press Enter. The '@' filters by brand: @jxmp shows only our modules. There are many other oscillators called VCO; one from another brand does not count in this lesson.",
+      "done": {
+        "module": "VCO"
+      }
+    },
+    {
+      "text": "Now the amplifier, found by what it does: type #vca @jxmp and pick VCA. The '#' filters by purpose (#vca, #filter, #envelope, #effect…), and both filters work together.",
+      "done": {
+        "module": "VCA"
+      }
+    },
+    {
+      "text": "The jacks of JXMP modules are on the back of the rack, like on real studio gear. Press Tab to turn the rack around.",
+      "done": {
+        "side": "back"
+      }
+    },
+    {
+      "text": "Drag a cable from SAW of the oscillator to IN 1 of the amplifier. The oscillator now sends its sawtooth wave into the amplifier.",
+      "side": "back",
+      "highlight": [
+        {
+          "module": "VCO",
+          "output": "Saw"
+        },
+        {
+          "module": "VCA",
+          "input": "In 1"
+        }
+      ],
+      "done": {
+        "cable": {
+          "from": {
+            "module": "VCO",
+            "output": "Saw"
+          },
+          "to": {
+            "module": "VCA",
+            "input": "In 1"
+          }
+        }
+      }
+    },
+    {
+      "text": "Drag a cable from OUT 1 of the amplifier to jack 1 of the patchbay. The patchbay is the way out of the rack: its front is wired to your speakers. You should hear a buzzing tone now.",
+      "side": "back",
+      "highlight": [
+        {
+          "module": "VCA",
+          "output": "Out 1"
+        },
+        {
+          "module": "Patchbay4",
+          "input": "Ch 1",
+          "side": "back"
+        }
+      ],
+      "done": {
+        "all": [
+          {
+            "cable": {
+              "from": {
+                "module": "VCA",
+                "output": "Out 1"
+              },
+              "to": {
+                "module": "Patchbay4",
+                "input": "Ch 1",
+                "side": "back"
+              }
+            }
+          },
+          {
+            "signal": {
+              "module": "HostAudio2",
+              "input": "#1"
+            },
+            "above": 0.05
+          }
+        ]
+      }
+    },
+    {
+      "text": "Press Tab to turn the rack back to the front, then turn LEVEL 1 of the amplifier. The amplifier sets the volume: down is quiet, up is loud.",
+      "side": "front",
+      "highlight": [
+        {
+          "module": "VCA",
+          "param": "Channel 1 level"
+        }
+      ],
+      "done": {
+        "param": {
+          "module": "VCA",
+          "param": "Channel 1 level"
+        },
+        "moved": 0.2
+      }
+    },
+    {
+      "text": "Turn the FREQUENCY knob of the oscillator. The frequency is the pitch: how high or low the tone is.",
+      "side": "front",
+      "highlight": [
+        {
+          "module": "VCO",
+          "param": "Frequency"
+        }
+      ],
+      "done": {
+        "param": {
+          "module": "VCO",
+          "param": "Frequency"
+        },
+        "moved": 0.1
+      }
+    },
+    {
+      "text": "Press Tab and drag a cable from SQR of the oscillator to IN 1 of the amplifier. An input holds one cable, so the old one goes. A square wave sounds hollow, a sawtooth bright.",
+      "side": "back",
+      "highlight": [
+        {
+          "module": "VCO",
+          "output": "Sqr"
+        },
+        {
+          "module": "VCA",
+          "input": "In 1"
+        }
+      ],
+      "done": {
+        "cable": {
+          "from": {
+            "module": "VCO",
+            "output": "Sqr"
+          },
+          "to": {
+            "module": "VCA",
+            "input": "In 1"
+          }
+        }
+      }
+    },
+    {
+      "text": "Now patch SIN to IN 1. The sine is the purest tone, with no overtones at all. The shape of the wave is what you hear as the timbre.",
+      "side": "back",
+      "highlight": [
+        {
+          "module": "VCO",
+          "output": "Sin"
+        },
+        {
+          "module": "VCA",
+          "input": "In 1"
+        }
+      ],
+      "done": {
+        "cable": {
+          "from": {
+            "module": "VCO",
+            "output": "Sin"
+          },
+          "to": {
+            "module": "VCA",
+            "input": "In 1"
+          }
+        }
+      }
+    },
+    {
+      "text": "Let's see the wave. Add our scope (type #visual @jxmp) and drag a second cable from SIN of the oscillator to IN 1 of the scope. One output can feed many inputs.",
+      "side": "back",
+      "highlight": [
+        {
+          "module": "VCO",
+          "output": "Sin"
+        }
+      ],
+      "done": {
+        "all": [
+          {
+            "module": "Scope"
+          },
+          {
+            "cable": {
+              "from": {
+                "module": "VCO",
+                "output": "Sin"
+              },
+              "to": {
+                "module": "Scope",
+                "input": "In 1"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "text": "That's a patch! The oscillator makes the sound, the amplifier sets its volume, and cables carry voltages from outputs to inputs. Press Next to finish.",
+      "done": {
+        "next": true
+      }
+    }
   ]
 }
