@@ -571,5 +571,157 @@ inline void icon(NVGcontext* vg, Icon type, math::Vec c, float w, NVGcolor color
 	nvgStroke(vg);
 }
 
+
+/** Green vacuum fluorescent display (VFD): every numeric readout of a JXMP module uses it. */
+inline NVGcolor vfdLit() { return nvgRGB(0x5c, 0xff, 0xb8); }
+
+/** The VFD window: black bezel, dark green-tinted glass, the fine grid mesh and the filament wires behind it,
+a soft reflection on top. Draw it first, then the digits and annunciators. */
+inline void vfdWindow(NVGcontext* vg, math::Vec size) {
+	const float bz = mm2px(1.f);
+	// Bezel with a darker upper and a lighter lower edge (the window sits in the panel)
+	nvgBeginPath(vg);
+	nvgRoundedRect(vg, 0, 0, size.x, size.y, 2.5f);
+	nvgFillPaint(vg, nvgLinearGradient(vg, 0, 0, 0, size.y, nvgRGB(0x05, 0x05, 0x06), nvgRGB(0x24, 0x25, 0x29)));
+	nvgFill(vg);
+	// Glass
+	const math::Rect g(math::Vec(bz, bz), size.minus(math::Vec(2 * bz, 2 * bz)));
+	nvgBeginPath(vg);
+	nvgRoundedRect(vg, RECT_ARGS(g), 1.5f);
+	nvgFillPaint(vg, nvgLinearGradient(vg, 0, g.pos.y, 0, g.pos.y + g.size.y, nvgRGB(0x03, 0x0d, 0x0b), nvgRGB(0x06, 0x16, 0x12)));
+	nvgFill(vg);
+	nvgSave(vg);
+	nvgIntersectScissor(vg, RECT_ARGS(g));
+	// Grid mesh
+	const float pitch = mm2px(0.55f);
+	nvgBeginPath(vg);
+	for (float x = g.pos.x + pitch / 2; x < g.pos.x + g.size.x; x += pitch) {
+		nvgMoveTo(vg, x, g.pos.y);
+		nvgLineTo(vg, x, g.pos.y + g.size.y);
+	}
+	for (float y = g.pos.y + pitch / 2; y < g.pos.y + g.size.y; y += pitch) {
+		nvgMoveTo(vg, g.pos.x, y);
+		nvgLineTo(vg, g.pos.x + g.size.x, y);
+	}
+	nvgStrokeWidth(vg, 0.4f);
+	nvgStrokeColor(vg, nvgRGBAf(0.36f, 1.f, 0.72f, 0.035f));
+	nvgStroke(vg);
+	// Filament wires across the glass
+	nvgBeginPath(vg);
+	for (int i = 1; i <= 3; ++i) {
+		const float y = g.pos.y + g.size.y * i / 4.f;
+		nvgMoveTo(vg, g.pos.x, y);
+		nvgLineTo(vg, g.pos.x + g.size.x, y + 0.6f);
+	}
+	nvgStrokeWidth(vg, 0.5f);
+	nvgStrokeColor(vg, nvgRGBAf(0.f, 0.f, 0.f, 0.45f));
+	nvgStroke(vg);
+	nvgRestore(vg);
+}
+
+/** The glass reflection, drawn over the digits */
+inline void vfdGlare(NVGcontext* vg, math::Vec size) {
+	const float bz = mm2px(1.f);
+	nvgBeginPath(vg);
+	nvgRoundedRect(vg, bz, bz, size.x - 2 * bz, (size.y - 2 * bz) * 0.42f, 1.5f);
+	nvgFillPaint(vg, nvgLinearGradient(vg, 0, bz, 0, bz + (size.y - 2 * bz) * 0.42f, nvgRGBAf(1, 1, 1, 0.07f), nvgRGBAf(1, 1, 1, 0.f)));
+	nvgFill(vg);
+}
+
+/** Seven slanted segments, a-g, as in a VFD tube. Lit segments glow; unlit ones stay faintly visible. */
+inline void vfdSegment(NVGcontext* vg, int seg, float w, float h, float t) {
+	const float g = t * 0.18f, m = h / 2, ht = t / 2;
+	nvgBeginPath(vg);
+	auto hor = [&](float y) {
+		nvgMoveTo(vg, g, y);
+		nvgLineTo(vg, g + ht, y - ht);
+		nvgLineTo(vg, w - g - ht, y - ht);
+		nvgLineTo(vg, w - g, y);
+		nvgLineTo(vg, w - g - ht, y + ht);
+		nvgLineTo(vg, g + ht, y + ht);
+		nvgClosePath(vg);
+	};
+	auto ver = [&](float x, float y0, float y1) {
+		nvgMoveTo(vg, x, y0 + g);
+		nvgLineTo(vg, x + ht, y0 + g + ht);
+		nvgLineTo(vg, x + ht, y1 - g - ht);
+		nvgLineTo(vg, x, y1 - g);
+		nvgLineTo(vg, x - ht, y1 - g - ht);
+		nvgLineTo(vg, x - ht, y0 + g + ht);
+		nvgClosePath(vg);
+	};
+	switch (seg) {
+	case 0: hor(0); break;
+	case 1: ver(w, 0, m); break;
+	case 2: ver(w, m, h); break;
+	case 3: hor(h); break;
+	case 4: ver(0, m, h); break;
+	case 5: ver(0, 0, m); break;
+	case 6: hor(m); break;
+	}
+}
+
+/** Segment masks (bit 0 = a ... bit 6 = g) for 0-9; '-' and ' ' are handled by vfdDigits */
+inline uint8_t vfdMask(char c) {
+	static const uint8_t digits[10] = {0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f};
+	if (c >= '0' && c <= '9')
+		return digits[c - '0'];
+	return c == '-' ? 0x40 : 0x00;
+}
+
+/** Draws a row of seven-segment digits right-aligned to `right` with their baseline at `bottom`. A '.' lights the
+decimal point of the digit before it. `cells` digits are drawn in all, unused ones as unlit ghosts. */
+inline void vfdDigits(NVGcontext* vg, float right, float bottom, float height, int cells, const std::string& s,
+                      NVGcolor lit = vfdLit()) {
+	struct Cell { uint8_t mask; bool dot; };
+	std::vector<Cell> row;
+	for (char c : s) {
+		if (c == '.' && !row.empty())
+			row.back().dot = true;
+		else
+			row.push_back(Cell{vfdMask(c), false});
+	}
+	while ((int) row.size() < cells)
+		row.insert(row.begin(), Cell{0, false});
+	const float w = height * 0.5f, t = height * 0.12f, pitch = w + height * 0.28f;
+	const NVGcolor ghost = nvgRGBAf(lit.r, lit.g, lit.b, 0.06f);
+	const int n = row.size();
+	for (int i = 0; i < n; ++i) {
+		nvgSave(vg);
+		nvgTranslate(vg, right - (n - i) * pitch + height * 0.12f, bottom - height);
+		// Lean the digits like a real tube (top to the right)
+		nvgTranslate(vg, 0, height);
+		nvgSkewX(vg, -0.14f);
+		nvgTranslate(vg, 0, -height);
+		for (int seg = 0; seg < 7; ++seg) {
+			const bool on = row[i].mask & (1 << seg);
+			vfdSegment(vg, seg, w, height, t);
+			if (on) {
+				// Glow: a wide faint halo, then the bright core
+				nvgStrokeWidth(vg, t * 1.4f);
+				nvgLineJoin(vg, NVG_ROUND);
+				nvgStrokeColor(vg, nvgRGBAf(lit.r, lit.g, lit.b, lit.a * 0.16f));
+				nvgStroke(vg);
+				nvgFillColor(vg, lit);
+			}
+			else {
+				nvgFillColor(vg, ghost);
+			}
+			nvgFill(vg);
+		}
+		nvgBeginPath(vg);
+		nvgCircle(vg, w + height * 0.13f, height - t * 0.35f, t * 0.55f);
+		nvgFillColor(vg, row[i].dot ? lit : ghost);
+		nvgFill(vg);
+		nvgRestore(vg);
+	}
+}
+
+/** A fixed VFD legend (annunciator): lit when `on`, otherwise a faint print on the glass */
+inline void vfdLegend(NVGcontext* vg, math::Vec pos, const std::string& s, float size, bool on, int align = NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE,
+                      NVGcolor lit = vfdLit()) {
+	text(vg, pos, s, size, on ? lit : nvgRGBAf(lit.r, lit.g, lit.b, 0.09f), FONT_LABEL, align, 0.6f);
+}
+
 } // namespace style
 } // namespace jxmp

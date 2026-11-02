@@ -135,27 +135,24 @@ struct Clk : engine::Module {
 };
 
 
-/** Tempo window: the BPM in amber digits and where the tempo comes from. */
+/** Tempo window: a green VFD with the BPM and where the tempo comes from. */
 struct BpmDisplay : widget::TransparentWidget {
 	Clk* module = nullptr;
 
 	void draw(const DrawArgs& args) override {
 		namespace st = jxmp::style;
 		NVGcontext* const vg = args.vg;
-		nvgBeginPath(vg);
-		nvgRoundedRect(vg, 0, 0, box.size.x, box.size.y, 2.5f);
-		nvgFillColor(vg, nvgRGB(0x0d, 0x0e, 0x10));
-		nvgFill(vg);
-		const NVGcolor lit = nvgRGB(0xff, 0xc0, 0x50);
+		st::vfdWindow(vg, box.size);
 		const float bpm = module ? module->shownBpm : 120.f;
 		const Source src = module ? module->source : SRC_STOPPED;
-		st::text(vg, math::Vec(box.size.x * 0.62f, box.size.y * 0.5f), string::f("%.1f", bpm), box.size.y * 0.62f,
-		         src == SRC_STOPPED ? color::alpha(lit, 0.45f) : lit, st::FONT_NUMBER, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, 0.5f);
+		// Stopped: the digits dim, as a tube on standby
+		const NVGcolor lit = src == SRC_STOPPED ? color::alpha(st::vfdLit(), 0.4f) : st::vfdLit();
+		const float h = box.size.y * 0.52f;
+		st::vfdDigits(vg, box.size.x * 0.66f, box.size.y * 0.5f + h / 2, h, 4, string::f("%.1f", bpm), lit);
+		st::vfdLegend(vg, math::Vec(box.size.x * 0.7f, box.size.y * 0.34f), "BPM", box.size.y * 0.22f, true, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, lit);
 		const char* const what = src == SRC_EXT ? "CLOCK IN" : src == SRC_HOST ? "TRANSPORT" : src == SRC_INT ? "OWN TEMPO" : "STOPPED";
-		st::text(vg, math::Vec(box.size.x * 0.68f, box.size.y * 0.36f), "BPM", box.size.y * 0.24f, color::alpha(lit, 0.7f), st::FONT_LABEL,
-		         NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, 0.8f);
-		st::text(vg, math::Vec(box.size.x * 0.68f, box.size.y * 0.68f), what, box.size.y * 0.2f, color::alpha(lit, 0.7f), st::FONT_LABEL,
-		         NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, 0.4f);
+		st::vfdLegend(vg, math::Vec(box.size.x * 0.7f, box.size.y * 0.66f), what, box.size.y * 0.18f, true);
+		st::vfdGlare(vg, box.size);
 	}
 };
 
