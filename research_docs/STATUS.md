@@ -32,9 +32,9 @@ or weekly limit ends). Newest first.
 
 ### Tutorials: written, NOT built (branch `tutorials`, on top of `jxmp-set3`)
 
-Spec [15](15-tutorials-design.md), plan [16](16-plan-tutorials.md), all 6 tasks written 2026-11-02 (ledger:
-`.superpowers/sdd/16-plan-tutorials/progress.md`). Help → Tutorials ▸ lists 3 lessons (First sound, Filter and
-envelope, Modulation) from `plugins/JXMP/res/tutorials`; step panel that watches cables / knobs / sound, Show me,
+Spec [15](15-tutorials-design.md), plan [16](16-plan-tutorials.md), all 6 tasks written 2026-11-02, final review done and its Critical/Important findings fixed (245885f), lessons 4–6 added (8138e54) (ledger:
+`.superpowers/sdd/16-plan-tutorials/progress.md`). Help → Tutorials ▸ lists 6 lessons (First sound, Filter and
+envelope, Modulation, Sequences, Drums, Effects and mix) from `plugins/JXMP/res/tutorials`; step panel that watches cables / knobs / sound, Show me,
 pulsing highlight, first-start offer strip. Logic in `src/patchcore/TutorialLogic.hpp` (tests
 `test_tutorial.cpp`, `test_tutorial_content.cpp`), app side in `src/patchcore/Tutorial.cpp`. Not compiled, tests not
 run (user rule). Lesson names were cross-checked against the module sources with a read-only script (0 problems).

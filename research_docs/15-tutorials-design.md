@@ -21,7 +21,7 @@ lesson 1 and hears a sound from a patch they made and understand.
 | Language | English only (like the rest of the app) |
 | Approach | Lessons are data files (`lesson.json` + `start.vcv`), one generic tutorial engine in the core |
 | Plugin | Also in the VST3 plugins (Host Audio is the plugin's output there, lessons need no change) |
-| Later lessons | Sequences and melody, drums and rhythm, effects and mix: new data files, no new code |
+| More lessons | 4 Sequences and melody, 5 Drums and rhythm, 6 Effects and mix: added 2026-11-02 at the user's request, data only (lesson 6 uses JX-MIX; the console sends stay for a later lesson) |
 
 ## What the user sees
 
@@ -237,7 +237,6 @@ me, in the standalone and in the VST3 plugin in a host.
 
 ## Out of scope (first version)
 
-- Lessons 4–6 (sequences, drums, effects and mix): later, data only.
 - Translations; voice-over; videos.
 - Undoing the rack with Back.
 - Tutorials for third-party modules.
