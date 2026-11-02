@@ -254,7 +254,16 @@
    "plugin": "JXMP",
    "model": "Euclid",
    "version": "2.0.0",
-   "params": [],
+   "params": [
+    {
+     "id": 6,
+     "value": 4
+    },
+    {
+     "id": 10,
+     "value": 2
+    }
+   ],
    "pos": [
     0,
     2
@@ -290,7 +299,7 @@
    "params": [
     {
      "id": 1,
-     "value": 0.7
+     "value": 0.55
     }
    ],
    "pos": [
@@ -472,7 +481,7 @@
   {
    "id": 18,
    "outputModuleId": 7300000014,
-   "outputId": 2,
+   "outputId": 1,
    "inputModuleId": 7300000016,
    "inputId": 1,
    "color": "#5b6ee1"
@@ -508,6 +517,22 @@
    "inputModuleId": 7300000001,
    "inputId": 4,
    "color": "#ee7b1f"
+  },
+  {
+   "id": 23,
+   "outputModuleId": 7300000003,
+   "outputId": 7,
+   "inputModuleId": 7300000014,
+   "inputId": 1,
+   "color": "#3a8dde"
+  },
+  {
+   "id": 24,
+   "outputModuleId": 7300000003,
+   "outputId": 7,
+   "inputModuleId": 7300000011,
+   "inputId": 1,
+   "color": "#f2c230"
   }
  ]
 }

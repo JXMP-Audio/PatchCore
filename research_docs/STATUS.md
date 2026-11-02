@@ -30,18 +30,19 @@ or weekly limit ends). Newest first.
   are limits of JACK/ALSA, the dialog hint and the notice say so. Nothing is left to fix before the build.
 - PluginCollection submodule pointer not bumped (it follows `main`; branches are not merged yet).
 
-### Tutorials: written, NOT built (branch `tutorials`, on top of `jxmp-set3`)
+### Tutorials: built, checked by ear with the user (branch `tutorials`, holds all three branches)
 
-Spec [15](15-tutorials-design.md), plan [16](16-plan-tutorials.md), all 6 tasks written 2026-11-02, final review done and its Critical/Important findings fixed (245885f), lessons 4–6 added (8138e54) (ledger:
-`.superpowers/sdd/16-plan-tutorials/progress.md`). Help → Tutorials ▸ lists 6 lessons (First sound, Filter and
-envelope, Modulation, Sequences, Drums, Effects and mix) from `plugins/JXMP/res/tutorials`; step panel that watches cables / knobs / sound, Show me,
-pulsing highlight, first-start offer strip. Logic in `src/patchcore/TutorialLogic.hpp` (tests
-`test_tutorial.cpp`, `test_tutorial_content.cpp`), app side in `src/patchcore/Tutorial.cpp`. Not compiled, tests not
-run (user rule). Lesson names were cross-checked against the module sources with a read-only script (0 problems).
+Built 2026-11-02 (`make jack`, `make vst3`), all tests pass (`src/patchcore/tests/run.sh`,
+`plugins/JXMP/tests/run.sh`). 6 lessons in `plugins/JXMP/res/tutorials` (Help → Tutorials and the **Learn** button in
+the top bar). Each lesson starts where the one before ended and adds only the modules it teaches; lesson 1 teaches the
+quick search with `@jxmp` / `#purpose`. Voice tuned by ear with the user (bass octave, 110 BPM, eighths, decay 300 ms,
+sustain 60 %, release 210 ms, cutoff 520 Hz, resonance 40 %). Lesson 5 teaches RESET (clock RESET → both sequencers,
+RUN off/on); JX-CLK now restarts when its RESET jack gets patched (lines sequencers up when a patch opens).
+The first test run found and fixed: JX-CHR delay one sample short, JX-SCP notch at the trigger point, test_clock baseline.
 
-At the build: `make -j12 jack`, `bash src/patchcore/tests/run.sh`, then with the user (workspace 3): each lesson by
-hand and once only with Show me, Back on a done task, File → New during a lesson closes the panel, the first-start
-offer with a fresh `PatchCore.json` (move it aside, restore it), lesson 1 in the VST3 in a host.
+Open: the user still finds that drums and melody in lessons 5/6 "do not sit together" (timing is aligned in code;
+cause not found, left as is on the user's word 2026-11-02). Not yet checked: lessons 2–6 stepped through by hand,
+VST3 in a host.
 
 ### JX-SCP: accepted (2026-11-02, "super, paráda")
 
@@ -55,7 +56,7 @@ the user. Test patch: patches/jxmp-scope-test.vcv.
 ### Next (in this order unless the user says otherwise)
 
 1. Ask the user how the new showcase sounds / looks; rebalance levels if needed (check the MASTER meter).
-2. When the user says "build" (on branch `tutorials`, which holds all three branches): `make -j12 jack && make -j12 vst3`, run `src/patchcore/tests/run.sh` and
+2. DONE 2026-11-02 (build + tests on `tutorials`); still open from this item: GUI checks of the audio dialog and VST3 in a host. Was: `make -j12 jack && make -j12 vst3`, run `src/patchcore/tests/run.sh` and
    `plugins/JXMP/tests/run.sh`, fix failures; GUI checks with the user on workspace 3 (audio dialog, driver
    switch, VST3 in a host).
 3. Final review, merge `standalone-audio` then `jxmp-set3` into `main`, push, bump PluginCollection

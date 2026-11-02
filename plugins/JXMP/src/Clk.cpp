@@ -55,10 +55,12 @@ struct Clk : engine::Module {
 		                                  "Every 2 beats", "Every 4 beats (a bar in 4/4)", "Every 8 beats", "Every 16 beats"};
 		for (int k = 0; k < ck::kOutputs; ++k)
 			configOutput(DIV_OUTPUT + k, names[k])->description = std::string(what[k]) + ", 10 V gates.";
-		configOutput(RESET_OUTPUT, "Reset")->description = "A trigger when the clock starts: patch it to the RESET of sequencers.";
+		configOutput(RESET_OUTPUT, "Reset")->description = "A trigger when the clock starts: patch it to the RESET of sequencers. Patching this jack restarts the clock, so everything starts in step.";
 		configOutput(RUN_OUTPUT, "Run")->description = "10 V while the clock runs.";
 		configLight(BEAT_LIGHT, "Beat");
 	}
+
+	bool resetWasConnected = false;
 
 	void onReset() override {
 		follower.reset();
@@ -68,6 +70,7 @@ struct Clk : engine::Module {
 
 	void process(const ProcessArgs& args) override {
 		const double dt = args.sampleTime;
+		const bool resetConnected = outputs[RESET_OUTPUT].isConnected();
 		const bool ext = inputs[CLOCK_INPUT].isConnected();
 		static const int ppqns[] = {1, 4, 24};
 		follower.ppqn = ppqns[math::clamp((int) std::round(params[PPQN_PARAM].getValue()), 0, 2)];
@@ -96,7 +99,9 @@ struct Clk : engine::Module {
 			shownBpm = (float) pcontext->beatsPerMinute;
 		}
 		else if (params[RUN_PARAM].getValue() > 0.5f) {
-			if (source != SRC_INT) {
+			// Patching RESET restarts the own clock too: on opening a patch the clock runs before the cables are
+			// in, so the sequencers would start at random places in the bar; the restart lines them up
+			if (source != SRC_INT || (resetConnected && !resetWasConnected)) {
 				beats = 0.0;
 				started = true;
 			}
@@ -114,6 +119,7 @@ struct Clk : engine::Module {
 		if (started && running)
 			resetPulse.trigger(1e-3f);
 		wasRunning = running;
+		resetWasConnected = resetConnected;
 
 		const float swing = params[SWING_PARAM].getValue() / 100.f;
 		for (int k = 0; k < ck::kOutputs; ++k)

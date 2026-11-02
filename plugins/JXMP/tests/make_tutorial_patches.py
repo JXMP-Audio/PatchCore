@@ -48,6 +48,8 @@ LFO_SLOW = {0: -2.0}                         # LFO rate 0.25 Hz
 # A little melody for the sequencer (CV_PARAM 0-7, volts; the quantizer makes it A minor)
 MELODY = {0: 0.0, 1: 0.33, 2: 0.58, 3: 0.83, 4: 1.0, 5: 0.83, 6: 0.58, 7: 0.33}
 A_MINOR = {0: 2, 1: 9}                       # Quantizer SCALE 2 = Minor, ROOT 9 = A
+# Euclid (STEPS 0-3, HITS 4-7, ROTATE 8-11): hi-hat (track 3) on the off-beats only, 4 hits rotated by 2
+HATS_OFFBEAT = {6: 4, 10: 2}
 
 # Row 0: the voice; row 1: modulation and sequencing; row 2: drums, mixer, effects
 def row0(vcf=None, adsr=None, vco=None):
@@ -124,18 +126,19 @@ MELODY_MODULES = row0(vcf=FILTER_LFO, adsr=PLUCK, vco=VCO_BASS) + [
 
 # Lesson 5: the melody of lesson 4 playing + Euclid, drums, logic, mixer
 lesson5 = patch(MELODY_MODULES + [
-    module(EUC, "JXMP", "Euclid", 0, row=2),
+    module(EUC, "JXMP", "Euclid", 0, row=2, params=HATS_OFFBEAT),
     module(DRM, "JXMP", "Drums", 14, row=2),
     module(LGC, "JXMP", "Logic", 32, row=2),
     module(MIX, "JXMP", "Mixer", 40, row=2),
 ], MELODY_CABLES)
 
-# Lesson 6: lesson 5 finished (melody and drums through the mixer) + delay, chorus, reverb
+# Lesson 6: lesson 5 finished (melody and drums through the mixer, RESET to both sequencers) + delay, chorus,
+# reverb. The RESET cables come last: patching RESET restarts the clock, so the sequencers start together.
 lesson6 = patch(MELODY_MODULES + [
-    module(EUC, "JXMP", "Euclid", 0, row=2),
+    module(EUC, "JXMP", "Euclid", 0, row=2, params=HATS_OFFBEAT),
     module(DRM, "JXMP", "Drums", 14, row=2),
     module(LGC, "JXMP", "Logic", 32, row=2),
-    module(MIX, "JXMP", "Mixer", 40, row=2, params={1: 0.7}),  # drums (channel 2) a bit lower
+    module(MIX, "JXMP", "Mixer", 40, row=2, params={1: 0.55}),  # drums (channel 2) lower than the melody
     module(DLY, "JXMP", "Delay", 54, row=2),
     module(CHR, "JXMP", "Chorus", 64, row=2),
     module(REV, "JXMP", "Reverb", 74, row=2),
@@ -145,11 +148,13 @@ lesson6 = patch(MELODY_MODULES + [
     (EUC, 1, DRM, 1),        # Euclid GATE 2 -> Drums SNARE TRIG
     (EUC, 2, DRM, 2),        # Euclid GATE 3 -> Drums HAT TRIG
     (EUC, 0, LGC, 0),        # Euclid GATE 1 -> Logic A
-    (EUC, 2, LGC, 1),        # Euclid GATE 3 -> Logic B
+    (EUC, 1, LGC, 1),        # Euclid GATE 2 -> Logic B (clap with the snare on 2 and 4)
     (LGC, 0, DRM, 3),        # Logic AND -> Drums CLAP TRIG
     (VCA, 0, MIX, 0),        # VCA OUT 1 -> Mixer IN 1
     (DRM, 4, MIX, 1),        # Drums MIX -> Mixer IN 2
     (MIX, 0, PB, PB_BACK_IN_1),  # Mixer MIX -> Patchbay back Ch 1
+    (CLK, 7, EUC, 1),        # Clock RESET (DIV_OUTPUT x7, then RESET) -> Euclid RESET
+    (CLK, 7, SEQ, 1),        # Clock RESET -> SEQ RESET
 ])
 
 for name, data in [("01-first-sound", lesson1), ("02-filter-envelope", lesson2), ("03-modulation", lesson3),

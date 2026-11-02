@@ -254,7 +254,16 @@
    "plugin": "JXMP",
    "model": "Euclid",
    "version": "2.0.0",
-   "params": [],
+   "params": [
+    {
+     "id": 6,
+     "value": 4
+    },
+    {
+     "id": 10,
+     "value": 2
+    }
+   ],
    "pos": [
     0,
     2

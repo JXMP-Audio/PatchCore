@@ -3,6 +3,7 @@
   "startSide": "back",
   "learned": [
     "A mixer adds signals: melody and drums together",
+    "RESET keeps sequencers in step",
     "Triggers play drums",
     "Euclidean rhythms: steps, hits, rotate",
     "Logic: AND of two rhythms",
@@ -164,6 +165,86 @@
       }
     },
     {
+      "text": "Hear how the drums don't sit with the melody? The two sequencers started counting at different moments, so their step 1 is in different places. A reset fixes that: press Tab and patch RESET of the clock to RESET of the Euclidean sequencer and to RESET of the sequencer.",
+      "side": "back",
+      "highlight": [
+        {
+          "module": "Clock",
+          "output": "Reset"
+        },
+        {
+          "module": "Euclid",
+          "input": "Reset"
+        },
+        {
+          "module": "SEQ",
+          "input": "Reset"
+        }
+      ],
+      "done": {
+        "all": [
+          {
+            "cable": {
+              "from": {
+                "module": "Clock",
+                "output": "Reset"
+              },
+              "to": {
+                "module": "Euclid",
+                "input": "Reset"
+              }
+            }
+          },
+          {
+            "cable": {
+              "from": {
+                "module": "Clock",
+                "output": "Reset"
+              },
+              "to": {
+                "module": "SEQ",
+                "input": "Reset"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "text": "The clock sends a reset when it starts. Press Tab and switch RUN of the clock off.",
+      "side": "front",
+      "highlight": [
+        {
+          "module": "Clock",
+          "param": "Run"
+        }
+      ],
+      "done": {
+        "param": {
+          "module": "Clock",
+          "param": "Run"
+        },
+        "max": 0
+      }
+    },
+    {
+      "text": "Now switch RUN on again: both sequencers jump to step 1 together, and the drums and the melody start on the same beat.",
+      "side": "front",
+      "highlight": [
+        {
+          "module": "Clock",
+          "param": "Run"
+        }
+      ],
+      "done": {
+        "param": {
+          "module": "Clock",
+          "param": "Run"
+        },
+        "min": 1
+      }
+    },
+    {
       "text": "Turn HITS of track 1. Three hits in sixteen steps is a classic off-kilter groove; go back to four for the steady beat.",
       "side": "front",
       "highlight": [
@@ -248,7 +329,7 @@
       }
     },
     {
-      "text": "A logic module combines gates: AND is high only while both inputs are. Press Tab, patch GATE 1 to A and GATE 3 to B of the logic module, and AND to CLAP TRIG of the drums: a clap only where kick and hat meet.",
+      "text": "A logic module combines gates: AND is high only while both inputs are. Press Tab, patch GATE 1 to A and GATE 2 to B of the logic module, and AND to CLAP TRIG of the drums: a clap only where kick and snare meet, on 2 and 4.",
       "side": "back",
       "highlight": [
         {
@@ -261,7 +342,7 @@
         },
         {
           "module": "Euclid",
-          "output": "Gate 3"
+          "output": "Gate 2"
         },
         {
           "module": "Logic",
@@ -294,7 +375,7 @@
             "cable": {
               "from": {
                 "module": "Euclid",
-                "output": "Gate 3"
+                "output": "Gate 2"
               },
               "to": {
                 "module": "Logic",
