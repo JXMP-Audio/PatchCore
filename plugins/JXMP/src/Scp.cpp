@@ -53,8 +53,8 @@ struct Scp : engine::Module {
 		    ->description = "How many volts one square up is for the amber trace. Smaller = the wave is drawn taller.";
 		configParam(POS2_PARAM, -4.f, 4.f, 0.f, "CH 2 position", " div")->description = "Moves the amber trace up or down.";
 		configParam(TRIG_LEVEL_PARAM, -10.f, 10.f, 0.f, "Trigger level", " V")
-		    ->description = "The voltage the wave must cross to start a picture (the dashed line). Outside the wave nothing "
-		                    "triggers: AUTO then shows the wave running, NORM keeps the last picture.";
+		    ->description = "The voltage the wave must cross to start a picture (the dashed line); it stays on the screen. "
+		                    "Outside the wave nothing triggers: AUTO then shows the wave running, NORM keeps the last picture.";
 		// Toggles: lever up = the highest value, so the default (top) choice is the highest value
 		configSwitch(TRIG_SLOPE_PARAM, 0.f, 1.f, 1.f, "Trigger slope", {"Falling", "Rising"})
 		    ->description = "Start the drawing when the wave crosses the level going up (RISE) or going down (FALL).";
@@ -79,17 +79,26 @@ struct Scp : engine::Module {
 		const bool xy = params[MODE_PARAM].getValue() < 0.5f;
 		const bool autoRun = params[TRIG_MODE_PARAM].getValue() > 0.5f;
 
-		// As on a DSO: a level outside the signal simply never triggers (AUTO then runs untriggered)
-		const float level = params[TRIG_LEVEL_PARAM].getValue();
+		// As on a DSO: the level stays on the screen of its channel (±4 divisions; EXT has the knob's full range),
+		// and a level outside the signal simply never triggers (AUTO then runs untriggered)
+		float level = params[TRIG_LEVEL_PARAM].getValue();
+		if (source != 0) {
+			const int ch = source == 2 ? 0 : 1;
+			const float vd = sc::voltDiv((int) std::round(params[ch == 0 ? VOLT1_PARAM : VOLT2_PARAM].getValue()));
+			const float pos = params[ch == 0 ? POS1_PARAM : POS2_PARAM].getValue();
+			level = math::clamp(level, (-4.f - pos) * vd, (4.f - pos) * vd);
+		}
 		usedLevel = level;
 		const bool fired = trigger.process(t, level, params[TRIG_SLOPE_PARAM].getValue() > 0.5f);
 		if (fired && !xy)
 			trigLight = 1.f;
-		// A new time base starts a fresh sweep at once
+		// A new time base: shown at once
 		const int timeStep = (int) std::round(params[TIME_PARAM].getValue());
 		if (timeStep != lastTimeStep) {
 			lastTimeStep = timeStep;
-			capture.restart();
+			// Redraw at once from memory (slow time bases), else start fresh
+			if (!capture.rebuild(sc::timeDiv(timeStep)))
+				capture.restart();
 		}
 		capture.process(a, b, fired, args.sampleTime, sc::timeDiv(timeStep), xy, autoRun);
 		trigLight = std::max(0.f, trigLight - args.sampleTime * 5.f);
@@ -201,11 +210,13 @@ struct CrtScreen : widget::TransparentWidget {
 	/** Markers as on a DSO: the trigger point (top, middle) and the trigger level (right edge) */
 	void drawMarkers(NVGcontext* vg, math::Vec c, float r, float v1, float v2, float p1, float p2) {
 		const NVGcolor mark = nvgRGBA(0xff, 0xff, 0xff, 0xb0);
+		// Where in time the trigger point of the shown picture is (the middle, a quarter on slow sweeps)
+		const float tx = point(c, r, (float) module->capture.shownPre / (sc::kPoints - 1) * 8.f - 4.f, 0.f).x;
 		const float top = c.y - r + 2.f;
 		nvgBeginPath(vg);
-		nvgMoveTo(vg, c.x - 4.f, top);
-		nvgLineTo(vg, c.x + 4.f, top);
-		nvgLineTo(vg, c.x, top + 6.f);
+		nvgMoveTo(vg, tx - 4.f, top);
+		nvgLineTo(vg, tx + 4.f, top);
+		nvgLineTo(vg, tx, top + 6.f);
 		nvgClosePath(vg);
 		nvgFillColor(vg, mark);
 		nvgFill(vg);

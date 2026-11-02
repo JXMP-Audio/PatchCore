@@ -56,7 +56,9 @@ int main() {
 			const float x = 5.f * std::sin(2.f * float(M_PI) * lfoHz[k] * i / fs);
 			l.process(x, 0.f, lt.process(x, 0.f, true), dt, spd[k]);
 		}
-		assert(std::fabs(l.shownValue[0][mid]) < 0.1f);
+		// The trigger point: the middle, a quarter from the left on slow sweeps
+		assert(l.shownPre == pretrigger(spd[k]));
+		assert(std::fabs(l.shownValue[0][l.shownPre]) < 0.1f);
 		for (int i = 1; i < kPoints; ++i)
 			assert(std::fabs(l.shownValue[0][i] - l.shownValue[0][i - 1]) < 0.5f);
 	}
@@ -89,6 +91,19 @@ int main() {
 	}
 	for (int i = 1; i < kPoints; ++i)
 		assert(env.shownHi[0][i] > 4.5f && env.shownLo[0][i] < -4.5f);
+
+	// A new, slower time base is redrawn at once from the 1 kHz memory, the trigger again at its place
+	Capture re;
+	Trigger rt;
+	for (int i = 0; i < 6 * 48000; ++i) {
+		const float x = 5.f * std::sin(2.f * float(M_PI) * 0.5f * i / fs);
+		re.process(x, 0.f, rt.process(x, 0.f, true), dt, 0.01f);
+	}
+	const int before = re.sweeps;
+	assert(re.rebuild(0.1f));
+	assert(re.sweeps == before + 1 && re.shownPre == pretrigger(0.1f));
+	assert(std::fabs(re.shownValue[0][re.shownPre]) < 0.3f && re.shownValue[0][re.shownPre + 10] > re.shownValue[0][re.shownPre]);
+	assert(!re.rebuild(0.001f));  // too fast for the coarse memory: a fresh acquisition instead
 
 	std::printf("scope: all tests passed\n");
 	return 0;
