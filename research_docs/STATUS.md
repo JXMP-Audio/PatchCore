@@ -3,7 +3,43 @@
 Handoff notes, updated at the end of every work session (rule: keep this file current before a session
 or weekly limit ends). Newest first.
 
-## 2026-11-02 — where we stopped (READ THIS FIRST in a new chat)
+## 2026-11-02 (evening) — merged into main (READ THIS FIRST in a new chat)
+
+### State: `standalone-audio`, `jxmp-set3` and `tutorials` are merged into `main` and pushed
+
+- Built (`make jack`, `make vst3`) and all tests pass: `src/patchcore/tests/run.sh` (5 programs),
+  `plugins/JXMP/tests/run.sh` (23). Pre-merge review of the whole branch done, its Important findings fixed
+  (f9895b9: scope triple buffer and trigger ring, reverb/chorus NaN, clock 1 PPQN, buffers off the audio thread).
+- Tutorials: 6 lessons, **Learn** button in the top bar and Help → Tutorials (details below).
+- Keys: F1 Rack, or with a selected module (Shift+click) its manual; F2 Back; F3 Mixer; F4 kept for the Editor.
+- `docs/manual/jx-*.md`: one page per JXMP module (today's description; the real manual is to be written per
+  module), linked from `plugins/JXMP/plugin.json` (manualUrl, F1) and from the module list in README.md.
+- PluginCollection pointer bumped and the PatchCore card on the web updated (text; the screenshot is still the old
+  one, `docs/screenshots/patchcore-rack.png`).
+
+### Not checked yet (needs the user at the screen)
+
+- Engine → Audio Settings dialog: device switch, rate change, driver switch restart, missing-card notice.
+- VST3 in a host: no host is installed (Reaper/Bitwig/Carla/Ardour); the bundles export the VST3 entry points and
+  resolve their libraries. Ask the user to install a host (or allow pluginval).
+- Lessons 2–6 stepped through by hand; the user still finds drums vs melody in lessons 5/6 "not sitting together"
+  (left as is on the user's word).
+- New screenshots for the web card.
+
+### Deferred (pre-merge review minors)
+
+JX-EUC / JX-SW step not saved with the patch (restart from step 1 after a reload); JX-CHR click when switching
+chorus/ensemble (base delay jumps 7 → 10 ms); JX-REV sums its input to mono (say so in spec 14 or make it stereo).
+
+### Next
+
+1. The checks above with the user; new screenshots; rebalance `patches/jxmp-workbench.vcv` if the user wants.
+2. Standalone Editor (piano roll, doc 11 sub-project C, F4): brainstorm a spec with the user first.
+3. Manuals per module (`docs/manual/`).
+4. Windows build (WASAPI + ASIO SDK sources).
+5. Later: JX808 panel polish (collection memory).
+
+## 2026-11-02 — earlier that day
 
 ### State: everything pushed, nothing merged
 
@@ -82,7 +118,7 @@ after Task 6 is uncompiled. Tasks 1–6 were built and checked (layout test, sta
 start paths).
 
 - Plugin: thin read-only bar (`TransportLayout.hpp`), names PatchCore / PatchCore FX by JXMP Audio, new IDs,
-  `make vst3` builds only those two. F1/F2/F4 keys.
+  `make vst3` builds only those two. F1/F2/F4 keys (later F1/F2/F3, F4 for the Editor).
 - DPF vendored (`dpf/` is a normal folder, `pugl` a submodule). `AudioDeviceSettings.hpp` (tested) holds
   setup, config file `PatchCoreAudio.conf` next to `PatchCore.json` (`PATCHCORE_AUDIO_CONFIG` overrides),
   fallback decisions.
