@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstdio>
 #include <fstream>
+#include <map>
 #include <regex>
 #include <set>
 #include <sstream>
@@ -130,6 +131,81 @@ static void checkCondition(const Condition& c, const std::string& where) {
 		checkCondition(p, where);
 }
 
+/** Size of `enum InputIds {...}` (or OutputIds / ParamIds) of a module source; -1 when it cannot be read.
+`templateN` stands for N in template modules (Patchbay4 → 4). */
+static int enumCount(const std::string& src, const std::string& enumName, int templateN) {
+	std::smatch m;
+	if (!std::regex_search(src, m, std::regex("enum " + enumName + "\\s*\\{([^}]*)\\}")))
+		return -1;
+	const std::string body = m[1];
+	int count = 0;
+	const std::regex item("ENUMS\\(\\s*[A-Za-z0-9_]+\\s*,\\s*([A-Za-z0-9_:]+)\\s*\\)|([A-Za-z0-9_]+)");
+	for (std::sregex_iterator it(body.begin(), body.end(), item), end; it != end; ++it) {
+		const std::string plain = (*it)[2];
+		if (!plain.empty()) {
+			if (plain.compare(0, 4, "NUM_") == 0)
+				break;
+			++count;
+			continue;
+		}
+		std::string size = (*it)[1];
+		if (size.find("::") != std::string::npos)
+			size = size.substr(size.rfind("::") + 2);
+		if (std::regex_match(size, std::regex("[0-9]+"))) {
+			count += std::atoi(size.c_str());
+			continue;
+		}
+		if (size == "N" && templateN > 0) {
+			count += templateN;
+			continue;
+		}
+		std::smatch v;
+		if (std::regex_search(src, v, std::regex("\\b" + size + "\\s*=\\s*([0-9]+)\\s*;"))) {
+			count += std::atoi(std::string(v[1]).c_str());
+			continue;
+		}
+		// NUM_VOICES at the end of `enum Voice { KICK, SNARE, HAT, CLAP, NUM_VOICES }`
+		bool found = false;
+		const std::regex anyEnum("enum\\s+[A-Za-z0-9_]+\\s*\\{([^}]*)\\}");
+		for (std::sregex_iterator e(src.begin(), src.end(), anyEnum), eend; e != eend && !found; ++e) {
+			const std::string eb = (*e)[1];
+			// only plain lists (enum Voice {...}); a port enum with ENUMS(...) is not a list of names
+			if (eb.find("ENUMS(") != std::string::npos)
+				continue;
+			int index = 0;
+			const std::regex word("[A-Za-z0-9_]+");
+			for (std::sregex_iterator w(eb.begin(), eb.end(), word), wend; w != wend; ++w, ++index) {
+				if ((*w)[0] == size) {
+					count += index;
+					found = true;
+					break;
+				}
+			}
+		}
+		if (!found)
+			return -1;
+	}
+	return count;
+}
+
+/** Inputs, outputs and params of a model; -1 for a count that cannot be read */
+struct Sizes {
+	int inputs, outputs, params;
+};
+
+static Sizes sizesOf(const std::string& slug) {
+	if (slug == "HostAudio2")
+		return Sizes{2, 2, 1};
+	const std::string src = sourceFor(slug);
+	if (src.empty())
+		return Sizes{-1, -1, -1};
+	int n = 0;
+	for (char ch : slug)
+		if (ch >= '0' && ch <= '9')
+			n = n * 10 + (ch - '0');
+	return Sizes{enumCount(src, "InputIds", n), enumCount(src, "OutputIds", n), enumCount(src, "ParamIds", n)};
+}
+
 static void addedModules(const Condition& c, std::set<std::string>* out) {
 	if (c.type == Cond::Module)
 		out->insert(c.ref.module);
@@ -150,10 +226,10 @@ int main() {
 	int n = 0;
 	for (const IndexEntry& e : index) {
 		++n;
-		const std::string lessonName = "lesson " + std::to_string(n) + " (" + e.id + ")";
+		const std::string lessonName = "lesson " + std::to_string(n);
 		Lesson l;
 		if (!parseLesson(readFile(dir + "/" + e.id + "/lesson.json"), &l, &err)) {
-			failf(lessonName + ": " + err);
+			failf(lessonName + " (" + e.id + "): " + err);
 			continue;
 		}
 		// Modules in start.vcv
@@ -164,18 +240,39 @@ int main() {
 			continue;
 		}
 		std::set<std::string> available;
-		std::set<long long> ids;
+		std::map<long long, std::string> models;
 		json_t* const mods = json_object_get(patch, "modules");
 		for (size_t i = 0; i < json_array_size(mods); ++i) {
 			json_t* const m = json_array_get(mods, i);
-			available.insert(json_string_value(json_object_get(m, "model")));
-			ids.insert(json_integer_value(json_object_get(m, "id")));
+			const std::string model = json_string_value(json_object_get(m, "model"));
+			available.insert(model);
+			models[json_integer_value(json_object_get(m, "id"))] = model;
+			// Param ids within the module's params
+			const Sizes sz = sizesOf(model);
+			json_t* const params = json_object_get(m, "params");
+			for (size_t k = 0; k < json_array_size(params); ++k) {
+				const long long pid = json_integer_value(json_object_get(json_array_get(params, k), "id"));
+				if (sz.params >= 0 && (pid < 0 || pid >= sz.params))
+					failf(lessonName + ": start.vcv: " + model + " has no param id " + std::to_string(pid));
+			}
 		}
 		json_t* const cables = json_object_get(patch, "cables");
 		for (size_t i = 0; i < json_array_size(cables); ++i) {
 			json_t* const c = json_array_get(cables, i);
-			if (!ids.count(json_integer_value(json_object_get(c, "outputModuleId"))) || !ids.count(json_integer_value(json_object_get(c, "inputModuleId"))))
+			const long long om = json_integer_value(json_object_get(c, "outputModuleId"));
+			const long long im = json_integer_value(json_object_get(c, "inputModuleId"));
+			if (!models.count(om) || !models.count(im)) {
 				failf(lessonName + ": start.vcv: a cable points at a missing module");
+				continue;
+			}
+			// Port ids within the modules' ports
+			const long long oid = json_integer_value(json_object_get(c, "outputId"));
+			const long long iid = json_integer_value(json_object_get(c, "inputId"));
+			const int outs = sizesOf(models[om]).outputs, ins = sizesOf(models[im]).inputs;
+			if (outs >= 0 && (oid < 0 || oid >= outs))
+				failf(lessonName + ": start.vcv: " + models[om] + " has no output id " + std::to_string(oid));
+			if (ins >= 0 && (iid < 0 || iid >= ins))
+				failf(lessonName + ": start.vcv: " + models[im] + " has no input id " + std::to_string(iid));
 		}
 		json_decref(patch);
 		if (l.steps.back().done.type != Cond::Next)

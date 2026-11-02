@@ -266,8 +266,20 @@ static void perform(const tu::Action& a, std::map<std::string, PeakHold>& peaks,
 			if (pq == nullptr)
 				break;
 			const float oldValue = pq->getValue();
-			if (a.type == tu::Action::SET_PARAM)
+			if (a.type == tu::Action::SET_PARAM) {
 				pq->setDisplayValue((float) a.value);
+				// The display <-> value conversion can land just outside the range: nudge it in
+				for (int k = 0; k < 50; ++k) {
+					const float d = pq->getDisplayValue();
+					const int dir = a.hasMin && d < a.min ? 1 : a.hasMax && d > a.max ? -1 : 0;
+					if (dir == 0)
+						break;
+					if (pq->snapEnabled)
+						pq->setValue(pq->getValue() + dir);
+					else
+						pq->setScaledValue(pq->getScaledValue() + dir * 0.002f);
+				}
+			}
 			else {
 				const float cur = pq->getScaledValue();
 				pq->setScaledValue(cur + a.value <= 1.f ? cur + (float) a.value : cur - (float) a.value);
@@ -348,11 +360,17 @@ struct TutorialLayer : widget::Widget {
 	}
 
 	void begin(const std::string& id, const tu::Lesson& l) {
+		const std::vector<tu::ModuleState> loaded = snapshot(peaks, now()).modules;
+		if (loaded.empty()) {
+			// The start patch did not load (the load reported its error already)
+			WARN("PatchCore tutorials: %s: the start patch is empty or did not load", id.c_str());
+			return;
+		}
 		lessonId = id;
 		lesson = l;
 		active = true;
 		peaks.clear();
-		startModules = snapshot(peaks, now()).modules;
+		startModules = loaded;
 		nextId = findNextLessonId();
 		finishSeen = 0;
 		setViewSide(lesson.startSide == tu::SIDE_BACK ? VIEW_BACK : VIEW_FRONT);
@@ -428,12 +446,36 @@ struct TutorialLayer : widget::Widget {
 		Widget::step();
 	}
 
+	/** Once per step: a reference to a module that is there but has no such port or param (renamed?) goes to the log */
+	void logUnresolved(const tu::Step& st) {
+		std::vector<tu::Ref> refs = st.highlight;
+		collectRefs(st.done, &refs);
+		for (const tu::Ref& r : refs) {
+			if (r.kind == tu::Ref::MODULE || tu::findModule(state, r.module) == nullptr)
+				continue;
+			const bool found = r.kind == tu::Ref::PARAM ? tu::findParam(state, r) != nullptr : tu::findPort(state, r) != nullptr;
+			if (!found)
+				WARN("PatchCore tutorials: %s step %d: %s has no %s '%s'", lessonId.c_str(), runner.step + 1, r.module.c_str(),
+				     r.kind == tu::Ref::PARAM ? "param" : r.kind == tu::Ref::INPUT ? "input" : "output", r.name.c_str());
+		}
+	}
+
+	static void collectRefs(const tu::Condition& c, std::vector<tu::Ref>* out) {
+		if (c.type == tu::Cond::Param || c.type == tu::Cond::Signal || (c.type == tu::Cond::Cable && c.hasFrom))
+			out->push_back(c.ref);
+		if (c.type == tu::Cond::Cable && c.hasTo)
+			out->push_back(c.to);
+		for (const tu::Condition& part : c.parts)
+			collectRefs(part, out);
+	}
+
 	/** Once per step: bring the first target into view */
 	void scrollToTarget() {
 		if (runner.phase != tu::Runner::ACTIVE || scrolledStep == runner.step)
 			return;
 		scrolledStep = runner.step;
 		const tu::Step& st = runner.current();
+		logUnresolved(st);
 		if (st.highlight.empty())
 			return;
 		widget::Widget* const w = refWidget(st.highlight[0], state);
@@ -606,9 +648,14 @@ void TutorialPanel::draw(const DrawArgs& args) {
 		status = "\xE2\x9C\x93 Done";
 		statusColor = t.play;
 	}
-	else if (!finished && r.isTask() && !r.reviewing)
-		status = "Waiting for you\xE2\x80\xA6";
+	else if (!finished && r.isTask() && !r.reviewing) {
+		tu::StepContext probe = r.ctx;
+		status = "Waiting for: " + tu::waitingFor(r.current().done, layer->state, probe, layer->now());
+	}
+	nvgSave(vg);
+	nvgIntersectScissor(vg, 16.f, kH - 64.f, kW - 32.f, 20.f);
 	draw::text(vg, uiFont(), 11.f, statusColor, math::Vec(16.f, kH - 54.f), NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, status);
+	nvgRestore(vg);
 
 	drawPanelButton(vg, backRect, "Back", r.step > 0 || finished, false);
 	if (!finished && tu::canShowMe(r.current()))
@@ -630,8 +677,7 @@ void openTutorial(const std::string& id) {
 		WARN("PatchCore tutorials: %s: %s", id.c_str(), error.c_str());
 		return;
 	}
-	if (TutorialLayer* const layer = currentLayer())
-		layer->end();
+	// A running lesson ends only when the new start patch is in (cancelling the save prompt keeps it)
 	patchUtils::loadPathDialog(system::join(tutorialsDir(), id, "start.vcv"), true, [id, lesson]() {
 		if (TutorialLayer* const layer = currentLayer())
 			layer->begin(id, lesson);

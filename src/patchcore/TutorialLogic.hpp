@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <map>
 #include <set>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -534,6 +535,8 @@ struct Runner {
 	std::set<std::string> seen;
 	/** Counts the times the lesson reached its end (the app records the lesson as done on a change) */
 	int finishCount = 0;
+	/** The furthest step reached: steps before it are only shown again (reviewing) when Next passes them */
+	int furthest = 0;
 
 	void start(const Lesson& l, double t) {
 		lesson = &l;
@@ -542,6 +545,7 @@ struct Runner {
 		reviewing = false;
 		seen.clear();
 		finishCount = 0;
+		furthest = 0;
 		enter(t);
 	}
 
@@ -629,6 +633,11 @@ private:
 			}
 			++step;
 			enter(t);
+			if (step < furthest) {
+				reviewing = true;
+				return;
+			}
+			furthest = step;
 			const Condition& c = current().done;
 			if (c.type != Cond::Next && c.type != Cond::Wait && holds(c, s, ctx, t))
 				continue;
@@ -695,6 +704,9 @@ struct Action {
 	double value = 0.0;
 	/** SET_SIDE */
 	int side = SIDE_ANY;
+	/** SET_PARAM: the range to land in (displayed units), so the app can nudge a value rounded just outside */
+	bool hasMin = false, hasMax = false;
+	double min = 0.0, max = 0.0;
 };
 
 inline bool canDo(const Condition& c) {
@@ -764,6 +776,10 @@ inline void conditionActions(const Condition& c, const RackState& s, std::vector
 			else {
 				a.type = Action::SET_PARAM;
 				a.value = c.hasMin && c.hasMax ? (c.min + c.max) / 2.0 : c.hasMin ? c.min : c.max;
+				a.hasMin = c.hasMin;
+				a.hasMax = c.hasMax;
+				a.min = c.min;
+				a.max = c.max;
 			}
 			out->push_back(a);
 			break;
@@ -793,6 +809,72 @@ inline std::vector<Action> showMeActions(const Step& step, const RackState& s) {
 	}
 	conditionActions(step.done, s, &out);
 	return out;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// "Waiting for: …" in the panel
+
+inline std::string numberText(double v) {
+	std::ostringstream o;
+	o << v;
+	return o.str();
+}
+
+inline std::string refText(const Ref& r) {
+	std::string t = r.module;
+	if (r.kind != Ref::MODULE)
+		t += " " + r.name;
+	if (r.side == SIDE_BACK)
+		t += " (back)";
+	else if (r.side == SIDE_FRONT)
+		t += " (front)";
+	return t;
+}
+
+inline std::string describe(const Condition& c) {
+	switch (c.type) {
+		case Cond::Next:
+			return "Next";
+		case Cond::Wait:
+			return "a few seconds";
+		case Cond::Module: {
+			const char first = c.ref.module.empty() ? 'x' : c.ref.module[0];
+			const bool vowel = std::string("AEFHILMNORSX").find(first) != std::string::npos;
+			return std::string(vowel ? "an " : "a ") + c.ref.module + " in the rack";
+		}
+		case Cond::Side:
+			return c.side == SIDE_BACK ? "the back of the rack" : "the front of the rack";
+		case Cond::Signal:
+			return c.ref.module == "HostAudio2" ? "sound from the speakers" : "a signal at " + refText(c.ref);
+		case Cond::Param: {
+			const std::string p = c.ref.module + " " + c.ref.name;
+			if (c.moved > 0.0)
+				return "a turn of " + p;
+			if (c.hasMin && c.hasMax)
+				return p + " between " + numberText(c.min) + " and " + numberText(c.max);
+			return p + (c.hasMin ? " at " + numberText(c.min) + " or more" : " at " + numberText(c.max) + " or less");
+		}
+		case Cond::Cable:
+			if (c.hasFrom && c.hasTo)
+				return "a cable " + refText(c.ref) + " \xE2\x86\x92 " + refText(c.to);
+			return c.hasFrom ? "a cable from " + refText(c.ref) : "a cable into " + refText(c.to);
+		case Cond::All:
+		case Cond::Any:
+			return c.parts.empty() ? "" : describe(c.parts[0]);
+	}
+	return "";
+}
+
+/** What the step still waits for: the first part of an "all" that does not hold yet, else the condition */
+inline std::string waitingFor(const Condition& c, const RackState& s, StepContext& ctx, double t) {
+	if (c.type == Cond::All) {
+		for (const Condition& part : c.parts) {
+			StepContext probe = ctx;  // no baselines recorded by just asking
+			if (!holds(part, s, probe, t))
+				return waitingFor(part, s, ctx, t);
+		}
+	}
+	return describe(c);
 }
 
 } // namespace patchcore_tutorial

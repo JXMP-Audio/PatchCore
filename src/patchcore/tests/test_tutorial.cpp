@@ -386,11 +386,76 @@ static void testShowMe() {
 	assert(a.size() == 1 && a[0].type == Action::MOVE_PARAM && a[0].value > 0.2);
 }
 
+// Back twice, then Next: a step already done is shown again, not armed again (its knob must not be turned twice)
+static void testRunnerFurthest() {
+	Lesson l;
+	std::string err;
+	const bool ok = parseLesson(R"({"title": "t", "steps": [
+		{"text": "a", "done": {"next": true}},
+		{"text": "b", "done": {"param": {"module": "VCA", "param": "Channel 1 level"}, "moved": 0.2}},
+		{"text": "c", "done": {"param": {"module": "VCO", "param": "Frequency"}, "moved": 0.2}},
+		{"text": "d", "done": {"next": true}}
+	]})", &l, &err);
+	assert(ok);
+	RackState s = demoRack();
+	Runner r;
+	r.start(l, 0.0);
+	r.pressNext(s, 0.1);
+	r.update(s, 0.2);
+	s.params[0].scaled = 0.5f;
+	r.update(s, 0.3);
+	r.update(s, 0.6);
+	r.update(s, 1.4);
+	assert(r.step == 2);
+	r.update(s, 1.5);
+	s.params[1].scaled = 0.9f;
+	r.update(s, 1.6);
+	r.update(s, 1.9);
+	r.update(s, 2.7);
+	assert(r.step == 3 && r.furthest == 3);
+	r.back(3.0);
+	r.back(3.1);
+	assert(r.step == 1 && r.reviewing);
+	r.pressNext(s, 3.2);
+	assert(r.step == 2 && r.reviewing && r.nextEnabled());
+	r.pressNext(s, 3.3);
+	assert(r.step == 3 && !r.reviewing);
+}
+
+// "Waiting for: …" names the first part that is not done yet
+static void testWaitingFor() {
+	Lesson l;
+	std::string err;
+	const bool ok = parseLesson(R"({"title": "t", "steps": [
+		{"text": "a", "done": {"all": [
+			{"cable": {"from": {"module": "VCO", "output": "Saw"}, "to": {"module": "VCA", "input": "In 1"}}},
+			{"signal": {"module": "HostAudio2", "input": "#1"}, "above": 0.5}]}},
+		{"text": "b", "done": {"param": {"module": "VCA", "param": "Channel 1 level"}, "min": 20, "max": 40}},
+		{"text": "c", "done": {"side": "front"}},
+		{"text": "d", "done": {"module": "LFO"}},
+		{"text": "e", "done": {"cable": {"from": {"module": "VCO", "output": "Sqr"}, "to": {"module": "Patchbay4", "input": "Ch 1", "side": "back"}}}}
+	]})", &l, &err);
+	assert(ok);
+	RackState s = demoRack();
+	StepContext ctx;
+	assert(waitingFor(l.steps[0].done, s, ctx, 0.0) == "sound from the speakers");
+	assert(waitingFor(l.steps[1].done, s, ctx, 0.0) == "VCA Channel 1 level between 20 and 40");
+	assert(waitingFor(l.steps[2].done, s, ctx, 0.0) == "the front of the rack");
+	assert(waitingFor(l.steps[3].done, s, ctx, 0.0) == "an LFO in the rack");
+	assert(waitingFor(l.steps[4].done, s, ctx, 0.0) == "a cable VCO Sqr \xE2\x86\x92 Patchbay4 Ch 1 (back)");
+
+	// Show me carries the range, so the app can nudge a knob that lands just outside it
+	std::vector<Action> a = showMeActions(l.steps[1], s);
+	assert(a.size() == 1 && a[0].hasMin && a[0].min == 20.0 && a[0].hasMax && a[0].max == 40.0);
+}
+
 int main() {
 	testParse();
 	testConditions();
 	testRunner();
 	testShowMe();
+	testRunnerFurthest();
+	testWaitingFor();
 	std::printf("tutorial logic: all tests passed\n");
 	return 0;
 }
