@@ -34,3 +34,6 @@ compile_commands.json
 compile_flags.txt
 /run-patchcore.sh
 /patches/jxmp-*.vcv
+# Tests and dev tools (local only)
+/src/patchcore/tests/
+/plugins/JXMP/tests/

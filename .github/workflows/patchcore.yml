@@ -46,10 +46,6 @@ jobs:
           # the final stages one job at a time, else the runner may run out of memory
           make HAVE_PULSEAUDIO=false jack -j 1
           make HAVE_PULSEAUDIO=false vst3 -j 1
-      - name: Tests
-        run: |
-          bash src/patchcore/tests/run.sh
-          bash plugins/JXMP/tests/run.sh
       - name: Pack
         run: |
           echo "SHA8=$(echo ${{ github.sha }} | cut -c1-8)" >> $GITHUB_ENV

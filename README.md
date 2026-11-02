@@ -76,7 +76,6 @@ make -j$(nproc) vst3     # bin/CardinalSynth.vst3 (PatchCore), bin/CardinalFX.vs
 ```
 
 Windows builds are cross-compiled by the GitHub Actions workflow `patchcore` (Linux and Windows, started by hand).
-Tests: `src/patchcore/tests/run.sh` and `plugins/JXMP/tests/run.sh`.
 
 ## Licence and credits
 
