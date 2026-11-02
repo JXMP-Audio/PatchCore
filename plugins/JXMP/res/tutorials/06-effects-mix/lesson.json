@@ -1,0 +1,353 @@
+{
+  "title": "Effects and mix",
+  "startSide": "back",
+  "learned": [
+    "A mixer adds signals and balances them",
+    "Insert effects in a chain: delay, chorus",
+    "Reverb last, around the whole mix",
+    "Wet and dry: the Mix knob"
+  ],
+  "steps": [
+    {
+      "text": "A melody and a beat are playing in the rack, but nothing reaches the speakers yet. In this lesson a mixer brings them together, and effects give them space.",
+      "done": {
+        "next": true
+      }
+    },
+    {
+      "text": "Patch OUT 1 of the amplifier to IN 1 of the mixer, MIX of the drums to IN 2, and MIX of the mixer to jack 1 of the patchbay.",
+      "side": "back",
+      "highlight": [
+        {
+          "module": "VCA",
+          "output": "Out 1"
+        },
+        {
+          "module": "Mixer",
+          "input": "In 1"
+        },
+        {
+          "module": "Drums",
+          "output": "Mix"
+        },
+        {
+          "module": "Mixer",
+          "input": "In 2"
+        },
+        {
+          "module": "Mixer",
+          "output": "Mix"
+        },
+        {
+          "module": "Patchbay4",
+          "input": "Ch 1",
+          "side": "back"
+        }
+      ],
+      "done": {
+        "all": [
+          {
+            "cable": {
+              "from": {
+                "module": "VCA",
+                "output": "Out 1"
+              },
+              "to": {
+                "module": "Mixer",
+                "input": "In 1"
+              }
+            }
+          },
+          {
+            "cable": {
+              "from": {
+                "module": "Drums",
+                "output": "Mix"
+              },
+              "to": {
+                "module": "Mixer",
+                "input": "In 2"
+              }
+            }
+          },
+          {
+            "cable": {
+              "from": {
+                "module": "Mixer",
+                "output": "Mix"
+              },
+              "to": {
+                "module": "Patchbay4",
+                "input": "Ch 1",
+                "side": "back"
+              }
+            }
+          },
+          {
+            "signal": {
+              "module": "HostAudio2",
+              "input": "#1"
+            },
+            "above": 0.05
+          }
+        ]
+      }
+    },
+    {
+      "text": "Press Tab and turn the LEVEL of channel 2 until the drums and the melody sit well together. Balancing levels is most of what mixing is.",
+      "side": "front",
+      "highlight": [
+        {
+          "module": "Mixer",
+          "param": "Channel 2 level"
+        }
+      ],
+      "done": {
+        "param": {
+          "module": "Mixer",
+          "param": "Channel 2 level"
+        },
+        "moved": 0.15
+      }
+    },
+    {
+      "text": "An insert effect goes into the chain of one sound. Press Tab, patch OUT 1 of the amplifier to IN of the delay, and OUT of the delay to IN 1 of the mixer (the old cable goes).",
+      "side": "back",
+      "highlight": [
+        {
+          "module": "VCA",
+          "output": "Out 1"
+        },
+        {
+          "module": "Delay",
+          "input": "In"
+        },
+        {
+          "module": "Delay",
+          "output": "Out"
+        },
+        {
+          "module": "Mixer",
+          "input": "In 1"
+        }
+      ],
+      "done": {
+        "all": [
+          {
+            "cable": {
+              "from": {
+                "module": "VCA",
+                "output": "Out 1"
+              },
+              "to": {
+                "module": "Delay",
+                "input": "In"
+              }
+            }
+          },
+          {
+            "cable": {
+              "from": {
+                "module": "Delay",
+                "output": "Out"
+              },
+              "to": {
+                "module": "Mixer",
+                "input": "In 1"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "text": "Press Tab and turn TIME and FEEDBACK of the delay. Time is the gap between the echoes, feedback how many come back. Too much feedback and the echoes pile up.",
+      "side": "front",
+      "highlight": [
+        {
+          "module": "Delay",
+          "param": "Time"
+        },
+        {
+          "module": "Delay",
+          "param": "Feedback"
+        }
+      ],
+      "done": {
+        "all": [
+          {
+            "param": {
+              "module": "Delay",
+              "param": "Time"
+            },
+            "moved": 0.1
+          },
+          {
+            "param": {
+              "module": "Delay",
+              "param": "Feedback"
+            },
+            "moved": 0.1
+          }
+        ]
+      }
+    },
+    {
+      "text": "Effects can follow each other. Press Tab, patch OUT of the delay to IN L of the chorus, and OUT L of the chorus to IN 1 of the mixer.",
+      "side": "back",
+      "highlight": [
+        {
+          "module": "Delay",
+          "output": "Out"
+        },
+        {
+          "module": "Chorus",
+          "input": "In L"
+        },
+        {
+          "module": "Chorus",
+          "output": "Out L"
+        },
+        {
+          "module": "Mixer",
+          "input": "In 1"
+        }
+      ],
+      "done": {
+        "all": [
+          {
+            "cable": {
+              "from": {
+                "module": "Delay",
+                "output": "Out"
+              },
+              "to": {
+                "module": "Chorus",
+                "input": "In L"
+              }
+            }
+          },
+          {
+            "cable": {
+              "from": {
+                "module": "Chorus",
+                "output": "Out L"
+              },
+              "to": {
+                "module": "Mixer",
+                "input": "In 1"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "text": "Press Tab and turn DEPTH of the chorus. The chorus adds slightly detuned copies of the sound, so one voice sounds wide and lush.",
+      "side": "front",
+      "highlight": [
+        {
+          "module": "Chorus",
+          "param": "Depth"
+        }
+      ],
+      "done": {
+        "param": {
+          "module": "Chorus",
+          "param": "Depth"
+        },
+        "moved": 0.2
+      }
+    },
+    {
+      "text": "Reverb is the room around the whole mix, so it goes last. Press Tab, patch MIX of the mixer to IN L of the reverb, and OUT L of the reverb to jack 1 of the patchbay (the old cable goes).",
+      "side": "back",
+      "highlight": [
+        {
+          "module": "Mixer",
+          "output": "Mix"
+        },
+        {
+          "module": "Reverb",
+          "input": "In L"
+        },
+        {
+          "module": "Reverb",
+          "output": "Out L"
+        },
+        {
+          "module": "Patchbay4",
+          "input": "Ch 1",
+          "side": "back"
+        }
+      ],
+      "done": {
+        "all": [
+          {
+            "cable": {
+              "from": {
+                "module": "Mixer",
+                "output": "Mix"
+              },
+              "to": {
+                "module": "Reverb",
+                "input": "In L"
+              }
+            }
+          },
+          {
+            "cable": {
+              "from": {
+                "module": "Reverb",
+                "output": "Out L"
+              },
+              "to": {
+                "module": "Patchbay4",
+                "input": "Ch 1",
+                "side": "back"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "text": "Press Tab and turn MIX and DECAY of the reverb. Mix sets how much of the room you hear against the dry sound, decay how long the room rings: from a small room to a cathedral.",
+      "side": "front",
+      "highlight": [
+        {
+          "module": "Reverb",
+          "param": "Mix"
+        },
+        {
+          "module": "Reverb",
+          "param": "Decay"
+        }
+      ],
+      "done": {
+        "all": [
+          {
+            "param": {
+              "module": "Reverb",
+              "param": "Mix"
+            },
+            "moved": 0.1
+          },
+          {
+            "param": {
+              "module": "Reverb",
+              "param": "Decay"
+            },
+            "moved": 0.1
+          }
+        ]
+      }
+    },
+    {
+      "text": "Sounds go through their own effects, meet in the mixer, and the reverb puts the whole mix in one room. For bigger projects the console in the Mixer view (F4) does the same with sends. Press Next to finish.",
+      "done": {
+        "next": true
+      }
+    }
+  ]
+}

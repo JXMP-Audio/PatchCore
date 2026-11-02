@@ -7,7 +7,7 @@
  ],
  "modules": [
   {
-   "id": 1,
+   "id": 7300000001,
    "plugin": "JXMP",
    "model": "Patchbay4",
    "version": "2.0.0",
@@ -18,7 +18,7 @@
    ]
   },
   {
-   "id": 2,
+   "id": 7300000002,
    "plugin": "Cardinal",
    "model": "HostAudio2",
    "version": "2.0.0",
@@ -37,9 +37,9 @@
  "cables": [
   {
    "id": 1,
-   "outputModuleId": 1,
+   "outputModuleId": 7300000001,
    "outputId": 0,
-   "inputModuleId": 2,
+   "inputModuleId": 7300000002,
    "inputId": 0,
    "color": "#f0a030"
   }

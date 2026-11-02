@@ -5,6 +5,12 @@
     {"id": "02-filter-envelope", "title": "2 · Filter and envelope",
      "description": "Shape a sound: filter, gates and the ADSR envelope."},
     {"id": "03-modulation", "title": "3 · Modulation",
-     "description": "Let an LFO turn the knobs: CV, vibrato and trills."}
+     "description": "Let an LFO turn the knobs: CV, vibrato and trills."},
+    {"id": "04-sequences", "title": "4 · Sequences and melody",
+     "description": "Clock, sequencer and quantizer: from one tone to a melody."},
+    {"id": "05-drums", "title": "5 · Drums and rhythm",
+     "description": "Euclidean rhythms, drum triggers, logic and swing."},
+    {"id": "06-effects-mix", "title": "6 · Effects and mix",
+     "description": "Mixer, delay, chorus and reverb: give the sound a space."}
   ]
 }

@@ -1,0 +1,100 @@
+{
+ "version": "2.6.0",
+ "zoom": 1.0,
+ "gridOffset": [
+  -1,
+  0
+ ],
+ "modules": [
+  {
+   "id": 7300000003,
+   "plugin": "JXMP",
+   "model": "Clock",
+   "version": "2.0.0",
+   "params": [
+    {
+     "id": 0,
+     "value": 100
+    },
+    {
+     "id": 1,
+     "value": 1
+    }
+   ],
+   "pos": [
+    0,
+    0
+   ]
+  },
+  {
+   "id": 7300000014,
+   "plugin": "JXMP",
+   "model": "Euclid",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    12,
+    0
+   ]
+  },
+  {
+   "id": 7300000015,
+   "plugin": "JXMP",
+   "model": "Drums",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    26,
+    0
+   ]
+  },
+  {
+   "id": 7300000016,
+   "plugin": "JXMP",
+   "model": "Logic",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    44,
+    0
+   ]
+  },
+  {
+   "id": 7300000001,
+   "plugin": "JXMP",
+   "model": "Patchbay4",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    52,
+    0
+   ]
+  },
+  {
+   "id": 7300000002,
+   "plugin": "Cardinal",
+   "model": "HostAudio2",
+   "version": "2.0.0",
+   "params": [
+    {
+     "id": 0,
+     "value": 0.5
+    }
+   ],
+   "pos": [
+    56,
+    0
+   ]
+  }
+ ],
+ "cables": [
+  {
+   "id": 1,
+   "outputModuleId": 7300000001,
+   "outputId": 0,
+   "inputModuleId": 7300000002,
+   "inputId": 0,
+   "color": "#f0a030"
+  }
+ ]
+}

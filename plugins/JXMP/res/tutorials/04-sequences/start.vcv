@@ -1,0 +1,157 @@
+{
+ "version": "2.6.0",
+ "zoom": 1.0,
+ "gridOffset": [
+  -1,
+  0
+ ],
+ "modules": [
+  {
+   "id": 7300000003,
+   "plugin": "JXMP",
+   "model": "Clock",
+   "version": "2.0.0",
+   "params": [
+    {
+     "id": 0,
+     "value": 100
+    },
+    {
+     "id": 1,
+     "value": 1
+    }
+   ],
+   "pos": [
+    0,
+    0
+   ]
+  },
+  {
+   "id": 7300000011,
+   "plugin": "JXMP",
+   "model": "SEQ",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    12,
+    0
+   ]
+  },
+  {
+   "id": 7300000012,
+   "plugin": "JXMP",
+   "model": "Quantizer",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    30,
+    0
+   ]
+  },
+  {
+   "id": 7300000013,
+   "plugin": "JXMP",
+   "model": "Random",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    38,
+    0
+   ]
+  },
+  {
+   "id": 7300000004,
+   "plugin": "JXMP",
+   "model": "VCO",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    46,
+    0
+   ]
+  },
+  {
+   "id": 7300000006,
+   "plugin": "JXMP",
+   "model": "ADSR",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    64,
+    0
+   ]
+  },
+  {
+   "id": 7300000007,
+   "plugin": "JXMP",
+   "model": "VCA",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    78,
+    0
+   ]
+  },
+  {
+   "id": 7300000001,
+   "plugin": "JXMP",
+   "model": "Patchbay4",
+   "version": "2.0.0",
+   "params": [],
+   "pos": [
+    86,
+    0
+   ]
+  },
+  {
+   "id": 7300000002,
+   "plugin": "Cardinal",
+   "model": "HostAudio2",
+   "version": "2.0.0",
+   "params": [
+    {
+     "id": 0,
+     "value": 0.5
+    }
+   ],
+   "pos": [
+    90,
+    0
+   ]
+  }
+ ],
+ "cables": [
+  {
+   "id": 1,
+   "outputModuleId": 7300000001,
+   "outputId": 0,
+   "inputModuleId": 7300000002,
+   "inputId": 0,
+   "color": "#f0a030"
+  },
+  {
+   "id": 2,
+   "outputModuleId": 7300000004,
+   "outputId": 2,
+   "inputModuleId": 7300000007,
+   "inputId": 0,
+   "color": "#5b6ee1"
+  },
+  {
+   "id": 3,
+   "outputModuleId": 7300000006,
+   "outputId": 0,
+   "inputModuleId": 7300000007,
+   "inputId": 1,
+   "color": "#3cb46e"
+  },
+  {
+   "id": 4,
+   "outputModuleId": 7300000007,
+   "outputId": 0,
+   "inputModuleId": 7300000001,
+   "inputId": 4,
+   "color": "#e04e4e"
+  }
+ ]
+}

@@ -51,23 +51,32 @@ static std::string sourceFor(const std::string& slug) {
 
 static Names namesIn(const std::string& src) {
 	Names n;
-	// configParam(ID, min, max, default, "Name"...): min/max/default may be names (minFreq), so any three arguments
-	const std::regex call("config(Input|Output|Param|Switch|Button)\\(\\s*[A-Za-z0-9_]+(\\s*\\+\\s*[A-Za-z0-9_]+)?\\s*,"
+	// `const char* names[...] = {"Kick", ...}` arrays: names built with "%s" (JX-DRM) or names[k] (JX-CLK)
+	std::vector<std::string> arr;
+	const std::regex arrRe("const char\\*\\s*names\\[[^\\]]*\\]\\s*=\\s*\\{([^}]*)\\}");
+	const std::regex lit("\"([^\"]*)\"");
+	for (std::sregex_iterator a(src.begin(), src.end(), arrRe), end; a != end; ++a) {
+		const std::string body = (*a)[1];
+		for (std::sregex_iterator it(body.begin(), body.end(), lit), e2; it != e2; ++it)
+			arr.push_back((*it)[1]);
+	}
+	// configParam(ID, min, max, default, "Name"...): min/max/default may be names (minFreq), so any three
+	// arguments; configParam<DecayQuantity>(...) as well
+	const std::regex call("config(Input|Output|Param|Switch|Button)(<[A-Za-z0-9_:]+>)?\\(\\s*[A-Za-z0-9_]+(\\s*\\+\\s*[A-Za-z0-9_]+)?\\s*,"
 	                      "((?:[^,\"()]*,){3})?\\s*(string::f\\()?\"([^\"]*)\"");
 	for (std::sregex_iterator it(src.begin(), src.end(), call), end; it != end; ++it) {
 		const std::string kind = (*it)[1];
-		const std::string name = (*it)[5];
-		(kind == "Input" ? n.inputs : kind == "Output" ? n.outputs : n.params).push_back(name);
+		const std::string name = (*it)[6];
+		std::vector<std::string>& list = kind == "Input" ? n.inputs : kind == "Output" ? n.outputs : n.params;
+		const size_t s = name.find("%s");
+		if (s == std::string::npos)
+			list.push_back(name);
+		else
+			for (const std::string& a : arr)
+				list.push_back(name.substr(0, s) + a + name.substr(s + 2));
 	}
-	// configOutput(X + k, names[k]) with `const char* names[...] = {"x4", ...}` (JX-CLK)
-	const std::regex arr("const char\\*\\s*names\\[[^\\]]*\\]\\s*=\\s*\\{([^}]*)\\}");
-	std::smatch m;
-	if (src.find("configOutput(DIV_OUTPUT + k, names[k])") != std::string::npos && std::regex_search(src, m, arr)) {
-		const std::string body = m[1];
-		const std::regex lit("\"([^\"]*)\"");
-		for (std::sregex_iterator it(body.begin(), body.end(), lit), end; it != end; ++it)
-			n.outputs.push_back((*it)[1]);
-	}
+	if (src.find("configOutput(DIV_OUTPUT + k, names[k])") != std::string::npos)
+		n.outputs.insert(n.outputs.end(), arr.begin(), arr.end());
 	return n;
 }
 
@@ -136,8 +145,8 @@ int main() {
 		failf("index.json: " + err);
 		return 1;
 	}
-	if (index.size() != 3)
-		failf("index.json: expected 3 lessons");
+	if (index.size() != 6)
+		failf("index.json: expected 6 lessons");
 	int n = 0;
 	for (const IndexEntry& e : index) {
 		++n;
