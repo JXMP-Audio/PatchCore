@@ -56,7 +56,8 @@ struct Trigger {
 	}
 };
 
-/** Phosphor persistence: a written point fades to dark over about this many seconds (P31-like green) */
+/** Phosphor persistence: a written point fades over about this many seconds (P31-like green); on slow sweeps
+the trail lasts about one sweep (as a long-persistence tube), so the whole wave stays until it is rewritten */
 constexpr float kPersistence = 0.25f;
 
 /**
@@ -75,6 +76,7 @@ struct Capture {
 	float sinceTake = 0.f;
 	float curLo[2] = {INFINITY, INFINITY}, curHi[2] = {-INFINITY, -INFINITY};
 	float waiting = 0.f, sinceTrigger = 0.f, triggerSpacing = 0.f;
+	float persistence = kPersistence;
 
 	Capture() {
 		for (double& s : stamp)
@@ -101,6 +103,7 @@ struct Capture {
 		time += dt;
 		const float x[2] = {a, b};
 		const float sweepTime = secondsPerDiv * kDivisions;
+		persistence = std::max(kPersistence, 1.2f * sweepTime);
 		sinceTrigger += dt;
 		if (trigger) {
 			triggerSpacing = sinceTrigger;
@@ -146,7 +149,7 @@ struct Capture {
 	/** Brightness of a point now: 1 when just written, fading with the phosphor */
 	float glow(int i) const {
 		const double age = time - stamp[i];
-		return age < 0.0 ? 0.f : (float) std::exp(-age / kPersistence);
+		return age < 0.0 ? 0.f : (float) std::exp(-age / persistence);
 	}
 };
 

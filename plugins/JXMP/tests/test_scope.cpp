@@ -72,6 +72,13 @@ int main() {
 		hold.process(2.f, 0.f, false, dt, 0.001f, false, false);
 	assert(hold.glow(0) < 0.05f);
 
+	// A slow sweep keeps its trail about one sweep long: written 2 s ago at 0.5 s/div (4 s sweep) still glows
+	Capture slowGlow;
+	slowGlow.process(1.f, 0.f, true, dt, 0.5f, false, false);
+	for (int i = 0; i < 2 * 48000; ++i)
+		slowGlow.process(1.f, 0.f, false, dt, 0.5f, false, false);
+	assert(slowGlow.glow(0) > 0.6f);
+
 	// AUTO without a trigger: the beam runs by itself, so a steady voltage still shows
 	Capture autoRun;
 	for (int i = 0; i < 9600; ++i)
