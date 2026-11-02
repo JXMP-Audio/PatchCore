@@ -13,11 +13,17 @@ or weekly limit ends). Newest first.
   - [x] JX-SCP scope (round CRT, trigger, AUTO/NORM, X-Y, afterglow, live slow sweeps, trace clipped to the circle)
   - [x] JX-CLK clock (CLOCK IN front/back one side at a time, transport, own tempo, x4…/16, swing)
   - [x] JX-EUC Euclidean rhythms (4 tracks, display, gate + accent)
-  - [ ] JX-DRM, JX-REV, JX-CHR, JX-FLD, JX-RNG, JX-LGC, JX-SW, JX-PLY
+  - [x] JX-DRM drums (kick, snare, hat open/closed, clap; accent; outs + mix)
+  - [x] JX-REV reverb (plate/hall/room FDN, RT60, predelay, tone, mix)
+  - [ ] JX-CHR, JX-FLD, JX-RNG, JX-LGC, JX-SW, JX-PLY
 - `run-patchcore.sh` with no argument opens `patches/jxmp-workbench.vcv` (showcase + console, scope, clock,
   euclid — add every new module there) and rebuilds first when sources are newer.
 
-### Open bug (user, 00:25): JX-SCP with an LFO still drifts right→left every sweep
+### JX-SCP drift: fixed 2026-11-02 (17141e9) — rebuilt after VCV Fundamental's Scope (one buffer, holds
+without a trigger, min/max per point, TRIG/FREE). Simulation: 0.000 V change between sweeps. Waiting for the
+user's check. Old notes below.
+
+### (old) Open bug (user, 00:25): JX-SCP with an LFO still drifts right→left every sweep
 
 Fix b2725d9 (AUTO waits 1.5× the trigger spacing) did not help the user. Not reproduced yet. Hypotheses to check
 first, in the running app with the user watching workspace 3:
@@ -31,8 +37,8 @@ Tests in plugins/JXMP/tests (scope, clock, euclid) are written but have not been
 ### Next
 
 1. The scope drift bug above.
-2. JX-DRM (one module, kick/snare/hat/clap, trig + accent, outs + mix), then add it to the workbench driven by
-   JX-EUC; then REV, CHR, the small ones.
+2. Next modules: JX-CHR, then JX-FLD, JX-RNG, JX-LGC, JX-SW, JX-PLY (add each to the workbench).
+   JX-CLK: CLOCK IN only on the back now (user: the front one was a strange idea).
 3. Later: full build + tests + VST3 check, merge `standalone-audio` then `jxmp-set3`, bump the collection.
 
 ## 2026-11-01 (evening) — standalone vs VST3, audio settings
