@@ -33,9 +33,9 @@ int main() {
 	assert(!first.process(5.f, 0.f, true));
 
 	const float fs = 48000.f, dt = 1.f / fs;
-	const int mid = Capture::kHalf;
+	const int mid = 0;  // the trigger point: the left edge, as on VCV's Scope
 
-	// 100 Hz sine, 1 ms/div: every sweep starts on the trigger, which sits in the middle (rising through 0 V)
+	// 100 Hz sine, 1 ms/div: every sweep starts on the trigger, which sits at the left edge (rising through 0 V)
 	Capture c;
 	Trigger tr;
 	for (int i = 0; i < 48000; ++i) {
@@ -43,10 +43,10 @@ int main() {
 		c.process(x, -x, tr.process(x, 0.f, true), dt, 0.001f);
 	}
 	assert(c.sweeps >= 50 && c.sweeps <= 100);
-	assert(std::fabs(c.value[0][mid]) < 0.5f && c.value[0][mid + 4] > c.value[0][mid] && c.value[0][mid - 4] < c.value[0][mid]);
+	assert(std::fabs(c.value[0][mid]) < 0.5f && c.value[0][mid + 4] > c.value[0][mid]);
 	assert(near(c.value[1][10], -c.value[0][10]));
 
-	// Slow LFOs, sweeps shorter and longer than the period: the trace is continuous and the trigger in the middle
+	// Slow LFOs, sweeps shorter and longer than the period: the trace is continuous and starts on the trigger
 	const float lfoHz[] = {1.f, 1.f, 2.f, 0.5f};
 	const float spd[] = {0.01f, 0.2f, 0.1f, 0.5f};
 	for (int k = 0; k < 4; ++k) {
@@ -57,8 +57,6 @@ int main() {
 			l.process(x, 0.f, lt.process(x, 0.f, true), dt, spd[k]);
 		}
 		assert(std::fabs(l.value[0][mid]) < 0.1f);
-		// What the screen shows is a complete sweep, centred on the trigger
-		assert(std::fabs(l.shownValue[0][mid]) < 0.1f && l.shownValue[0][mid + 2] > l.shownValue[0][mid - 2]);
 		for (int i = 1; i < kPoints; ++i)
 			assert(std::fabs(l.value[0][i] - l.value[0][i - 1]) < 0.5f);
 	}

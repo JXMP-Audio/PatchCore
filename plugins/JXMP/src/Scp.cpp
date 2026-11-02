@@ -4,7 +4,7 @@
  *
  * JX-SCP: two-channel oscilloscope with a round green CRT, styled after an old lab scope. Y–T with a trigger
  * (level, slope, source CH1 / CH2 / EXT; TRIG holds the picture between triggers, FREE runs) or X–Y. The capture
- * works as VCV Fundamental's Scope: one buffer, min/max per point; the trigger point is the middle. Design: research_docs/14-jxmp-modules-set3-design.md.
+ * works as VCV Fundamental's Scope: one buffer drawn live, min/max per point, the trigger point at the left edge. Design: research_docs/14-jxmp-modules-set3-design.md.
  */
 
 #include "JXMPWidget.hpp"
@@ -38,6 +38,7 @@ struct Scp : engine::Module {
 	float trigLight = 0.f;
 	/** Recent range of the trigger signal (follows it within about 2 s), for the automatic level */
 	float trigLo = 0.f, trigHi = 0.f;
+	int lastTimeStep = -1;
 
 	Scp() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -91,7 +92,13 @@ struct Scp : engine::Module {
 		const bool fired = trigger.process(t, level, params[TRIG_SLOPE_PARAM].getValue() > 0.5f);
 		if (fired && !xy)
 			trigLight = 1.f;
-		capture.process(a, b, fired, args.sampleTime, sc::timeDiv((int) std::round(params[TIME_PARAM].getValue())), xy || !triggered);
+		// A new time base starts a fresh sweep at once
+		const int timeStep = (int) std::round(params[TIME_PARAM].getValue());
+		if (timeStep != lastTimeStep) {
+			lastTimeStep = timeStep;
+			capture.restart();
+		}
+		capture.process(a, b, fired, args.sampleTime, sc::timeDiv(timeStep), xy || !triggered);
 		trigLight = std::max(0.f, trigLight - args.sampleTime * 5.f);
 		lights[TRIG_LIGHT].setBrightness(trigLight);
 	}
@@ -186,13 +193,13 @@ struct CrtScreen : widget::TransparentWidget {
 				return;
 			std::vector<math::Vec> pts(sc::kPoints);
 			for (int i = 0; i < sc::kPoints; ++i)
-				pts[i] = point(c, r, sc::divisions(cap.shownValue[0][i], v1, p1), sc::divisions(cap.shownValue[1][i], v2, p2));
+				pts[i] = point(c, r, sc::divisions(cap.value[0][i], v1, p1), sc::divisions(cap.value[1][i], v2, p2));
 			trace(vg, c, r, pts, green, 1.f);
 			return;
 		}
 
-		// The last complete sweep, centred on its trigger; without a trigger it holds. Each point is drawn from its
-		// minimum to its maximum, so audio at a slow time base is a solid band.
+		// The one buffer, drawn live as on VCV's Scope: a sweep overwrites it from the left edge (the trigger
+		// point), without a trigger it holds. Each point is drawn from its minimum to its maximum.
 		for (int ch = 0; ch < 2; ++ch) {
 			if (!(ch == 0 ? on1 : on2))
 				continue;
@@ -200,7 +207,7 @@ struct CrtScreen : widget::TransparentWidget {
 			std::vector<math::Vec> pts;
 			pts.reserve(2 * sc::kPoints);
 			for (int i = 0; i < sc::kPoints; ++i) {
-				const float lo = cap.shownLo[ch][i], hi = cap.shownHi[ch][i];
+				const float lo = cap.lo[ch][i], hi = cap.hi[ch][i];
 				if (!std::isfinite(lo) || !std::isfinite(hi))
 					continue;
 				const float x = (float) i / (sc::kPoints - 1) * 8.f - 4.f;

@@ -57,22 +57,15 @@ struct Trigger {
 };
 
 /**
- * The capture, after VCV's Scope: a sweep starts on a trigger (or right away in free run); without a trigger
- * the picture holds. The display shows only complete sweeps (`shown*`, swapped in whole), so the trigger is
- * always in the middle and the screen never shows half a new sweep over half an old one. Each point keeps the minimum and maximum of the samples in its
- * time slice, so slow time bases do not alias. The trigger point is the middle of the sweep: the half before
- * it comes from a history that runs all the time. `value` holds the last sample of each point (for tests).
+ * The capture, as VCV Fundamental's Scope does it: one buffer of kPoints points that the display draws live.
+ * A sweep starts on a trigger (or right away in free run) at the left edge and overwrites the buffer point by
+ * point; without a trigger the buffer stays — the picture holds. Each point keeps the minimum and maximum of
+ * the samples in its time slice, so slow time bases do not alias. `value` is the last sample of each point.
  */
 struct Capture {
-	static constexpr int kHalf = kPoints / 2;
 	float lo[2][kPoints] = {}, hi[2][kPoints] = {}, value[2][kPoints] = {};
-	/** The last complete sweep: what the display shows, swapped in whole, centred on its trigger */
-	float shownLo[2][kPoints] = {}, shownHi[2][kPoints] = {}, shownValue[2][kPoints] = {};
 	int sweeps = 0;
 	int index = kPoints;  // kPoints = holding, waiting for a trigger
-
-	float histLo[2][kHalf] = {}, histHi[2][kHalf] = {}, histValue[2][kHalf] = {};
-	int historyPos = 0;
 	float sinceTake = 0.f;
 	float curLo[2] = {INFINITY, INFINITY}, curHi[2] = {-INFINITY, -INFINITY};
 
@@ -80,60 +73,43 @@ struct Capture {
 		return index < kPoints;
 	}
 
+	/** Stops the sweep (e.g. the time base changed): the next trigger starts a fresh one */
+	void restart() {
+		index = kPoints;
+	}
+
 	/** One audio sample. `freeRun`: sweeps back to back without a trigger (FREE mode, X–Y). */
 	void process(float a, float b, bool trigger, float dt, float secondsPerDiv, bool freeRun = false) {
-		const float step = secondsPerDiv * kDivisions / kPoints;
 		const float x[2] = {a, b};
+		if (!running()) {
+			if (!(trigger || freeRun))
+				return;
+			index = 0;
+			sinceTake = 0.f;
+			for (int ch = 0; ch < 2; ++ch) {
+				curLo[ch] = INFINITY;
+				curHi[ch] = -INFINITY;
+			}
+		}
+		const float step = secondsPerDiv * kDivisions / kPoints;
 		for (int ch = 0; ch < 2; ++ch) {
 			curLo[ch] = std::min(curLo[ch], x[ch]);
 			curHi[ch] = std::max(curHi[ch], x[ch]);
 		}
 		sinceTake += dt;
-		const bool take = sinceTake >= step;
-		if (take)
-			sinceTake = std::min(sinceTake - step, step);
-
-		if (!running() && (trigger || freeRun)) {
-			// The half before: oldest to newest from the history, then this sample in the middle
-			for (int ch = 0; ch < 2; ++ch) {
-				for (int i = 0; i < kHalf; ++i) {
-					const int h = (historyPos + i) % kHalf;
-					lo[ch][i] = histLo[ch][h];
-					hi[ch][i] = histHi[ch][h];
-					value[ch][i] = histValue[ch][h];
-				}
-				lo[ch][kHalf] = curLo[ch];  // the samples since the last point, this one included
-				hi[ch][kHalf] = curHi[ch];
-				value[ch][kHalf] = x[ch];
-				curLo[ch] = INFINITY;
-				curHi[ch] = -INFINITY;
-			}
-			index = kHalf + 1;
-			sinceTake = 0.f;
+		// The first point is the trigger sample; then one point per time step (at most one per sample)
+		if (index > 0 && sinceTake < step)
 			return;
-		}
-		if (!take)
-			return;
-
+		sinceTake = index > 0 ? std::min(sinceTake - step, step) : 0.f;
 		for (int ch = 0; ch < 2; ++ch) {
-			histLo[ch][historyPos] = curLo[ch];
-			histHi[ch][historyPos] = curHi[ch];
-			histValue[ch][historyPos] = x[ch];
-			if (running()) {
-				lo[ch][index] = curLo[ch];
-				hi[ch][index] = curHi[ch];
-				value[ch][index] = x[ch];
-			}
+			lo[ch][index] = curLo[ch];
+			hi[ch][index] = curHi[ch];
+			value[ch][index] = x[ch];
 			curLo[ch] = INFINITY;
 			curHi[ch] = -INFINITY;
 		}
-		historyPos = (historyPos + 1) % kHalf;
-		if (running() && ++index >= kPoints) {
-			std::copy(&lo[0][0], &lo[0][0] + 2 * kPoints, &shownLo[0][0]);
-			std::copy(&hi[0][0], &hi[0][0] + 2 * kPoints, &shownHi[0][0]);
-			std::copy(&value[0][0], &value[0][0] + 2 * kPoints, &shownValue[0][0]);
+		if (++index >= kPoints)
 			++sweeps;
-		}
 	}
 };
 
