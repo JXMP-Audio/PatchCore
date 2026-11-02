@@ -43,8 +43,8 @@ int main() {
 		c.process(x, -x, tr.process(x, 0.f, true), dt, 0.001f);
 	}
 	assert(c.sweeps >= 50 && c.sweeps <= 100);
-	assert(std::fabs(c.shownValue[0][mid]) < 0.5f && c.shownValue[0][mid + 4] > c.shownValue[0][mid] && c.shownValue[0][mid - 4] < c.shownValue[0][mid]);
-	assert(near(c.shownValue[1][10], -c.shownValue[0][10]));
+	assert(std::fabs(c.shown().value[0][mid]) < 0.5f && c.shown().value[0][mid + 4] > c.shown().value[0][mid] && c.shown().value[0][mid - 4] < c.shown().value[0][mid]);
+	assert(near(c.shown().value[1][10], -c.shown().value[0][10]));
 
 	// Slow LFOs, sweeps shorter and longer than the period: the trace is continuous with the trigger in the middle
 	const float lfoHz[] = {1.f, 1.f, 2.f, 0.5f};
@@ -57,10 +57,10 @@ int main() {
 			l.process(x, 0.f, lt.process(x, 0.f, true), dt, spd[k]);
 		}
 		// The trigger point: always the middle
-		assert(l.shownPre == pretrigger(spd[k]));
-		assert(std::fabs(l.shownValue[0][l.shownPre]) < 0.1f);
+		assert(l.shown().pre == pretrigger(spd[k]));
+		assert(std::fabs(l.shown().value[0][l.shown().pre]) < 0.1f);
 		for (int i = 1; i < kPoints; ++i)
-			assert(std::fabs(l.shownValue[0][i] - l.shownValue[0][i - 1]) < 0.5f);
+			assert(std::fabs(l.shown().value[0][i] - l.shown().value[0][i - 1]) < 0.5f);
 	}
 
 	// NORM without a trigger: no new picture, the last one stays; a trigger starts one
@@ -75,13 +75,13 @@ int main() {
 	Capture autoRun;
 	for (int i = 0; i < 9600; ++i)
 		autoRun.process(2.f, 0.f, false, dt, 0.001f);
-	assert(autoRun.sweeps >= 1 && near(autoRun.shownValue[0][100], 2.f));
+	assert(autoRun.sweeps >= 1 && near(autoRun.shown().value[0][100], 2.f));
 
 	// Free run: sweeps back to back without a trigger
 	Capture free;
 	for (int i = 0; i < 4800; ++i)
 		free.process(1.f, 1.f, false, dt, 0.001f, true);
-	assert(free.sweeps >= 5 && near(free.shownValue[0][100], 1.f));
+	assert(free.sweeps >= 5 && near(free.shown().value[0][100], 1.f));
 
 	// Min/max per point: audio at a slow time base shows its full swing in every point, not random samples
 	Capture env;
@@ -90,7 +90,7 @@ int main() {
 		env.process(x, 0.f, false, dt, 0.1f, true);
 	}
 	for (int i = 1; i < kPoints; ++i)
-		assert(env.shownHi[0][i] > 4.5f && env.shownLo[0][i] < -4.5f);
+		assert(env.shown().hi[0][i] > 4.5f && env.shown().lo[0][i] < -4.5f);
 
 	// A new, slower time base is redrawn at once from the 1 kHz memory, the trigger again at its place
 	Capture re;
@@ -101,8 +101,8 @@ int main() {
 	}
 	const int before = re.sweeps;
 	assert(re.rebuild(0.1f));
-	assert(re.sweeps == before + 1 && re.shownPre == pretrigger(0.1f));
-	assert(std::fabs(re.shownValue[0][re.shownPre]) < 0.3f && re.shownValue[0][re.shownPre + 10] > re.shownValue[0][re.shownPre]);
+	assert(re.sweeps == before + 1 && re.shown().pre == pretrigger(0.1f));
+	assert(std::fabs(re.shown().value[0][re.shown().pre]) < 0.3f && re.shown().value[0][re.shown().pre + 10] > re.shown().value[0][re.shown().pre]);
 	assert(!re.rebuild(0.001f));  // too fast for the coarse memory: a fresh acquisition instead
 
 	std::printf("scope: all tests passed\n");

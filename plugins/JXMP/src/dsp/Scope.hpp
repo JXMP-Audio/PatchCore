@@ -10,6 +10,7 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 
 namespace jxmp {
@@ -69,7 +70,7 @@ inline int pretrigger(float) {
 /**
  * Acquisition as on a digital scope (e.g. a Hantek DSO): the trigger point is in the middle of the screen, the
  * part before it comes from a history that runs all the time. Only
- * finished acquisitions are shown, whole (`shown*`, `shownPre` = where its trigger point is). NORM keeps the
+ * finished acquisitions are shown, whole (`shown()`, double-buffered). NORM keeps the
  * last picture without a trigger; AUTO acquires by itself when none comes (waiting 1.5 times the spacing of
  * slow triggers, up to 10 s). Each point keeps the minimum and maximum of its time slice (no aliasing). A 1 kHz
  * memory of the last 10 s lets rebuild() redraw a slower time base at once.
@@ -77,8 +78,17 @@ inline int pretrigger(float) {
 struct Capture {
 	static constexpr int kHalf = kPoints / 2;
 	float lo[2][kPoints] = {}, hi[2][kPoints] = {}, value[2][kPoints] = {};
-	float shownLo[2][kPoints] = {}, shownHi[2][kPoints] = {}, shownValue[2][kPoints] = {};
-	int shownPre = kHalf;
+	/** Two pictures: the audio thread writes the back one and then flips `front`, so the display never draws a
+	picture that is being copied (half old, half new) */
+	struct Picture {
+		float lo[2][kPoints] = {}, hi[2][kPoints] = {}, value[2][kPoints] = {};
+		int pre = kPoints / 2;
+	};
+	Picture pictures[2];
+	std::atomic<int> front{0};
+	const Picture& shown() const {
+		return pictures[front.load(std::memory_order_acquire)];
+	}
 	int sweeps = 0;
 	int index = kPoints;  // kPoints = waiting for a trigger
 	int pre = kHalf;
@@ -91,7 +101,10 @@ struct Capture {
 
 	float coarseLo[2][kCoarse] = {}, coarseHi[2][kCoarse] = {}, coarseValue[2][kCoarse] = {};
 	long coarseCount = 0;      // coarse samples written so far
-	long lastTrigger = -1;     // coarse sample of the last trigger
+	/** Coarse samples of the last triggers (a ring), so a redraw can use one with enough signal after it */
+	static constexpr int kTriggers = 16;
+	long triggers[kTriggers];
+	int triggerCount = 0;
 	float coarseSince = 0.f;
 	float coarseCurLo[2] = {INFINITY, INFINITY}, coarseCurHi[2] = {-INFINITY, -INFINITY};
 
@@ -119,7 +132,7 @@ struct Capture {
 		if (trigger) {
 			triggerSpacing = sinceTrigger;
 			sinceTrigger = 0.f;
-			lastTrigger = coarseCount;
+			triggers[triggerCount++ % kTriggers] = coarseCount;
 		}
 		else if (sinceTrigger > std::max(3.f, 2.f * triggerSpacing))
 			triggerSpacing = 0.f;
@@ -190,10 +203,13 @@ struct Capture {
 	}
 
 	void publish(const float (*l)[kPoints], const float (*h)[kPoints], const float (*v)[kPoints], int trigAt) {
-		std::copy(&l[0][0], &l[0][0] + 2 * kPoints, &shownLo[0][0]);
-		std::copy(&h[0][0], &h[0][0] + 2 * kPoints, &shownHi[0][0]);
-		std::copy(&v[0][0], &v[0][0] + 2 * kPoints, &shownValue[0][0]);
-		shownPre = trigAt;
+		const int back = 1 - front.load(std::memory_order_relaxed);
+		Picture& p = pictures[back];
+		std::copy(&l[0][0], &l[0][0] + 2 * kPoints, &p.lo[0][0]);
+		std::copy(&h[0][0], &h[0][0] + 2 * kPoints, &p.hi[0][0]);
+		std::copy(&v[0][0], &v[0][0] + 2 * kPoints, &p.value[0][0]);
+		p.pre = trigAt;
+		front.store(back, std::memory_order_release);
 		++sweeps;
 	}
 
@@ -208,11 +224,18 @@ struct Capture {
 			return false;
 		const int p = pretrigger(secondsPerDiv);
 		const double after = (kPoints - p) * stepSamples;
-		double t0;  // coarse sample of point 0
-		if (lastTrigger >= 0 && lastTrigger + after <= coarseCount && coarseCount - lastTrigger < kCoarse)
-			t0 = lastTrigger - p * stepSamples;
-		else
-			t0 = coarseCount - kPoints * stepSamples;
+		// The newest trigger with enough signal after it (and before it, inside the memory)
+		long trig = -1;
+		for (int n = 1; n <= std::min(triggerCount, kTriggers); ++n) {
+			const long t = triggers[(triggerCount - n) % kTriggers];
+			if (t + after <= coarseCount && coarseCount - (t - p * stepSamples) < kCoarse) {
+				trig = t;
+				break;
+			}
+		}
+		if (trig < 0)
+			return false;  // no usable trigger: wait for a fresh acquisition
+		const double t0 = trig - p * stepSamples;  // coarse sample of point 0
 		float l[2][kPoints], h[2][kPoints], v[2][kPoints];
 		for (int i = 0; i < kPoints; ++i) {
 			const long a = (long) std::floor(t0 + i * stepSamples), b = std::max(a + 1, (long) std::floor(t0 + (i + 1) * stepSamples));

@@ -162,9 +162,10 @@ struct CrtScreen : widget::TransparentWidget {
 
 		const NVGcolor colours[2] = {green, amber};
 		// As a DSO: the last complete acquisition, the trigger point in the middle. Never half a picture.
-		const float(*lo)[sc::kPoints] = cap.shownLo;
-		const float(*hi)[sc::kPoints] = cap.shownHi;
-		const float(*val)[sc::kPoints] = cap.shownValue;
+		const sc::Capture::Picture& pic = cap.shown();
+		const float(*lo)[sc::kPoints] = pic.lo;
+		const float(*hi)[sc::kPoints] = pic.hi;
+		const float(*val)[sc::kPoints] = pic.value;
 		const int count = sc::kPoints;
 
 		// Everything inside the square screen; what leaves it is behind the bezel
