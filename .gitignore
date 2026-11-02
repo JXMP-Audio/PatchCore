@@ -37,3 +37,9 @@ compile_flags.txt
 # Tests and dev tools (local only)
 /src/patchcore/tests/
 /plugins/JXMP/tests/
+# Upstream Cardinal docs (local only); docs/LICENSES.md, LICENSE-PERMISSIONS.md, manual/ and screenshots/ stay in git
+/docs/*
+!/docs/LICENSES.md
+!/docs/LICENSE-PERMISSIONS.md
+!/docs/manual/
+!/docs/screenshots/

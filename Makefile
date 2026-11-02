@@ -352,7 +352,7 @@ endif
 	cp -rL bin/Cardinal.lv2/resources/* $(DESTDIR)$(PREFIX)/share/cardinal/
 
 	install -m 644 README.md            $(DESTDIR)$(PREFIX)/share/doc/cardinal/
-	install -m 644 docs/*.md docs/*.png $(DESTDIR)$(PREFIX)/share/doc/cardinal/docs/
+	install -m 644 docs/LICENSES.md docs/LICENSE-PERMISSIONS.md $(DESTDIR)$(PREFIX)/share/doc/cardinal/docs/
 
 # --------------------------------------------------------------
 # Tarball step, for releases
