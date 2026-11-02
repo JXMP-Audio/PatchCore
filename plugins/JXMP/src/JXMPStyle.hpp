@@ -572,13 +572,16 @@ inline void icon(NVGcontext* vg, Icon type, math::Vec c, float w, NVGcolor color
 }
 
 
-/** Green vacuum fluorescent display (VFD): every numeric readout of a JXMP module uses it. */
+/** Green vacuum fluorescent display (VFD): every readout of a JXMP module uses it. */
 inline NVGcolor vfdLit() { return nvgRGB(0x5c, 0xff, 0xb8); }
+
+/** Bezel width: 1 mm, thinner on small windows */
+inline float vfdBezel(math::Vec size) { return std::min(mm2px(1.f), size.y * 0.12f); }
 
 /** The VFD window: black bezel, dark green-tinted glass, the fine grid mesh and the filament wires behind it,
 a soft reflection on top. Draw it first, then the digits and annunciators. */
 inline void vfdWindow(NVGcontext* vg, math::Vec size) {
-	const float bz = mm2px(1.f);
+	const float bz = vfdBezel(size);
 	// Bezel with a darker upper and a lighter lower edge (the window sits in the panel)
 	nvgBeginPath(vg);
 	nvgRoundedRect(vg, 0, 0, size.x, size.y, 2.5f);
@@ -621,7 +624,7 @@ inline void vfdWindow(NVGcontext* vg, math::Vec size) {
 
 /** The glass reflection, drawn over the digits */
 inline void vfdGlare(NVGcontext* vg, math::Vec size) {
-	const float bz = mm2px(1.f);
+	const float bz = vfdBezel(size);
 	nvgBeginPath(vg);
 	nvgRoundedRect(vg, bz, bz, size.x - 2 * bz, (size.y - 2 * bz) * 0.42f, 1.5f);
 	nvgFillPaint(vg, nvgLinearGradient(vg, 0, bz, 0, bz + (size.y - 2 * bz) * 0.42f, nvgRGBAf(1, 1, 1, 0.07f), nvgRGBAf(1, 1, 1, 0.f)));
@@ -667,6 +670,15 @@ inline uint8_t vfdMask(char c) {
 	if (c >= '0' && c <= '9')
 		return digits[c - '0'];
 	return c == '-' ? 0x40 : 0x00;
+}
+
+/** VFD text in the dot-matrix style of the label font, with a soft glow */
+inline void vfdText(NVGcontext* vg, math::Vec pos, const std::string& s, float size, int align = NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE,
+                    NVGcolor lit = vfdLit()) {
+	nvgFontBlur(vg, size * 0.25f);
+	text(vg, pos, s, size, nvgRGBAf(lit.r, lit.g, lit.b, lit.a * 0.5f), FONT_LABEL, align, 0.8f);
+	nvgFontBlur(vg, 0.f);
+	text(vg, pos, s, size, lit, FONT_LABEL, align, 0.8f);
 }
 
 /** Draws a row of seven-segment digits right-aligned to `right` with their baseline at `bottom`. A '.' lights the

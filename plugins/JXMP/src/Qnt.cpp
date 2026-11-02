@@ -73,23 +73,18 @@ struct Qnt : engine::Module {
 };
 
 
-/** Shows the scale and root by name, like an 80s LED/LCD window. */
+/** Shows the scale and root by name on a green VFD. */
 struct ScaleDisplay : widget::TransparentWidget {
 	Qnt* module = nullptr;
 
 	void draw(const DrawArgs& args) override {
+		namespace st = jxmp::style;
 		NVGcontext* const vg = args.vg;
-		nvgBeginPath(vg);
-		nvgRoundedRect(vg, 0, 0, box.size.x, box.size.y, 2.f);
-		nvgFillColor(vg, nvgRGB(0x12, 0x14, 0x13));
-		nvgFill(vg);
-		nvgStrokeWidth(vg, 0.8f);
-		nvgStrokeColor(vg, nvgRGB(0x05, 0x05, 0x05));
-		nvgStroke(vg);
+		st::vfdWindow(vg, box.size);
 		static const char* const roots[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 		const std::string text = module ? std::string(roots[module->root()]) + " " + jxmp::scaleName(module->scale()) : "C Major";
-		jxmp::style::text(vg, box.size.div(2), string::uppercase(text), 7.5f, nvgRGB(0xe0, 0x4a, 0xb0), jxmp::style::FONT_LABEL,
-		                  NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.6f);
+		st::vfdText(vg, box.size.div(2), string::uppercase(text), 7.5f);
+		st::vfdGlare(vg, box.size);
 	}
 };
 

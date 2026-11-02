@@ -93,17 +93,15 @@ struct Euc : engine::Module {
 };
 
 
-/** Four rows of 16 dots: the pattern of each track (dark past its length), the current step ringed. */
+/** Four rows of 16 dots on a green VFD: the pattern of each track (faint past its length), the current step ringed. */
 struct PatternDisplay : widget::TransparentWidget {
 	Euc* module = nullptr;
-	NVGcolor colour;
 
 	void draw(const DrawArgs& args) override {
+		namespace st = jxmp::style;
 		NVGcontext* const vg = args.vg;
-		nvgBeginPath(vg);
-		nvgRoundedRect(vg, 0, 0, box.size.x, box.size.y, 2.5f);
-		nvgFillColor(vg, nvgRGB(0x0d, 0x0e, 0x10));
-		nvgFill(vg);
+		st::vfdWindow(vg, box.size);
+		const NVGcolor lit = st::vfdLit();
 		const float padX = mm2px(2.5f), padY = mm2px(2.2f);
 		const float dx = (box.size.x - 2 * padX) / eu::kMaxSteps, dy = (box.size.y - 2 * padY) / kTracks;
 		const float rad = std::min(dx, dy) * 0.3f;
@@ -115,19 +113,27 @@ struct PatternDisplay : widget::TransparentWidget {
 				const float x = padX + (i + 0.5f) * dx, y = padY + (t + 0.5f) * dy;
 				const bool inside = i < steps;
 				const bool on = inside && (module ? module->isHit(t, i) : eu::hit(i, 16, demoHits[t], demoRot[t]));
+				if (on) {
+					// Glow around a lit dot
+					nvgBeginPath(vg);
+					nvgCircle(vg, x, y, rad * 2.f);
+					nvgFillPaint(vg, nvgRadialGradient(vg, x, y, rad * 0.8f, rad * 2.f, nvgRGBAf(lit.r, lit.g, lit.b, 0.25f), nvgRGBAf(lit.r, lit.g, lit.b, 0.f)));
+					nvgFill(vg);
+				}
 				nvgBeginPath(vg);
 				nvgCircle(vg, x, y, rad);
-				nvgFillColor(vg, on ? colour : inside ? nvgRGB(0x3a, 0x3c, 0x42) : nvgRGB(0x1a, 0x1b, 0x1e));
+				nvgFillColor(vg, on ? lit : nvgRGBAf(lit.r, lit.g, lit.b, inside ? 0.14f : 0.04f));
 				nvgFill(vg);
 				if (i == current) {
 					nvgBeginPath(vg);
 					nvgCircle(vg, x, y, rad + 1.8f);
 					nvgStrokeWidth(vg, 1.2f);
-					nvgStrokeColor(vg, nvgRGB(0xff, 0xff, 0xff));
+					nvgStrokeColor(vg, lit);
 					nvgStroke(vg);
 				}
 			}
 		}
+		st::vfdGlare(vg, box.size);
 	}
 };
 
@@ -143,7 +149,6 @@ struct EucWidget : JXMPModuleWidget {
 		section(3.f, 20.5f, w - 6.f, 24.f, "PATTERNS");
 		PatternDisplay* const display = new PatternDisplay;
 		display->module = module;
-		display->colour = colour;
 		display->box = math::Rect(mm2px(math::Vec(5.f, 24.f)), mm2px(math::Vec(w - 10.f, 18.f)));
 		addChild(display);
 

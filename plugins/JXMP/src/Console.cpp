@@ -452,24 +452,22 @@ struct LedMeter : widget::TransparentWidget {
 	}
 };
 
-/** Text of the VU meter source, on a small dark window. */
+/** Text of the VU meter source, on a small green VFD. */
 struct SourceReadout : widget::TransparentWidget {
 	Console* module = nullptr;
 	float fontSize = 9.f;
 
 	void draw(const DrawArgs& args) override {
 		NVGcontext* const vg = args.vg;
-		nvgBeginPath(vg);
-		nvgRoundedRect(vg, 0, 0, box.size.x, box.size.y, 2.f);
-		nvgFillColor(vg, nvgRGB(0x0d, 0x0e, 0x10));
-		nvgFill(vg);
+		st::vfdWindow(vg, box.size);
 		std::string s = "MASTER";
 		if (module) {
 			const int m = (int) std::round(module->params[module->global(G_METER)].getValue());
 			if (m > 0)
 				s = string::f("CH %02d", m);
 		}
-		st::text(vg, box.size.div(2), s, fontSize, nvgRGB(0xff, 0xc0, 0x50), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 1.f);
+		st::vfdText(vg, box.size.div(2), s, fontSize);
+		st::vfdGlare(vg, box.size);
 	}
 };
 
