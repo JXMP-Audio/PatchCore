@@ -103,7 +103,9 @@ int main() {
 	assert(re.rebuild(0.1f));
 	assert(re.sweeps == before + 1 && re.shown().pre == pretrigger(0.1f));
 	assert(std::fabs(re.shown().value[0][re.shown().pre]) < 0.3f && re.shown().value[0][re.shown().pre + 10] > re.shown().value[0][re.shown().pre]);
-	assert(!re.rebuild(0.001f));  // too fast for the coarse memory: a fresh acquisition instead
+	// Faster than the coarse memory: the last picture is zoomed around its trigger at once
+	assert(re.rebuild(0.01f) && re.shown().secondsPerDiv == 0.01f);
+	assert(std::fabs(re.shown().value[0][re.shown().pre]) < 0.3f);
 
 	std::printf("scope: all tests passed\n");
 	return 0;

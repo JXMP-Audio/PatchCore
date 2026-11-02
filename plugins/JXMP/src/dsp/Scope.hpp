@@ -83,6 +83,7 @@ struct Capture {
 	struct Picture {
 		float lo[2][kPoints] = {}, hi[2][kPoints] = {}, value[2][kPoints] = {};
 		int pre = kPoints / 2;
+		float secondsPerDiv = 0.f;  // the time base it was taken at
 	};
 	Picture pictures[2];
 	std::atomic<int> front{0};
@@ -170,6 +171,7 @@ struct Capture {
 			if (trigger || freeRun || (autoRun && waiting > autoTimeout(sweepTime))) {
 				// The part before the trigger from the history (oldest first), the trigger sample after it
 				pre = pretrigger(secondsPerDiv);
+				acquiringDiv = secondsPerDiv;
 				for (int ch = 0; ch < 2; ++ch) {
 					for (int i = 0; i < pre; ++i) {
 						const int h = (historyPos - pre + i + 2 * kHalf) % kHalf;
@@ -197,18 +199,21 @@ struct Capture {
 				value[ch][index] = x[ch];
 			}
 			if (++index >= kPoints)
-				publish(lo, hi, value, pre);
+				publish(lo, hi, value, pre, acquiringDiv);
 		}
 		pushHistory(x);
 	}
 
-	void publish(const float (*l)[kPoints], const float (*h)[kPoints], const float (*v)[kPoints], int trigAt) {
+	float acquiringDiv = 0.f;  // the time base of the running acquisition
+
+	void publish(const float (*l)[kPoints], const float (*h)[kPoints], const float (*v)[kPoints], int trigAt, float div) {
 		const int back = 1 - front.load(std::memory_order_relaxed);
 		Picture& p = pictures[back];
 		std::copy(&l[0][0], &l[0][0] + 2 * kPoints, &p.lo[0][0]);
 		std::copy(&h[0][0], &h[0][0] + 2 * kPoints, &p.hi[0][0]);
 		std::copy(&v[0][0], &v[0][0] + 2 * kPoints, &p.value[0][0]);
 		p.pre = trigAt;
+		p.secondsPerDiv = div;
 		front.store(back, std::memory_order_release);
 		++sweeps;
 	}
@@ -221,7 +226,7 @@ struct Capture {
 	bool rebuild(float secondsPerDiv) {
 		const double stepSamples = secondsPerDiv * kDivisions / kPoints * kCoarseRate;
 		if (stepSamples < 1.0 || coarseCount == 0)
-			return false;
+			return rescale(secondsPerDiv);
 		const int p = pretrigger(secondsPerDiv);
 		const double after = (kPoints - p) * stepSamples;
 		// The newest trigger with enough signal after it (and before it, inside the memory)
@@ -234,7 +239,7 @@ struct Capture {
 			}
 		}
 		if (trig < 0)
-			return false;  // no usable trigger: wait for a fresh acquisition
+			return rescale(secondsPerDiv);  // no usable trigger in the memory
 		const double t0 = trig - p * stepSamples;  // coarse sample of point 0
 		float l[2][kPoints], h[2][kPoints], v[2][kPoints];
 		for (int i = 0; i < kPoints; ++i) {
@@ -255,7 +260,47 @@ struct Capture {
 				}
 			}
 		}
-		publish(l, h, v, p);
+		publish(l, h, v, p, secondsPerDiv);
+		restart();
+		return true;
+	}
+
+	/**
+	 * The last picture at a new time base, as a stopped DSO zooms: around its trigger point, stretched or
+	 * squeezed; where it has no data the screen stays empty. Until the next acquisition replaces it.
+	 */
+	bool rescale(float secondsPerDiv) {
+		const Picture& old = shown();
+		if (old.secondsPerDiv <= 0.f)
+			return false;
+		const double ratio = (double) secondsPerDiv / old.secondsPerDiv;  // old points per new point
+		const int p = pretrigger(secondsPerDiv);
+		float l[2][kPoints], h[2][kPoints], v[2][kPoints];
+		for (int i = 0; i < kPoints; ++i) {
+			const double a = old.pre + (i - p) * ratio, b = old.pre + (i + 1 - p) * ratio;
+			const int ia = (int) std::floor(a), ib = std::max(ia + 1, (int) std::ceil(b));
+			for (int ch = 0; ch < 2; ++ch) {
+				l[ch][i] = INFINITY;
+				h[ch][i] = -INFINITY;
+				v[ch][i] = 0.f;
+				if (ratio < 1.0) {
+					// Zoomed in: interpolate between the two old points around this one
+					if (a < 0.0 || a > kPoints - 1)
+						continue;
+					const int k = std::min((int) a, kPoints - 2);
+					const float f = (float) (a - k);
+					const float y = old.value[ch][k] + (old.value[ch][k + 1] - old.value[ch][k]) * f;
+					l[ch][i] = h[ch][i] = v[ch][i] = y;
+					continue;
+				}
+				for (int k = std::max(ia, 0); k < std::min(ib, kPoints); ++k) {
+					l[ch][i] = std::min(l[ch][i], old.lo[ch][k]);
+					h[ch][i] = std::max(h[ch][i], old.hi[ch][k]);
+					v[ch][i] = old.value[ch][k];
+				}
+			}
+		}
+		publish(l, h, v, p, secondsPerDiv);
 		restart();
 		return true;
 	}
