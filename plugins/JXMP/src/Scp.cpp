@@ -3,14 +3,13 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * JX-SCP: two-channel oscilloscope with a round green CRT, styled after an old lab scope. Y–T with a trigger
- * (level, slope, source CH1 / CH2 / EXT, AUTO free-run when nothing triggers) or X–Y; the trace leaves a short
- * phosphor afterglow. Design: research_docs/14-jxmp-modules-set3-design.md.
+ * (level, slope, source CH1 / CH2 / EXT; TRIG holds the picture between triggers, FREE runs) or X–Y. The capture
+ * works as VCV Fundamental's Scope: one buffer, min/max per point; the trigger point is the middle. Design: research_docs/14-jxmp-modules-set3-design.md.
  */
 
 #include "JXMPWidget.hpp"
 #include "dsp/Scope.hpp"
 
-#include <deque>
 
 namespace {
 
@@ -53,8 +52,8 @@ struct Scp : engine::Module {
 		    ->description = "How many volts one square up is for the amber trace. Smaller = the wave is drawn taller.";
 		configParam(POS2_PARAM, -4.f, 4.f, 0.f, "CH 2 position", " div")->description = "Moves the amber trace up or down.";
 		configParam(TRIG_LEVEL_PARAM, -10.f, 10.f, 0.f, "Trigger level", " V")
-		    ->description = "The voltage the wave must cross to start a drawing. In AUTO a level outside the wave is "
-		                    "replaced by the middle of the wave, so the picture always stands still.";
+		    ->description = "The voltage the wave must cross to start a drawing. A level outside the wave is replaced by the "
+		                    "middle of the wave, so the picture always stands still.";
 		// Toggles: lever up = the highest value, so the default (top) choice is the highest value
 		configSwitch(TRIG_SLOPE_PARAM, 0.f, 1.f, 1.f, "Trigger slope", {"Falling", "Rising"})
 		    ->description = "Start the drawing when the wave crosses the level going up (RISE) or going down (FALL).";
@@ -62,9 +61,9 @@ struct Scp : engine::Module {
 		    ->description = "Which signal starts the drawing: the green input, the amber input, or the TRIG input on the back.";
 		configSwitch(MODE_PARAM, 0.f, 1.f, 1.f, "Display", {"X–Y (CH 1 across, CH 2 up)", "Y–T (time)"})
 		    ->description = "Y-T draws the waves over time. X-Y draws CH 1 against CH 2 (Lissajous figures, stereo width).";
-		configSwitch(TRIG_MODE_PARAM, 0.f, 1.f, 1.f, "Trigger mode", {"Normal: only on a trigger", "Auto: draws even without a trigger"})
-		    ->description = "AUTO always shows something (it draws by itself when no trigger comes, then the picture runs). "
-		                    "NORM draws only on a trigger: no trigger, the screen goes dark. TRIG'D lights when the trigger works.";
+		configSwitch(TRIG_MODE_PARAM, 0.f, 1.f, 1.f, "Trigger", {"Free run: draws all the time", "Trigger: draws on each trigger and holds"})
+		    ->description = "TRIG: a new picture starts on each trigger and the last one stays when none comes, so the "
+		                    "wave stands still. FREE: draws all the time without a trigger. TRIG'D lights on every trigger.";
 		configInput(IN1_INPUT, "In 1")->description = "Channel 1, the green trace (X in X–Y mode). Polyphonic: the first voice is drawn.";
 		configInput(IN2_INPUT, "In 2")->description = "Channel 2, the amber trace (Y in X–Y mode).";
 		configInput(TRIG_INPUT, "Trig")->description = "External trigger, used when the trigger source is EXT.";
@@ -77,22 +76,22 @@ struct Scp : engine::Module {
 		const int source = (int) std::round(params[TRIG_SOURCE_PARAM].getValue());  // 2 CH 1, 1 CH 2, 0 EXT
 		const float t = source == 2 ? a : source == 1 ? b : inputs[TRIG_INPUT].getVoltage();
 		const bool xy = params[MODE_PARAM].getValue() < 0.5f;
-		const bool autoRun = params[TRIG_MODE_PARAM].getValue() > 0.5f;
+		const bool triggered = params[TRIG_MODE_PARAM].getValue() > 0.5f;
 
-		// AUTO: when LEVEL is outside the signal (e.g. a unipolar LFO and LEVEL at 0 V) it would never trigger;
-		// then the middle of the signal is used, as the automatic level of modern scopes
+		// When LEVEL is outside the signal (e.g. a unipolar LFO and LEVEL at 0 V) it would never trigger; then
+		// the middle of the signal is used, as the automatic level of modern scopes
 		const float k = std::min(1.f, args.sampleTime * 0.5f);
 		trigLo = t < trigLo ? t : trigLo + (t - trigLo) * k;
 		trigHi = t > trigHi ? t : trigHi - (trigHi - t) * k;
 		float level = params[TRIG_LEVEL_PARAM].getValue();
 		const float span = trigHi - trigLo;
-		if (autoRun && span > 0.1f && (level <= trigLo + 0.1f * span || level >= trigHi - 0.1f * span))
+		if (triggered && span > 0.1f && (level <= trigLo + 0.1f * span || level >= trigHi - 0.1f * span))
 			level = 0.5f * (trigLo + trigHi);
 
 		const bool fired = trigger.process(t, level, params[TRIG_SLOPE_PARAM].getValue() > 0.5f);
 		if (fired && !xy)
 			trigLight = 1.f;
-		capture.process(a, b, fired, args.sampleTime, sc::timeDiv((int) std::round(params[TIME_PARAM].getValue())), xy, autoRun);
+		capture.process(a, b, fired, args.sampleTime, sc::timeDiv((int) std::round(params[TIME_PARAM].getValue())), xy || !triggered);
 		trigLight = std::max(0.f, trigLight - args.sampleTime * 5.f);
 		lights[TRIG_LIGHT].setBrightness(trigLight);
 	}
@@ -103,33 +102,8 @@ struct Scp : engine::Module {
 struct CrtScreen : widget::TransparentWidget {
 	Scp* module = nullptr;
 
-	struct Frame {
-		float data[2][sc::kPoints];
-		double time;
-	};
-	std::deque<Frame> frames;
-	int lastSweep = -1;
-
-	static constexpr float kAfterglow = 0.15f;  // seconds until a trace has faded
-
 	float radius() const {
 		return box.size.x / 2 - mm2px(4.5f);  // the screen inside the bezel
-	}
-
-	void step() override {
-		TransparentWidget::step();
-		const double now = system::getTime();
-		if (module && module->capture.sweeps != lastSweep) {
-			lastSweep = module->capture.sweeps;
-			Frame f;
-			std::copy(&module->capture.shown[0][0], &module->capture.shown[0][0] + 2 * sc::kPoints, &f.data[0][0]);
-			f.time = now;
-			frames.push_back(f);
-		}
-		while (frames.size() > 1 && now - frames.front().time > kAfterglow)
-			frames.pop_front();
-		while (frames.size() > 12)
-			frames.pop_front();
 	}
 
 	/** Screen point of (x, y) in divisions. It may lie off the round screen: trace() clips it. */
@@ -187,15 +161,7 @@ struct CrtScreen : widget::TransparentWidget {
 	}
 
 	void drawTraces(NVGcontext* vg, math::Vec c, float r) {
-		const bool xy = module ? module->params[Scp::MODE_PARAM].getValue() < 0.5f : false;
-		const float v1 = module ? sc::voltDiv((int) std::round(module->params[Scp::VOLT1_PARAM].getValue())) : 2.f;
-		const float v2 = module ? sc::voltDiv((int) std::round(module->params[Scp::VOLT2_PARAM].getValue())) : 2.f;
-		const float p1 = module ? module->params[Scp::POS1_PARAM].getValue() : 0.f;
-		const float p2 = module ? module->params[Scp::POS2_PARAM].getValue() : 0.f;
-		const bool on1 = module ? module->inputs[Scp::IN1_INPUT].isConnected() : true;
-		const bool on2 = module ? module->inputs[Scp::IN2_INPUT].isConnected() : false;
 		const NVGcolor green = nvgRGB(0x7c, 0xff, 0xa8), amber = nvgRGB(0xff, 0xbe, 0x55);
-
 		if (!module) {
 			// Browser preview: a sine on CH 1
 			std::vector<math::Vec> pts;
@@ -206,66 +172,55 @@ struct CrtScreen : widget::TransparentWidget {
 			trace(vg, c, r, pts, green, 1.f);
 			return;
 		}
+		const bool xy = module->params[Scp::MODE_PARAM].getValue() < 0.5f;
+		const float v1 = sc::voltDiv((int) std::round(module->params[Scp::VOLT1_PARAM].getValue()));
+		const float v2 = sc::voltDiv((int) std::round(module->params[Scp::VOLT2_PARAM].getValue()));
+		const float p1 = module->params[Scp::POS1_PARAM].getValue();
+		const float p2 = module->params[Scp::POS2_PARAM].getValue();
+		const bool on1 = module->inputs[Scp::IN1_INPUT].isConnected();
+		const bool on2 = module->inputs[Scp::IN2_INPUT].isConnected();
+		const sc::Capture& cap = module->capture;
 
-		// Slow sweeps (Y–T) are drawn while they run, so the picture moves instead of jumping every few seconds
-		const float sweepTime = sc::timeDiv((int) std::round(module->params[Scp::TIME_PARAM].getValue())) * sc::kDivisions;
-		const int liveIndex = module->capture.index;
-		const bool live = !xy && sweepTime >= sc::kLiveSweep && module->capture.running();
-
-		const double now = system::getTime();
-		// NORM: without new triggers the last trace stays a moment, then fades out (the screen goes dark)
-		const bool norm = module->params[Scp::TRIG_MODE_PARAM].getValue() < 0.5f && !xy;
-		for (const Frame& f : frames) {
-			const float age = (float) (now - f.time);
-			float alpha = std::max(0.f, 1.f - age / kAfterglow) * 0.6f;
-			if (&f == &frames.back())
-				alpha = norm ? math::clamp(1.f - (age - 1.f) / 0.5f, 0.f, 1.f) : 1.f;
-			if (alpha <= 0.f)
-				continue;
+		if (xy) {
+			if (!(on1 && on2))
+				return;
 			std::vector<math::Vec> pts(sc::kPoints);
-			if (xy) {
-				if (!(on1 && on2))
-					continue;
-				for (int i = 0; i < sc::kPoints; ++i)
-					pts[i] = point(c, r, sc::divisions(f.data[0][i], v1, p1), sc::divisions(f.data[1][i], v2, p2));
-				trace(vg, c, r, pts, green, alpha);
-				continue;
-			}
-			// A slow sweep is drawn live below; the last finished one stays dimmed behind the beam
-			if (live && &f == &frames.back())
-				alpha *= 0.35f;
-			for (int ch = 0; ch < 2; ++ch) {
-				if (!(ch == 0 ? on1 : on2))
-					continue;
-				const int from = live && &f == &frames.back() ? liveIndex : 0;
-				std::vector<math::Vec> part;
-				for (int i = from; i < sc::kPoints; ++i) {
-					const float x = (float) i / (sc::kPoints - 1) * 8.f - 4.f;
-					part.push_back(point(c, r, x, sc::divisions(f.data[ch][i], ch == 0 ? v1 : v2, ch == 0 ? p1 : p2)));
-				}
-				trace(vg, c, r, part, ch == 0 ? green : amber, alpha);
-			}
+			for (int i = 0; i < sc::kPoints; ++i)
+				pts[i] = point(c, r, sc::divisions(cap.value[0][i], v1, p1), sc::divisions(cap.value[1][i], v2, p2));
+			trace(vg, c, r, pts, green, 1.f);
+			return;
 		}
 
-		// Live sweep: the beam writes from the left, a bright spot at its head
-		if (live && liveIndex > 1) {
-			for (int ch = 0; ch < 2; ++ch) {
-				if (!(ch == 0 ? on1 : on2))
+		// The one buffer, as on VCV's Scope: a new sweep overwrites it from the left, without a trigger it holds.
+		// Each point is drawn from its minimum to its maximum, so audio at a slow time base is a solid band.
+		for (int ch = 0; ch < 2; ++ch) {
+			if (!(ch == 0 ? on1 : on2))
+				continue;
+			const float vd = ch == 0 ? v1 : v2, pd = ch == 0 ? p1 : p2;
+			std::vector<math::Vec> pts;
+			pts.reserve(2 * sc::kPoints);
+			for (int i = 0; i < sc::kPoints; ++i) {
+				const float lo = cap.lo[ch][i], hi = cap.hi[ch][i];
+				if (!std::isfinite(lo) || !std::isfinite(hi))
 					continue;
-				std::vector<math::Vec> part;
-				for (int i = 0; i < liveIndex; ++i) {
-					const float x = (float) i / (sc::kPoints - 1) * 8.f - 4.f;
-					part.push_back(point(c, r, x, sc::divisions(module->capture.buffer[ch][i], ch == 0 ? v1 : v2, ch == 0 ? p1 : p2)));
+				const float x = (float) i / (sc::kPoints - 1) * 8.f - 4.f;
+				pts.push_back(point(c, r, x, sc::divisions(i % 2 ? lo : hi, vd, pd)));
+				pts.push_back(point(c, r, x, sc::divisions(i % 2 ? hi : lo, vd, pd)));
+			}
+			trace(vg, c, r, pts, ch == 0 ? green : amber, 1.f);
+
+			// A slow sweep: a bright spot where the beam writes
+			const float sweepTime = sc::timeDiv((int) std::round(module->params[Scp::TIME_PARAM].getValue())) * sc::kDivisions;
+			const int at = cap.index - 1;
+			if (sweepTime >= 0.1f && cap.running() && at > 0) {
+				const math::Vec head = point(c, r, (float) at / (sc::kPoints - 1) * 8.f - 4.f, sc::divisions(cap.value[ch][at], vd, pd));
+				if (head.minus(c).norm() <= r) {
+					const NVGcolor col = ch == 0 ? green : amber;
+					nvgBeginPath(vg);
+					nvgCircle(vg, head.x, head.y, 2.6f);
+					nvgFillPaint(vg, nvgRadialGradient(vg, head.x, head.y, 0.5f, 4.f, nvgRGBAf(1, 1, 1, 0.9f), nvgRGBAf(col.r, col.g, col.b, 0)));
+					nvgFill(vg);
 				}
-				const NVGcolor col = ch == 0 ? green : amber;
-				trace(vg, c, r, part, col, 1.f);
-				const math::Vec head = part.back();
-				if (head.minus(c).norm() > r)
-					continue;  // the beam is off screen
-				nvgBeginPath(vg);
-				nvgCircle(vg, head.x, head.y, 2.6f);
-				nvgFillPaint(vg, nvgRadialGradient(vg, head.x, head.y, 0.5f, 4.f, nvgRGBAf(1, 1, 1, 0.9f), nvgRGBAf(col.r, col.g, col.b, 0)));
-				nvgFill(vg);
 			}
 		}
 	}
@@ -371,10 +326,10 @@ struct ScpWidget : JXMPModuleWidget {
 		     st::marks(-10.f, 10.f, 2.f, 5, [](float v) { return v == 0.f ? std::string() : string::f("%+d", (int) v); }));
 		toggle(math::Vec(110.f, 66.f), Scp::TRIG_SLOPE_PARAM, 2, {"RISE", "FALL"});
 
-		// Trigger source, AUTO / NORM, display mode
+		// Trigger source, TRIG / FREE, display mode
 		section(83.f, 82.f, 35.f, 18.f, "SOURCE · MODE");
 		toggle(math::Vec(90.f, 93.f), Scp::TRIG_SOURCE_PARAM, 3, {"CH1", "CH2", "EXT"});
-		toggle(math::Vec(102.f, 93.f), Scp::TRIG_MODE_PARAM, 2, {"AUTO", "NORM"});
+		toggle(math::Vec(102.f, 93.f), Scp::TRIG_MODE_PARAM, 2, {"TRIG", "FREE"});
 		toggle(math::Vec(113.5f, 93.f), Scp::MODE_PARAM, 2, {"Y-T", "X-Y"});
 
 		// Channels, under the tube

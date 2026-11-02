@@ -214,6 +214,14 @@
       "tags": [
         "Drum"
       ]
+    },
+    {
+      "slug": "Reverb",
+      "name": "Reverb",
+      "description": "JX-REV: stereo plate, hall and room reverb with size, decay, predelay, tone and mix",
+      "tags": [
+        "Reverb"
+      ]
     }
   ]
 }

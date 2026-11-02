@@ -275,7 +275,16 @@
    "plugin": "JXMP",
    "model": "Console8",
    "version": "2.0.0",
-   "params": [],
+   "params": [
+    {
+     "id": 4,
+     "value": 0.25
+    },
+    {
+     "id": 24,
+     "value": 0.2
+    }
+   ],
    "pos": [
     0,
     2
@@ -327,6 +336,22 @@
    "params": [],
    "pos": [
     0,
+    3
+   ]
+  },
+  {
+   "id": 18,
+   "plugin": "JXMP",
+   "model": "Reverb",
+   "version": "2.0.0",
+   "params": [
+    {
+     "id": 5,
+     "value": 1.0
+    }
+   ],
+   "pos": [
+    18,
     3
    ]
   }
@@ -555,6 +580,30 @@
    "inputModuleId": 13,
    "inputId": 2,
    "color": "#b5462e"
+  },
+  {
+   "id": 50,
+   "outputModuleId": 13,
+   "outputId": 2,
+   "inputModuleId": 18,
+   "inputId": 0,
+   "color": "#8fc8f0"
+  },
+  {
+   "id": 51,
+   "outputModuleId": 18,
+   "outputId": 0,
+   "inputModuleId": 13,
+   "inputId": 8,
+   "color": "#8fc8f0"
+  },
+  {
+   "id": 52,
+   "outputModuleId": 18,
+   "outputId": 1,
+   "inputModuleId": 13,
+   "inputId": 9,
+   "color": "#8fc8f0"
   }
  ]
 }

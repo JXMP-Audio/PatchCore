@@ -2,14 +2,15 @@
  * JXMP Audio modules for PatchCore
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * JX-SCP building blocks: stepped time and volt scales, a trigger with hysteresis, and the sweep capture with
- * an automatic free-run when no trigger comes (as AUTO on a lab scope). No Rack dependency, tested in
+ * JX-SCP building blocks: stepped time and volt scales, a trigger with hysteresis, and the sweep capture
+ * (after VCV Fundamental's Scope: one buffer, min/max per point, the picture holds without a trigger). No Rack dependency, tested in
  * tests/test_scope.cpp.
  */
 
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 
 namespace jxmp {
 namespace scope {
@@ -21,12 +22,6 @@ constexpr int kTimeSteps = sizeof(kTimeDiv) / sizeof(kTimeDiv[0]);
 /** Volts per division, the VOLTS/DIV knob steps */
 static const float kVoltDiv[] = {0.1f, 0.2f, 0.5f, 1.f, 2.f, 5.f};
 constexpr int kVoltSteps = sizeof(kVoltDiv) / sizeof(kVoltDiv[0]);
-
-/** AUTO starts a sweep by itself after this long without a trigger (seconds) */
-constexpr float kAutoTimeout = 0.15f;
-
-/** From this sweep length (seconds) on, the display draws the sweep while it runs (the beam moves visibly) */
-constexpr float kLiveSweep = 0.1f;
 
 /** Horizontal divisions across the screen, and points per sweep */
 constexpr int kDivisions = 8;
@@ -62,95 +57,77 @@ struct Trigger {
 };
 
 /**
- * One sweep of both channels: starts on a trigger. AUTO also starts by itself when no trigger came for a while,
- * so a steady voltage still shows: normally after two sweep lengths (at most 0.15 s); while triggers keep coming
- * (a slow LFO) it waits 1.5 times their spacing (up to 3 s), so the picture stands still instead of drifting.
- * NORM starts only on a trigger. The trigger point is the middle of the sweep: the half before it comes from a
- * history that is kept all the time., then takes kPoints samples spread over
- * kDivisions × time/div. A finished sweep is copied to `shown` and `sweeps` counts up, which the display reads.
+ * The capture, as VCV's Scope does it: one buffer of kPoints points that the display always draws. A sweep
+ * starts on a trigger (or right away in free run) and overwrites the buffer from the left; without a trigger
+ * the buffer simply stays — the picture holds. Each point keeps the minimum and maximum of the samples in its
+ * time slice, so slow time bases do not alias. The trigger point is the middle of the sweep: the half before
+ * it comes from a history that runs all the time. `value` holds the last sample of each point (for tests).
  */
 struct Capture {
-	float buffer[2][kPoints] = {};
-	float shown[2][kPoints] = {};
+	static constexpr int kHalf = kPoints / 2;
+	float lo[2][kPoints] = {}, hi[2][kPoints] = {}, value[2][kPoints] = {};
 	int sweeps = 0;
+	int index = kPoints;  // kPoints = holding, waiting for a trigger
 
-	int index = kPoints;      // kPoints = waiting for a trigger
-	float sinceTake = 0.f;    // seconds since the last point
-	float waiting = 0.f;      // seconds without a trigger
-	float sinceTrigger = 0.f; // seconds since the last trigger, running or not
-	float triggerSpacing = 0.f;  // seconds between the last two triggers (0 = none seen lately)
-
-	/** How long AUTO waits for a trigger before it starts a sweep by itself */
-	float autoTimeout(float sweepTime) const {
-		if (triggerSpacing > 0.f)
-			return std::min(std::max(1.5f * triggerSpacing, kAutoTimeout), 3.f);
-		return std::min(2.f * sweepTime + 0.05f, kAutoTimeout);
-	}
+	float histLo[2][kHalf] = {}, histHi[2][kHalf] = {}, histValue[2][kHalf] = {};
+	int historyPos = 0;
+	float sinceTake = 0.f;
+	float curLo[2] = {INFINITY, INFINITY}, curHi[2] = {-INFINITY, -INFINITY};
 
 	bool running() const {
 		return index < kPoints;
 	}
 
-	/** The half sweep before the trigger, kept all the time, so the trigger point sits in the middle of the screen */
-	static constexpr int kHalf = kPoints / 2;
-	float history[2][kHalf] = {};
-	int historyPos = 0;
-
-	/** One audio sample. `freeRun` = take sweeps back to back, no trigger (X–Y mode). `autoRun` = AUTO: start
-	without a trigger after a while; off = NORM. */
-	void process(float a, float b, bool trigger, float dt, float secondsPerDiv, bool freeRun = false, bool autoRun = true) {
-		const float sweepTime = secondsPerDiv * kDivisions;
-		const float step = sweepTime / kPoints;
-		// Spacing of the triggers (also those during a sweep); forgotten when they stop for 3 s
-		sinceTrigger += dt;
-		if (trigger) {
-			triggerSpacing = sinceTrigger;
-			sinceTrigger = 0.f;
+	/** One audio sample. `freeRun`: sweeps back to back without a trigger (FREE mode, X–Y). */
+	void process(float a, float b, bool trigger, float dt, float secondsPerDiv, bool freeRun = false) {
+		const float step = secondsPerDiv * kDivisions / kPoints;
+		const float x[2] = {a, b};
+		for (int ch = 0; ch < 2; ++ch) {
+			curLo[ch] = std::min(curLo[ch], x[ch]);
+			curHi[ch] = std::max(curHi[ch], x[ch]);
 		}
-		else if (sinceTrigger > 3.f)
-			triggerSpacing = 0.f;
-
-		// One point per step of the time base; long steps fall behind on a short dt: at most one per sample
 		sinceTake += dt;
-		bool take = false;
-		if (sinceTake >= step) {
+		const bool take = sinceTake >= step;
+		if (take)
 			sinceTake = std::min(sinceTake - step, step);
-			take = true;
-		}
 
-		// The history runs all the time, also during a sweep: a trigger right after a sweep (a slow LFO) must
-		// find the half before it, not samples from before the previous sweep
-		if (take) {
-			history[0][historyPos] = a;
-			history[1][historyPos] = b;
-			historyPos = (historyPos + 1) % kHalf;
-		}
-
-		if (!running()) {
-			waiting += dt;
-			if (!(trigger || freeRun || (autoRun && waiting > autoTimeout(sweepTime))))
-				return;
-			// Start: the remembered half first (oldest to newest; the newest is this sample when it was just
-			// taken), the trigger sample in the middle
-			for (int ch = 0; ch < 2; ++ch)
-				for (int i = 0; i < kHalf; ++i)
-					buffer[ch][i] = history[ch][(historyPos + i) % kHalf];
-			buffer[0][kHalf] = a;
-			buffer[1][kHalf] = b;
+		if (!running() && (trigger || freeRun)) {
+			// The half before: oldest to newest from the history, then this sample in the middle
+			for (int ch = 0; ch < 2; ++ch) {
+				for (int i = 0; i < kHalf; ++i) {
+					const int h = (historyPos + i) % kHalf;
+					lo[ch][i] = histLo[ch][h];
+					hi[ch][i] = histHi[ch][h];
+					value[ch][i] = histValue[ch][h];
+				}
+				lo[ch][kHalf] = curLo[ch];  // the samples since the last point, this one included
+				hi[ch][kHalf] = curHi[ch];
+				value[ch][kHalf] = x[ch];
+				curLo[ch] = INFINITY;
+				curHi[ch] = -INFINITY;
+			}
 			index = kHalf + 1;
-			waiting = 0.f;
 			sinceTake = 0.f;
 			return;
 		}
 		if (!take)
 			return;
-		buffer[0][index] = a;
-		buffer[1][index] = b;
-		if (++index >= kPoints) {
-			std::copy(&buffer[0][0], &buffer[0][0] + kPoints, &shown[0][0]);
-			std::copy(&buffer[1][0], &buffer[1][0] + kPoints, &shown[1][0]);
-			++sweeps;
+
+		for (int ch = 0; ch < 2; ++ch) {
+			histLo[ch][historyPos] = curLo[ch];
+			histHi[ch][historyPos] = curHi[ch];
+			histValue[ch][historyPos] = x[ch];
+			if (running()) {
+				lo[ch][index] = curLo[ch];
+				hi[ch][index] = curHi[ch];
+				value[ch][index] = x[ch];
+			}
+			curLo[ch] = INFINITY;
+			curHi[ch] = -INFINITY;
 		}
+		historyPos = (historyPos + 1) % kHalf;
+		if (running() && ++index >= kPoints)
+			++sweeps;
 	}
 };
 

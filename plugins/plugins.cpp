@@ -1251,6 +1251,7 @@ static void initStatic__JXMP()
         p->addModel(modelJXMPClock);
         p->addModel(modelJXMPEuclid);
         p->addModel(modelJXMPDrums);
+        p->addModel(modelJXMPReverb);
     }
 }
 
