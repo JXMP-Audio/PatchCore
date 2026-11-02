@@ -626,7 +626,7 @@ PATCHCORE_ASIO_OBJS = $(PATCHCORE_ASIO_SRCS:$(PATCHCORE_ASIO_DIR)/%.cpp=$(BUILD_
 $(BUILD_DIR)/patchcore-asio/%.cpp.o: $(PATCHCORE_ASIO_DIR)/%.cpp
 	-@mkdir -p $(shell dirname $@)
 	@echo "Compiling ASIO $<"
-	$(SILENT)$(CXX) $< $(BUILD_CXX_FLAGS) -I$(PATCHCORE_ASIO_DIR) -c -o $@
+	$(SILENT)$(CXX) $< $(BUILD_CXX_FLAGS) -I$(PATCHCORE_ASIO_DIR) -include objbase.h -c -o $@  # the SDK needs COM, left out by WIN32_LEAN_AND_MEAN
 
 ifeq ($(HAVE_DGL),true)
 $(jack): $(OBJS_DSP) $(OBJS_UI) $(BUILD_DIR)/DistrhoPluginMain_JACK.cpp.o $(BUILD_DIR)/DistrhoUIMain_JACK.cpp.o $(DGL_LIB) $(PATCHCORE_ASIO_OBJS)

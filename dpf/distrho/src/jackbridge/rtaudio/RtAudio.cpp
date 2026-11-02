@@ -2788,6 +2788,8 @@ bool RtApiJack :: callbackEvent( unsigned long nframes )
 // on information found in
 // http://www.cs.wustl.edu/~schmidt/win32-cv-1.html.
 
+// PatchCore: COM (CoInitialize, the "interface" keyword) is left out of <windows.h> by WIN32_LEAN_AND_MEAN
+#include <objbase.h>
 #include "asiosys.h"
 #include "asio.h"
 #include "iasiothiscallresolver.h"
