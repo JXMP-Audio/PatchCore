@@ -792,14 +792,13 @@ void Initializer::loadSettings(const bool isRealInstance)
     settings::showTipsOnLaunch = false;
     settings::tipIndex = -1;
 
-    if (settings::uiTheme != "dark" && settings::uiTheme != "light")
+    // PatchCore: always dark (the JXMP modules and the PatchCore UI are dark; light mode is not offered)
+    if (settings::uiTheme != "dark")
     {
         settings::uiTheme = "dark";
         rack::ui::refreshTheme();
     }
-
-    // reload dark/light mode as necessary
-    switchDarkMode(settings::uiTheme == "dark");
+    switchDarkMode(true);
 }
 
 #ifdef HAVE_LIBLO

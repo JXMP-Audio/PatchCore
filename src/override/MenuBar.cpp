@@ -33,6 +33,7 @@
 #include <widget/OpaqueWidget.hpp>
 #include <ui/Button.hpp>
 #include <ui/MenuItem.hpp>
+#include <ui/MenuOverlay.hpp>
 #include <ui/MenuSeparator.hpp>
 #include <ui/SequentialLayout.hpp>
 #include <ui/Slider.hpp>
@@ -80,11 +81,63 @@ namespace menuBar {
 
 
 struct MenuButton : ui::Button {
+	// PatchCore: a menu bar as in desktop apps. While one of its menus is open, moving the mouse over another
+	// title opens that one (the open menu covers the window, so a click there would only close it).
+	static MenuButton*& openButton() {
+		static MenuButton* b = nullptr;
+		return b;
+	}
+	static widget::Widget*& openOverlay() {
+		static widget::Widget* o = nullptr;
+		return o;
+	}
+
+	/** Remembers the menu this button just opened (the newest overlay in the scene) */
+	void rememberMenu() {
+		openButton() = nullptr;
+		openOverlay() = nullptr;
+		for (auto it = APP->scene->children.rbegin(); it != APP->scene->children.rend(); ++it) {
+			if (dynamic_cast<ui::MenuOverlay*>(*it)) {
+				openButton() = this;
+				openOverlay() = *it;
+				return;
+			}
+		}
+	}
+
+	static bool menuStillOpen() {
+		if (openOverlay() == nullptr)
+			return false;
+		for (widget::Widget* const w : APP->scene->children)
+			if (w == openOverlay())
+				return true;
+		return false;
+	}
+
+	void onDragDrop(const DragDropEvent& e) override {
+		ui::Button::onDragDrop(e);
+		if (e.origin == this)
+			rememberMenu();
+	}
+
 	void step() override {
 		if (patchcore::enabled())
 			box.size.x = patchcore::menuButtonWidth(text);
 		else
 			box.size.x = bndLabelWidth(APP->window->vg, -1, text.c_str()) + 1.0;
+
+		if (openButton() != nullptr && !menuStillOpen())
+			openButton() = nullptr;
+		if (openButton() != nullptr && openButton() != this) {
+			const math::Rect r(getAbsoluteOffset(math::Vec()), box.size);
+			if (r.contains(APP->scene->getMousePos())) {
+				openOverlay()->requestDelete();
+				openButton() = nullptr;
+				ActionEvent eAction;
+				onAction(eAction);
+				rememberMenu();
+			}
+		}
 		Widget::step();
 	}
 	void draw(const DrawArgs& args) override {
@@ -173,10 +226,6 @@ struct FileButton : MenuButton {
 		}));
 
 #if DISTRHO_PLUGIN_WANT_DIRECT_ACCESS
-		menu->addChild(createMenuItem("New (factory template)", "", []() {
-			patchUtils::loadTemplateDialog(true);
-		}));
-
 #ifndef DISTRHO_OS_WASM
 		constexpr const char* const OpenName = "Open...";
 #else
@@ -223,11 +272,6 @@ struct FileButton : MenuButton {
 					}));
 				}
 
-				menu->addChild(new ui::MenuSeparator);
-
-				menu->addChild(createMenuItem("Open patchstorage.com for more patches", "", []() {
-					patchUtils::openBrowser("https://patchstorage.com/platform/cardinal/");
-				}));
 			}));
 		}
 
@@ -272,61 +316,6 @@ struct FileButton : MenuButton {
 		menu->addChild(createMenuItem("Revert", RACK_MOD_CTRL_NAME "+" RACK_MOD_SHIFT_NAME "+O", []() {
 			patchUtils::revertDialog();
 		}, APP->patch->path.empty()));
-
-#if DISTRHO_PLUGIN_WANT_DIRECT_ACCESS
-		menu->addChild(createMenuItem("Overwrite template", "", []() {
-			patchUtils::saveTemplateDialog();
-		}));
-
-#ifdef DISTRHO_OS_WASM
-		menu->addChild(new ui::MenuSeparator);
-
-		menu->addChild(createMenuItem("Save persistent browser data", "", []() {
-			settings::save();
-			EM_ASM({
-				Module.FS.syncfs(false, function(err){ dynCall('vi', $0, [!!err]) });
-			}, WebBrowserDataSaved);
-		}));
-#endif
-#endif
-
-#if defined(HAVE_LIBLO) || ! DISTRHO_PLUGIN_WANT_DIRECT_ACCESS
-#ifdef __MOD_DEVICES__
-#define REMOTE_NAME "MOD"
-#else
-#define REMOTE_NAME "Remote"
-#endif
-		menu->addChild(new ui::MenuSeparator);
-
-		remoteUtils::RemoteDetails* const remoteDetails = remoteUtils::getRemote();
-
-		if (remoteDetails != nullptr && remoteDetails->connected) {
-			menu->addChild(createMenuItem("Deploy to " REMOTE_NAME, "F7", [remoteDetails]() {
-				remoteUtils::sendFullPatchToRemote(remoteDetails);
-			}));
-
-			menu->addChild(createCheckMenuItem("Auto deploy to " REMOTE_NAME, "",
-				[remoteDetails]() {return remoteDetails->autoDeploy;},
-				[remoteDetails]() {
-					remoteDetails->autoDeploy = !remoteDetails->autoDeploy;
-					Engine_setRemoteDetails(APP->engine, remoteDetails->autoDeploy ? remoteDetails : nullptr);
-				}
-			));
-#ifndef __MOD_DEVICES__
-		} else {
-			menu->addChild(createMenuItem("Connect to " REMOTE_NAME "...", "", [remoteDetails]() {
-				const std::string url = remoteDetails != nullptr ? remoteDetails->url : CARDINAL_DEFAULT_REMOTE_URL;
-				async_dialog_text_input("Remote:", url.c_str(), [](char* const url) {
-					if (url == nullptr)
-						return;
-
-					DISTRHO_SAFE_ASSERT(remoteUtils::connectToRemote(url));
-					std::free(url);
-				});
-			}));
-#endif
-		}
-#endif
 
 #ifndef DISTRHO_OS_WASM
 		if (isStandalone) {
@@ -631,16 +620,6 @@ struct ViewButton : MenuButton {
 
 		menu->addChild(createMenuLabel("Appearance"));
 
-#if DISTRHO_PLUGIN_WANT_DIRECT_ACCESS
-		std::string darkModeText;
-		if (settings::preferDarkPanels)
-			darkModeText = CHECKMARK_STRING;
-		menu->addChild(createMenuItem("Dark Mode", darkModeText, []() {
-			switchDarkMode(!settings::preferDarkPanels);
-			setAllFramebufferWidgetsDirty(APP->scene);
-		}));
-#endif
-
 		menu->addChild(createBoolPtrMenuItem("Show tooltips", "", &settings::tooltips));
 
 		ZoomSlider* zoomSlider = new ZoomSlider;
@@ -659,19 +638,10 @@ struct ViewButton : MenuButton {
 		rackBrightnessSlider->box.size.x = 250.0;
 		menu->addChild(rackBrightnessSlider);
 
-		HaloBrightnessSlider* haloBrightnessSlider = new HaloBrightnessSlider;
-		haloBrightnessSlider->box.size.x = 250.0;
-		menu->addChild(haloBrightnessSlider);
-
 		if (!isMini()) {
 			menu->addChild(new ui::MenuSeparator);
 			menu->addChild(createMenuLabel("PatchCore"));
 
-			menu->addChild(createCheckMenuItem("Mount screws on screwless panels", "",
-				[]() {return patchcore::settings.mountScrews;},
-				[]() {patchcore::settings.mountScrews ^= true; patchcore::saveSettings();},
-				!patchcore::enabled()
-			));
 			menu->addChild(createCheckMenuItem("Mouse wheel turns knobs", "",
 				[]() {return patchcore::settings.wheelKnobs;},
 				[]() {patchcore::settings.wheelKnobs ^= true; patchcore::saveSettings();},
@@ -679,13 +649,14 @@ struct ViewButton : MenuButton {
 			));
 			{
 				static const char* const names[3] = {"Fine", "Normal", "Coarse"};
-				for (int i = 0; i < 3; ++i) {
-					menu->addChild(createCheckMenuItem(std::string("Wheel sensitivity: ") + names[i], "",
-						[=]() {return patchcore::settings.wheelSensitivity == i;},
-						[=]() {patchcore::settings.wheelSensitivity = i; patchcore::saveSettings();},
-						!patchcore::enabled() || !patchcore::settings.wheelKnobs
-					));
-				}
+				menu->addChild(createSubmenuItem("Wheel sensitivity", names[patchcore::settings.wheelSensitivity], [](ui::Menu* menu) {
+					for (int i = 0; i < 3; ++i) {
+						menu->addChild(createCheckMenuItem(names[i], "",
+							[=]() {return patchcore::settings.wheelSensitivity == i;},
+							[=]() {patchcore::settings.wheelSensitivity = i; patchcore::saveSettings();}
+						));
+					}
+				}, !patchcore::settings.wheelKnobs));
 			}
 			menu->addChild(createCheckMenuItem("Navigator", "",
 				[]() {return patchcore::settings.navigatorVisible;},
@@ -700,14 +671,12 @@ struct ViewButton : MenuButton {
 		}
 
 		menu->addChild(new ui::MenuSeparator);
-		menu->addChild(createMenuLabel("Module dragging"));
+		menu->addChild(createMenuLabel("Modules"));
 
 		menu->addChild(createBoolPtrMenuItem("Lock module positions", "", &settings::lockModules));
 
-		menu->addChild(createBoolPtrMenuItem("Auto-squeeze modules when dragging", "", &settings::squeezeModules));
-
 		menu->addChild(new ui::MenuSeparator);
-		menu->addChild(createMenuLabel("Parameters"));
+		menu->addChild(createMenuLabel("Knobs"));
 
 #ifdef DISTRHO_OS_WASM
 		menu->addChild(createBoolPtrMenuItem("Lock cursor while dragging", "", &settings::allowCursorLock));
@@ -729,12 +698,6 @@ struct ViewButton : MenuButton {
 			}
 		}));
 
-		menu->addChild(createBoolPtrMenuItem("Scroll wheel knob control", "", &settings::knobScroll));
-
-		KnobScrollSensitivitySlider* knobScrollSensitivitySlider = new KnobScrollSensitivitySlider;
-		knobScrollSensitivitySlider->box.size.x = 250.0;
-		menu->addChild(knobScrollSensitivitySlider);
-
 		menu->addChild(new ui::MenuSeparator);
 		menu->addChild(createMenuLabel("Window"));
 
@@ -749,21 +712,6 @@ struct ViewButton : MenuButton {
 #endif
 
 		menu->addChild(createBoolPtrMenuItem("Invert zoom", "", &settings::invertZoom));
-
-		static const std::vector<std::string> rateLimitLabels = {
-			"None",
-			"2x",
-			"4x",
-		};
-		static const std::vector<int> rateLimits = {0, 1, 2};
-		menu->addChild(createSubmenuItem("Update rate limit", rateLimitLabels[settings::rateLimit], [=](ui::Menu* menu) {
-			for (int rateLimit : rateLimits) {
-				menu->addChild(createCheckMenuItem(rateLimitLabels[rateLimit], "",
-					[=]() {return settings::rateLimit == rateLimit;},
-					[=]() {settings::rateLimit = rateLimit;}
-				));
-			}
-		}));
 	}
 };
 
@@ -783,44 +731,10 @@ struct EngineButton : MenuButton {
 		menu->cornerFlags = BND_CORNER_TOP;
 		menu->box.pos = getAbsoluteOffset(math::Vec(0, box.size.y));
 
-		std::string cpuMeterText = "F3";
-		if (settings::cpuMeter)
-			cpuMeterText += " " CHECKMARK_STRING;
-		menu->addChild(createMenuItem("Performance meters", cpuMeterText, [=]() {
-			settings::cpuMeter ^= true;
-		}));
-
-#ifdef HAVE_LIBLO
-		if (isStandalone()) {
-			CardinalPluginContext* const context = static_cast<CardinalPluginContext*>(APP);
-			CardinalBasePlugin* const plugin = static_cast<CardinalBasePlugin*>(context->plugin);
-
-			// const bool remoteServerStarted = this->remoteServerStarted;
-			const std::string remoteControlText = remoteServerStarted ? " " CHECKMARK_STRING : "";
-
-			menu->addChild(createMenuItem("Enable OSC remote control", remoteControlText, [=]() {
-				if (remoteServerStarted) {
-					remoteServerStarted = false;
-					plugin->stopRemoteServer();
-					return;
-				}
-
-				async_dialog_text_input("OSC network port", CARDINAL_DEFAULT_REMOTE_PORT, [=](char* const port) {
-					if (port == nullptr)
-						return;
-
-					if (plugin->startRemoteServer(port))
-						remoteServerStarted = true;
-
-					std::free(port);
-				});
-			}));
-		}
-#endif
+// PatchCore: no OSC remote control; Performance meters are in the transport bar (DSP)
 
 		// PatchCore: driver, devices, rate and buffer in one dialog (the standalone only; a plugin follows its host)
 		if (isStandalone()) {
-			menu->addChild(new ui::MenuSeparator);
 			menu->addChild(createMenuItem("Audio Settings…", "", []() {
 				patchcore::showAudioSettings();
 			}));
@@ -861,12 +775,8 @@ struct HelpButton : MenuButton {
 		menu->cornerFlags = BND_CORNER_TOP;
 		menu->box.pos = getAbsoluteOffset(math::Vec(0, box.size.y));
 
-		menu->addChild(createMenuItem("Rack User manual", "F1", [=]() {
-			patchUtils::openBrowser("https://vcvrack.com/manual");
-		}));
-
-		menu->addChild(createMenuItem("Cardinal project page", "", [=]() {
-			patchUtils::openBrowser("https://github.com/DISTRHO/Cardinal/");
+		menu->addChild(createMenuItem("PatchCore on GitHub", "", [=]() {
+			patchUtils::openBrowser("https://github.com/JXMP-Audio/PatchCore");
 		}));
 
 		menu->addChild(new ui::MenuSeparator);
@@ -879,7 +789,7 @@ struct HelpButton : MenuButton {
 		menu->addChild(new ui::MenuSeparator);
 #endif
 
-		menu->addChild(createMenuLabel("Rack " + APP_VERSION + " Compatible"));
+		menu->addChild(createMenuLabel("PatchCore by JXMP Audio · based on Cardinal / Rack " + APP_VERSION));
 	}
 };
 
