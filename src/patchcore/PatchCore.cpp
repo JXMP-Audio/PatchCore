@@ -297,6 +297,8 @@ void devStep() {
 			if (std::sscanf(offset, "%f,%f", &x, &y) == 2)
 				APP->scene->rackScroll->setGridOffset(math::Vec(x, y));
 		}
+		if (std::getenv("PATCHCORE_DEV_CHECK") != nullptr)
+			devCheck();  // closes the app
 		if (std::getenv("PATCHCORE_DEV_MIXER") != nullptr)
 			showMixer(true);
 		if (std::getenv("PATCHCORE_DEV_AUDIO_DIALOG") != nullptr)

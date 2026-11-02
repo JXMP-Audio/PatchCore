@@ -215,6 +215,8 @@ std::vector<TutorialInfo> tutorialList();
 void openTutorial(const std::string& id);
 /** Full-scene layer: step panel, highlight, first-start offer */
 widget::Widget* createTutorialLayer();
+/** PATCHCORE_DEV_CHECK: checks every JXMP module panel and logs the problems, then closes the app (DevCheck.cpp) */
+void devCheck();
 /** The lesson list (title, check mark when done, description) as menu items: Help → Tutorials and the Learn button */
 void appendTutorialItems(ui::Menu* menu);
 /** A lesson is running in the current scene */

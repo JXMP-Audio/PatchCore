@@ -30,7 +30,7 @@ struct Ply : engine::Module {
 		configOutput(COUNT_OUTPUT, "Count")->description = "The number of voices on SPLIT IN, 1 V per voice.";
 		configInput(MULT_INPUT, "Mult in")->description = "Copied to the four MULT outputs (polyphony kept).";
 		for (int i = 0; i < 4; ++i)
-			configOutput(MULT_OUTPUT + i, string::f("Mult %d", i + 1));
+			configOutput(MULT_OUTPUT + i, string::f("Mult %d", i + 1))->description = "A copy of the MULT input (all its channels).";
 	}
 
 	void process(const ProcessArgs& args) override {

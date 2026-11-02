@@ -58,6 +58,7 @@ RACK_FILES += patchcore/Navigator.cpp
 RACK_FILES += patchcore/RackFrame.cpp
 RACK_FILES += patchcore/TopBar.cpp
 RACK_FILES += patchcore/Tutorial.cpp
+RACK_FILES += patchcore/DevCheck.cpp
 
 RACK_FILES += Rack/dep/pffft/pffft.c
 RACK_FILES += Rack/dep/pffft/fftpack.c

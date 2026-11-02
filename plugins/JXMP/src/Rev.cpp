@@ -52,8 +52,8 @@ struct Rev : engine::Module {
 		configInput(IN_R_INPUT, "In R")->description = "Right input; unpatched, the left input is used.";
 		configInput(MIX_CV_INPUT, "Mix CV")->description = "0..10 V adds to MIX.";
 		configInput(DECAY_CV_INPUT, "Decay CV")->description = "0..10 V adds to DECAY.";
-		configOutput(OUT_L_OUTPUT, "Out L");
-		configOutput(OUT_R_OUTPUT, "Out R");
+		configOutput(OUT_L_OUTPUT, "Out L")->description = "Left output: the dry input and the reverb (soft-limited at ±10 V), mixed by MIX.";
+		configOutput(OUT_R_OUTPUT, "Out R")->description = "Right output: the dry input and the reverb (soft-limited at ±10 V), mixed by MIX.";
 	}
 
 	/** Rack sends this when the module is added and on every rate change: the buffers are sized here, not on the

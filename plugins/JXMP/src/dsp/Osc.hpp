@@ -10,7 +10,8 @@
 namespace jxmp {
 
 inline float morph(float sin, float tri, float saw, float sqr, float m) {
-	m = std::min(std::max(m, 0.f), 3.f);
+	// NaN passes std::min/max unchanged and (int) NaN is a wild index: a NaN at MORPH crashed the app
+	m = m >= 0.f ? std::min(m, 3.f) : 0.f;
 	const float v[4] = {sin, tri, saw, sqr};
 	const int i = std::min((int) m, 2);
 	const float f = m - i;

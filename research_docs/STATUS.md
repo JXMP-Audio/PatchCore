@@ -17,6 +17,16 @@ or weekly limit ends). Newest first.
 - PluginCollection pointer bumped and the PatchCore card on the web updated (text; the screenshot is still the old
   one, `docs/screenshots/patchcore-rack.png`).
 
+### Later the same evening (7e6cf78 and after)
+
+- Deferred review minors fixed: Euclid/Switch save their step, chorus mode glide, stereo reverb input.
+- `PATCHCORE_DEV_CHECK=1 ./bin/Cardinal`: self-check of every JXMP panel (widgets, names, tooltips, overlaps, panel
+  edge) plus a DSP fuzz (random inputs and knobs, NaN burst, CPU load); logs "DEV CHECK DONE: n problem(s)" and
+  closes. It found a crash: a NaN at JX-OSC MORPH indexed outside an array (fixed, test added) and 8 missing
+  tooltips (added). Now: 31 models, 0 problems.
+- Bug hunt still to do: read the core UI code (QuickSearch, TopBar, MixerView, Navigator, AudioSettings,
+  Tutorial) and the older modules' process() by hand.
+
 ### Not checked yet (needs the user at the screen)
 
 - Engine → Audio Settings dialog: device switch, rate change, driver switch restart, missing-card notice.

@@ -35,8 +35,8 @@ struct Chr : engine::Module {
 		configInput(IN_R_INPUT, "In R")->description = "Right input; unpatched, the left input is used.";
 		configInput(RATE_CV_INPUT, "Rate CV")->description = "Adds to RATE, 1 V per 10 % of the knob.";
 		configInput(DEPTH_CV_INPUT, "Depth CV")->description = "0..10 V adds to DEPTH.";
-		configOutput(OUT_L_OUTPUT, "Out L");
-		configOutput(OUT_R_OUTPUT, "Out R");
+		configOutput(OUT_L_OUTPUT, "Out L")->description = "Left output: dry and chorus mixed by MIX.";
+		configOutput(OUT_R_OUTPUT, "Out R")->description = "Right output: dry and chorus mixed by MIX (the voices sway against the left side).";
 		configLight(RATE_LIGHT, "Rate");
 	}
 

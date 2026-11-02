@@ -9,6 +9,7 @@ int main() {
 	assert(morph(1, 2, 3, 4, 0.f) == 1 && morph(1, 2, 3, 4, 1.f) == 2 && morph(1, 2, 3, 4, 2.f) == 3 && morph(1, 2, 3, 4, 3.f) == 4);
 	assert(std::fabs(morph(0, 10, 0, 0, 0.5f) - 5.f) < 1e-5f);
 	assert(morph(1, 2, 3, 4, -1.f) == 1 && morph(1, 2, 3, 4, 9.f) == 4);  // clamped
+	assert(morph(1, 2, 3, 4, NAN) == 1);  // a NaN position (broken CV) gives the sine, not a read outside the table
 
 	float o[8];
 	assert(unisonOffsets(1, 30.f, o) == 1 && o[0] == 0.f);
