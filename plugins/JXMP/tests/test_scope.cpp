@@ -107,6 +107,29 @@ int main() {
 	assert(re.rebuild(0.01f) && re.shown().secondsPerDiv == 0.01f);
 	assert(std::fabs(re.shown().value[0][re.shown().pre]) < 0.3f);
 
+	// The picture the display is drawing survives later acquisitions (three pictures: the audio thread never
+	// writes the one the UI holds, however many sweeps finish in one UI frame)
+	{
+		Capture fast;
+		for (int i = 0; i < 2000; ++i)
+			fast.process(1.f, 0.f, false, dt, 0.0001f, true);
+		const Capture::Picture& held = fast.shown();
+		const float seen = held.value[0][100];
+		for (int i = 0; i < 4000; ++i)
+			fast.process(-3.f, 0.f, false, dt, 0.0001f, true);  // many more sweeps, another level
+		assert(held.value[0][100] == seen);
+		assert(near(fast.shown().value[0][100], -3.f));  // the next look gets the newest picture
+	}
+
+	// Triggers at audio rate for a long time: the ring stays inside its 16 slots
+	{
+		Capture busy;
+		for (int i = 0; i < 100000; ++i)
+			busy.process(std::sin(0.3f * i), 0.f, i % 3 == 0, dt, 0.001f);
+		assert(busy.triggerCount <= Capture::kTriggers);
+		assert(busy.rebuild(0.1f) || true);
+	}
+
 	std::printf("scope: all tests passed\n");
 	return 0;
 }

@@ -62,6 +62,16 @@ int main() {
 
 	assert(kOutputs == 7 && swungOutput(0) && swungOutput(1) && !swungOutput(2));
 
+	// 1 PPQN below 60 BPM (40 BPM: a pulse every 1.5 s) locks: one start, the tempo found
+	PulseFollower slow;
+	slow.ppqn = 1;
+	int slowStarts = 0;
+	for (int i = 0; i < 5 * 72000; ++i) {
+		slow.process(i % 72000 == 0, dt);
+		slowStarts += slow.started;
+	}
+	assert(slow.running && slowStarts == 1 && near(slow.bpm(), 40.0, 0.1));
+
 	std::printf("clock: all tests passed\n");
 	return 0;
 }

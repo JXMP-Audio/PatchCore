@@ -50,8 +50,8 @@ struct PulseFollower {
 			}
 			sinceLast = 0.0;
 		}
-		// Stopped: no pulse for four periods (or 1 s before the tempo is known)
-		const double timeout = period > 0.0 ? std::max(4.0 * period, 0.05) : 1.0;
+		// Stopped: no pulse for four periods (or 2.5 s before the tempo is known: 1 PPQN at 30 BPM is 2 s)
+		const double timeout = period > 0.0 ? std::max(4.0 * period, 0.05) : 2.5;
 		if (running && sinceLast > timeout)
 			reset();
 	}

@@ -70,7 +70,7 @@ inline int pretrigger(float) {
 /**
  * Acquisition as on a digital scope (e.g. a Hantek DSO): the trigger point is in the middle of the screen, the
  * part before it comes from a history that runs all the time. Only
- * finished acquisitions are shown, whole (`shown()`, double-buffered). NORM keeps the
+ * finished acquisitions are shown, whole (`shown()`, three pictures). NORM keeps the
  * last picture without a trigger; AUTO acquires by itself when none comes (waiting 1.5 times the spacing of
  * slow triggers, up to 10 s). Each point keeps the minimum and maximum of its time slice (no aliasing). A 1 kHz
  * memory of the last 10 s lets rebuild() redraw a slower time base at once.
@@ -78,17 +78,30 @@ inline int pretrigger(float) {
 struct Capture {
 	static constexpr int kHalf = kPoints / 2;
 	float lo[2][kPoints] = {}, hi[2][kPoints] = {}, value[2][kPoints] = {};
-	/** Two pictures: the audio thread writes the back one and then flips `front`, so the display never draws a
-	picture that is being copied (half old, half new) */
+	/** A finished acquisition, as the display draws it */
 	struct Picture {
 		float lo[2][kPoints] = {}, hi[2][kPoints] = {}, value[2][kPoints] = {};
 		int pre = kPoints / 2;
 		float secondsPerDiv = 0.f;  // the time base it was taken at
 	};
-	Picture pictures[2];
-	std::atomic<int> front{0};
+	/** Three pictures: the audio thread writes `writing`, hands it over through `ready` (kNew marks a picture not
+	taken yet) and the display takes it into `reading`. The audio thread never writes the picture being drawn,
+	however many sweeps finish in one display frame. */
+	Picture pictures[3];
+	static constexpr int kNew = 4;
+	mutable std::atomic<int> ready{2};
+	mutable int reading = 0;
+	int writing = 1;
+	int latestIndex = 2;
+	/** For the display thread: the newest finished picture (held until the next call) */
 	const Picture& shown() const {
-		return pictures[front.load(std::memory_order_acquire)];
+		if (ready.load(std::memory_order_acquire) & kNew)
+			reading = ready.exchange(reading, std::memory_order_acq_rel) & 3;
+		return pictures[reading];
+	}
+	/** For the audio thread: the picture it published last */
+	const Picture& latest() const {
+		return pictures[latestIndex];
 	}
 	int sweeps = 0;
 	int index = kPoints;  // kPoints = waiting for a trigger
@@ -101,16 +114,26 @@ struct Capture {
 	float waiting = 0.f, sinceTrigger = 0.f, triggerSpacing = 0.f;
 
 	float coarseLo[2][kCoarse] = {}, coarseHi[2][kCoarse] = {}, coarseValue[2][kCoarse] = {};
-	long coarseCount = 0;      // coarse samples written so far
+	long long coarseCount = 0;  // coarse samples written so far (64-bit: a 32-bit long would wrap after weeks)
 	/** Coarse samples of the last triggers (a ring), so a redraw can use one with enough signal after it */
 	static constexpr int kTriggers = 16;
-	long triggers[kTriggers];
-	int triggerCount = 0;
+	long long triggers[kTriggers];
+	int triggerHead = 0;   // next slot to write
+	int triggerCount = 0;  // filled slots, at most kTriggers (a running count would overflow at audio-rate triggers)
 	float coarseSince = 0.f;
 	float coarseCurLo[2] = {INFINITY, INFINITY}, coarseCurHi[2] = {-INFINITY, -INFINITY};
 
 	bool running() const {
 		return index < kPoints;
+	}
+
+	/** A new time base: the pre-trigger history holds points of the old one, so it is blanked (not drawn) */
+	void clearHistory() {
+		for (int ch = 0; ch < 2; ++ch) {
+			std::fill(histLo[ch], histLo[ch] + kHalf, INFINITY);
+			std::fill(histHi[ch], histHi[ch] + kHalf, -INFINITY);
+			std::fill(histValue[ch], histValue[ch] + kHalf, 0.f);
+		}
 	}
 
 	/** Drops the running acquisition: the next trigger starts a fresh one */
@@ -133,7 +156,9 @@ struct Capture {
 		if (trigger) {
 			triggerSpacing = sinceTrigger;
 			sinceTrigger = 0.f;
-			triggers[triggerCount++ % kTriggers] = coarseCount;
+			triggers[triggerHead] = coarseCount;
+			triggerHead = (triggerHead + 1) % kTriggers;
+			triggerCount = std::min(triggerCount + 1, (int) kTriggers);
 		}
 		else if (sinceTrigger > std::max(3.f, 2.f * triggerSpacing))
 			triggerSpacing = 0.f;
@@ -207,14 +232,14 @@ struct Capture {
 	float triggerValue[2] = {};  // the sample at the trigger, the value of the centre point
 
 	void publish(const float (*l)[kPoints], const float (*h)[kPoints], const float (*v)[kPoints], int trigAt, float div) {
-		const int back = 1 - front.load(std::memory_order_relaxed);
-		Picture& p = pictures[back];
+		Picture& p = pictures[writing];
 		std::copy(&l[0][0], &l[0][0] + 2 * kPoints, &p.lo[0][0]);
 		std::copy(&h[0][0], &h[0][0] + 2 * kPoints, &p.hi[0][0]);
 		std::copy(&v[0][0], &v[0][0] + 2 * kPoints, &p.value[0][0]);
 		p.pre = trigAt;
 		p.secondsPerDiv = div;
-		front.store(back, std::memory_order_release);
+		latestIndex = writing;
+		writing = ready.exchange(writing | kNew, std::memory_order_acq_rel) & 3;
 		++sweeps;
 	}
 
@@ -230,9 +255,9 @@ struct Capture {
 		const int p = pretrigger(secondsPerDiv);
 		const double after = (kPoints - p) * stepSamples;
 		// The newest trigger with enough signal after it (and before it, inside the memory)
-		long trig = -1;
-		for (int n = 1; n <= std::min(triggerCount, (int) kTriggers); ++n) {
-			const long t = triggers[(triggerCount - n) % kTriggers];
+		long long trig = -1;
+		for (int n = 1; n <= triggerCount; ++n) {
+			const long long t = triggers[(triggerHead - n + kTriggers) % kTriggers];
 			if (t + after <= coarseCount && coarseCount - (t - p * stepSamples) < kCoarse) {
 				trig = t;
 				break;
@@ -243,13 +268,13 @@ struct Capture {
 		const double t0 = trig - p * stepSamples;  // coarse sample of point 0
 		float l[2][kPoints], h[2][kPoints], v[2][kPoints];
 		for (int i = 0; i < kPoints; ++i) {
-			const long a = (long) std::floor(t0 + i * stepSamples), b = std::max(a + 1, (long) std::floor(t0 + (i + 1) * stepSamples));
+			const long long a = (long long) std::floor(t0 + i * stepSamples), b = std::max(a + 1, (long long) std::floor(t0 + (i + 1) * stepSamples));
 			for (int ch = 0; ch < 2; ++ch) {
 				l[ch][i] = INFINITY;
 				h[ch][i] = -INFINITY;
 				v[ch][i] = 0.f;
 			}
-			for (long s = a; s < b; ++s) {
+			for (long long s = a; s < b; ++s) {
 				if (s < 0 || s >= coarseCount || coarseCount - s > kCoarse)
 					continue;
 				const int k = (int) (s % kCoarse);
@@ -270,7 +295,7 @@ struct Capture {
 	 * squeezed; where it has no data the screen stays empty. Until the next acquisition replaces it.
 	 */
 	bool rescale(float secondsPerDiv) {
-		const Picture& old = shown();
+		const Picture& old = latest();
 		if (old.secondsPerDiv <= 0.f)
 			return false;
 		const double ratio = (double) secondsPerDiv / old.secondsPerDiv;  // old points per new point

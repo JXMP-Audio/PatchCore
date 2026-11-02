@@ -40,6 +40,12 @@ struct Chr : engine::Module {
 		configLight(RATE_LIGHT, "Rate");
 	}
 
+	/** Rack sends this when the module is added and on every rate change: the buffers are sized here, not on the
+	audio thread (process() only checks, the rate is already set) */
+	void onSampleRateChange(const SampleRateChangeEvent& e) override {
+		chorus.setSampleRate(e.sampleRate);
+	}
+
 	void process(const ProcessArgs& args) override {
 		chorus.setSampleRate(args.sampleRate);
 		const float inL = inputs[IN_L_INPUT].getVoltageSum();

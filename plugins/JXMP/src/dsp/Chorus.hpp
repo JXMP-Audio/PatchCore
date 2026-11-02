@@ -61,8 +61,9 @@ struct Chorus {
 		phase -= std::floor(phase);
 		vibrato += 6.f * dt;
 		vibrato -= std::floor(vibrato);
-		left.write(inL);
-		right.write(inR);
+		// A NaN would stay in the delay line for 40 ms
+		left.write(std::isfinite(inL) ? inL : 0.f);
+		right.write(std::isfinite(inR) ? inR : 0.f);
 		const float twoPi = 2.f * float(M_PI);
 		const float baseMs = ensemble ? 10.f : 7.f, swingMs = 5.f * depth;
 		const float vib = ensemble ? 0.15f * depth * std::sin(twoPi * vibrato) : 0.f;

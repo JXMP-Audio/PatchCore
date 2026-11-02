@@ -135,7 +135,7 @@ struct ViewSegment : widget::OpaqueWidget {
 		{"Rack", "F1"},
 		{"Back", "F2"},
 		{"Search", "Enter"},
-		{"Mixer", "F4"},
+		{"Mixer", "F3"},
 		{"Learn", ""},
 	};
 

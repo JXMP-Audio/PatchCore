@@ -247,7 +247,7 @@
       }
     },
     {
-      "text": "Sounds go through their own effects, meet in the mixer, and the reverb puts the whole mix in one room. For bigger projects the console in the Mixer view (F4) does the same with sends. Press Next to finish.",
+      "text": "Sounds go through their own effects, meet in the mixer, and the reverb puts the whole mix in one room. For bigger projects the console in the Mixer view (F3) does the same with sends. Press Next to finish.",
       "done": {
         "next": true
       }

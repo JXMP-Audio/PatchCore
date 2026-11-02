@@ -96,6 +96,7 @@ struct Scp : engine::Module {
 		const int timeStep = (int) std::round(params[TIME_PARAM].getValue());
 		if (timeStep != lastTimeStep) {
 			lastTimeStep = timeStep;
+			capture.clearHistory();
 			// Redraw at once from memory (slow time bases), else start fresh
 			if (!capture.rebuild(sc::timeDiv(timeStep)))
 				capture.restart();

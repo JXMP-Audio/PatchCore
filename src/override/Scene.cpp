@@ -470,11 +470,12 @@ void Scene::onHoverKey(const HoverKeyEvent& e) {
 			APP->scene->rackScroll->setZoom(2.f);
 			e.consume(this);
 		}
-		if (e.key == GLFW_KEY_F1 && (e.mods & RACK_MOD_MASK) == 0) {
+		// PatchCore: F1 and F3 have their own meaning (below)
+		if (e.key == GLFW_KEY_F1 && (e.mods & RACK_MOD_MASK) == 0 && !patchcore::enabled()) {
 			patchUtils::openBrowser("https://vcvrack.com/manual/");
 			e.consume(this);
 		}
-		if (e.key == GLFW_KEY_F3 && (e.mods & RACK_MOD_MASK) == 0) {
+		if (e.key == GLFW_KEY_F3 && (e.mods & RACK_MOD_MASK) == 0 && !patchcore::enabled()) {
 			settings::cpuMeter ^= true;
 			e.consume(this);
 		}
@@ -615,17 +616,30 @@ void Scene::onHoverKey(const HoverKeyEvent& e) {
 				patchcore::transportTogglePlay();
 				e.consume(this);
 			}
-			// F1 Rack, F2 Back, F4 Mixer (F3 is kept for the Editor, standalone only)
-			if (e.key == GLFW_KEY_F1 || e.key == GLFW_KEY_F2) {
-				patchcore::showMixer(false);
-				patchcore::setViewSide(e.key == GLFW_KEY_F1 ? patchcore::VIEW_FRONT : patchcore::VIEW_BACK);
+			// F1 Rack (or the manual of the selected module), F2 Back, F3 Mixer, F4 kept for the Editor
+			if (e.key == GLFW_KEY_F1) {
+				const std::set<app::ModuleWidget*>& selected = rack->getSelected();
+				const std::string url = selected.empty() ? "" : (*selected.begin())->model->getManualUrl();
+				if (!url.empty())
+					patchUtils::openBrowser(url);
+				else {
+					patchcore::showMixer(false);
+					patchcore::setViewSide(patchcore::VIEW_FRONT);
+				}
 				e.consume(this);
 			}
-			if (e.key == GLFW_KEY_F4) {
+			if (e.key == GLFW_KEY_F2) {
+				patchcore::showMixer(false);
+				patchcore::setViewSide(patchcore::VIEW_BACK);
+				e.consume(this);
+			}
+			if (e.key == GLFW_KEY_F3) {
 				if (patchcore::mixerAvailable())
 					patchcore::showMixer(!patchcore::mixerShown());
 				e.consume(this);
 			}
+			if (e.key == GLFW_KEY_F4)
+				e.consume(this);  // the Editor (research_docs/11), not built yet
 		}
 	}
 }

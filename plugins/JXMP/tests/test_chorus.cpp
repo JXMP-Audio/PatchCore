@@ -42,6 +42,14 @@ int main() {
 	mix(2.f, 3.f, 1.f, &m);
 	assert(std::fabs(m - 3.f) < 1e-5f);
 
+	// A NaN at the input is dropped, not kept in the delay line
+	Chorus n;
+	n.setSampleRate(fs);
+	for (int i = 0; i < 4800; ++i) {
+		float l, r;
+		n.process(i == 10 ? NAN : 0.5f, 0.5f, 1.f, 0.5f, true, &l, &r);
+		assert(std::isfinite(l) && std::isfinite(r));
+	}
 	std::printf("chorus: all tests passed\n");
 	return 0;
 }

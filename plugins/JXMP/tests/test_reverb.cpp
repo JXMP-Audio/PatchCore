@@ -48,6 +48,21 @@ int main() {
 		big.process(5.f * n, -5.f * n, HALL, 2.f, 12.f, 0.2f, 1.f, &l, &r);
 		assert(std::fabs(l) <= 10.f && std::fabs(r) <= 10.f && std::isfinite(l));
 	}
+	// One NaN at the input (another module, a broken CV) must not leave the reverb NaN or silent for good
+	Fdn nan;
+	nan.setSampleRate(fs);
+	for (int i = 0; i < 48000; ++i) {
+		float l, r;
+		const float in = i == 100 ? NAN : (i < 24000 ? 0.f : 1.f);
+		nan.process(in, in, HALL, 1.f, 2.f, 0.02f, 0.5f, &l, &r);
+		assert(std::isfinite(l) && std::isfinite(r));
+	}
+	{
+		// A NaN decay time (CV) is ignored too
+		float l, r;
+		nan.process(1.f, 1.f, HALL, 1.f, NAN, 0.02f, 0.5f, &l, &r);
+		assert(std::isfinite(l) && std::isfinite(r));
+	}
 	std::printf("reverb: all tests passed\n");
 	return 0;
 }

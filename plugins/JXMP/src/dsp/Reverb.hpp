@@ -76,7 +76,7 @@ struct Fdn {
 		if (fs == sampleRate)
 			return;
 		sampleRate = fs;
-		const int maxLine = (int) (fs * 0.067f * 2.f) + 4;  // HALL at SIZE 2
+		const int maxLine = (int) (fs * 0.0672f * 2.f) + 4;  // HALL (67.1 ms) at SIZE 2
 		for (Delay& l : lines)
 			l.resize(maxLine);
 		static const float diffMs[4] = {4.7f, 3.6f, 12.7f, 9.3f};
@@ -93,8 +93,23 @@ struct Fdn {
 	 * One stereo sample in, the wet stereo signal out. size 0.25..2 (line length scale), rt60 seconds,
 	 * predelay seconds (0..0.2), tone 0..1 (dark … bright damping).
 	 */
+	/** Silence in every line (after a NaN got in) */
+	void clear() {
+		for (Delay& l : lines)
+			std::fill(l.buf.begin(), l.buf.end(), 0.f);
+		for (Allpass& a : diffusers)
+			std::fill(a.d.buf.begin(), a.d.buf.end(), 0.f);
+		std::fill(pre.buf.begin(), pre.buf.end(), 0.f);
+		std::fill(damp, damp + kLines, 0.f);
+	}
+
 	void process(float inL, float inR, Algo algo, float size, float rt60, float predelay, float tone, float* outL, float* outR) {
 		const float fs = sampleRate;
+		// A NaN (from another module or a CV) would circulate in the lines for good
+		if (!std::isfinite(rt60))
+			rt60 = 1.f;
+		if (!std::isfinite(size))
+			size = 1.f;
 		if (size != lastSize || rt60 != lastRt60 || (int) algo != lastAlgo) {
 			lastSize = size;
 			lastRt60 = rt60;
@@ -109,7 +124,8 @@ struct Fdn {
 		}
 
 		// Predelay, then diffusion (a plate diffuses most)
-		pre.write(0.5f * (inL + inR));
+		const float in = 0.5f * (inL + inR);
+		pre.write(std::isfinite(in) ? in : 0.f);
 		float x = pre.read(std::max(1, (int) (predelay * fs)));
 		const float g = algo == PLATE ? 0.75f : algo == HALL ? 0.65f : 0.55f;
 		for (Allpass& a : diffusers)
@@ -138,6 +154,10 @@ struct Fdn {
 		// Soft limit at ±10 V
 		*outL = 10.f * std::tanh(l * 0.35f / 10.f);
 		*outR = 10.f * std::tanh(rr * 0.35f / 10.f);
+		if (!std::isfinite(*outL) || !std::isfinite(*outR)) {
+			clear();
+			*outL = *outR = 0.f;
+		}
 	}
 };
 

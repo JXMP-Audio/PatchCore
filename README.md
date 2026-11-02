@@ -20,7 +20,43 @@ PatchCore comes as a **standalone app** (`make jack` → `bin/Cardinal`) and as 
 sound card in **Engine → Audio Settings…** (PipeWire/JACK or ALSA on Linux, WASAPI or ASIO on Windows; a driver
 change restarts the app with the patch) and connects its outputs to the default output by itself. In a DAW the
 bottom bar is a thin read-only display of the host's tempo and position; MIDI always goes through the Host MIDI
-modules. F1 rack, F2 back, F4 mixer.
+modules. Keys: F1 rack (with a selected module: its manual), F2 back, F3 mixer, F4 editor (later).
+
+**Learn** in the top bar (or Help → Tutorials) opens six interactive lessons that walk a beginner through the JXMP
+modules, from the first sound to a song with drums and effects.
+
+## JXMP modules
+
+Our modules, with a manual page each ([docs/manual/](docs/manual/); select a module and press F1 to open its page):
+
+| Panel | Browser name | Manual |
+|---|---|---|
+| JX-OSC | VCO | [jx-osc](docs/manual/jx-osc.md) |
+| JX-FLT | VCF | [jx-flt](docs/manual/jx-flt.md) |
+| JX-LFO | LFO | [jx-lfo](docs/manual/jx-lfo.md) |
+| JX-NSE | Noise | [jx-nse](docs/manual/jx-nse.md) |
+| JX-MIX | Mixer | [jx-mix](docs/manual/jx-mix.md) |
+| JX-SEQ | SEQ | [jx-seq](docs/manual/jx-seq.md) |
+| JX-DLY | Delay | [jx-dly](docs/manual/jx-dly.md) |
+| JX-QNT | Quantizer | [jx-qnt](docs/manual/jx-qnt.md) |
+| JX-RND | Random | [jx-rnd](docs/manual/jx-rnd.md) |
+| JX-SLW | Slew | [jx-slw](docs/manual/jx-slw.md) |
+| JX-ATT | Attenuverter | [jx-att](docs/manual/jx-att.md) |
+| JX-AMP | VCA | [jx-amp](docs/manual/jx-amp.md) |
+| JX-ENV | ADSR | [jx-env](docs/manual/jx-env.md) |
+| JX-CONSOLE | Console 4 / 8 / 16 / 32 | [jx-console](docs/manual/jx-console.md) |
+| JX-SCP | Scope | [jx-scp](docs/manual/jx-scp.md) |
+| JX-CLK | Clock | [jx-clk](docs/manual/jx-clk.md) |
+| JX-EUC | Euclid | [jx-euc](docs/manual/jx-euc.md) |
+| JX-DRM | Drums | [jx-drm](docs/manual/jx-drm.md) |
+| JX-REV | Reverb | [jx-rev](docs/manual/jx-rev.md) |
+| JX-CHR | Chorus | [jx-chr](docs/manual/jx-chr.md) |
+| JX-FLD | Folder | [jx-fld](docs/manual/jx-fld.md) |
+| JX-RNG | Ring | [jx-rng](docs/manual/jx-rng.md) |
+| JX-LGC | Logic | [jx-lgc](docs/manual/jx-lgc.md) |
+| JX-SW | Switch | [jx-sw](docs/manual/jx-sw.md) |
+| JX-PLY | Poly | [jx-ply](docs/manual/jx-ply.md) |
+| JX-PB4 / PB8 / PB16 | Patchbay 4 / 8 / 16 | [jx-pb](docs/manual/jx-pb.md) |
 
 `dpf/` is DPF vendored into this repo (PatchCore changes are marked `// PatchCore:`); its `pugl` stays a submodule.
 

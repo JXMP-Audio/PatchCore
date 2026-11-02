@@ -8,7 +8,7 @@
   "authorEmail": "",
   "authorUrl": "https://github.com/JXMP-Audio",
   "pluginUrl": "https://github.com/JXMP-Audio/PatchCore",
-  "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/research_docs/04-sided-modules-patchbay-design.md",
+  "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/README.md",
   "sourceUrl": "https://github.com/JXMP-Audio/PatchCore",
   "changelogUrl": "",
   "modules": [
@@ -18,7 +18,8 @@
       "description": "Passes 4 channels between the front and the back of the rack",
       "tags": [
         "Utility"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-pb.md"
     },
     {
       "slug": "Patchbay8",
@@ -26,7 +27,8 @@
       "description": "Passes 8 channels between the front and the back of the rack",
       "tags": [
         "Utility"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-pb.md"
     },
     {
       "slug": "Patchbay16",
@@ -34,7 +36,8 @@
       "description": "Passes 16 channels between the front and the back of the rack",
       "tags": [
         "Utility"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-pb.md"
     },
     {
       "slug": "VCA",
@@ -43,7 +46,8 @@
       "tags": [
         "VCA",
         "Polyphonic"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-amp.md"
     },
     {
       "slug": "ADSR",
@@ -52,7 +56,8 @@
       "tags": [
         "Envelope generator",
         "Polyphonic"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-env.md"
     },
     {
       "slug": "VCO",
@@ -61,7 +66,8 @@
       "tags": [
         "VCO",
         "Polyphonic"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-osc.md"
     },
     {
       "slug": "VCF",
@@ -70,7 +76,8 @@
       "tags": [
         "VCF",
         "Polyphonic"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-flt.md"
     },
     {
       "slug": "LFO",
@@ -79,7 +86,8 @@
       "tags": [
         "LFO",
         "Polyphonic"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-lfo.md"
     },
     {
       "slug": "Noise",
@@ -87,7 +95,8 @@
       "description": "JX-NSE: white, pink, red, violet, blue, gray and black noise with level",
       "tags": [
         "Noise"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-nse.md"
     },
     {
       "slug": "Mixer",
@@ -96,7 +105,8 @@
       "tags": [
         "Mixer",
         "Polyphonic"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-mix.md"
     },
     {
       "slug": "SEQ",
@@ -104,7 +114,8 @@
       "description": "JX-SEQ: 8-step CV and gate sequencer with internal tempo or external clock, length, run and reset",
       "tags": [
         "Sequencer"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-seq.md"
     },
     {
       "slug": "Delay",
@@ -113,7 +124,8 @@
       "tags": [
         "Delay",
         "Effect"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-dly.md"
     },
     {
       "slug": "Quantizer",
@@ -122,7 +134,8 @@
       "tags": [
         "Quantizer",
         "Polyphonic"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-qnt.md"
     },
     {
       "slug": "Random",
@@ -131,7 +144,8 @@
       "tags": [
         "Random",
         "Sample and hold"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-rnd.md"
     },
     {
       "slug": "Slew",
@@ -140,7 +154,8 @@
       "tags": [
         "Slew limiter",
         "Polyphonic"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-slw.md"
     },
     {
       "slug": "Attenuverter",
@@ -149,7 +164,8 @@
       "tags": [
         "Attenuator",
         "Polyphonic"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-att.md"
     },
     {
       "slug": "Console4",
@@ -157,7 +173,8 @@
       "description": "JX-CONSOLE: main mixer with 4 channels (EQ, 2 sends, pan, mute, solo, fader), 2 stereo returns, master and VU meters; one per project, controlled in the Mixer view",
       "tags": [
         "Mixer"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-console.md"
     },
     {
       "slug": "Console8",
@@ -165,7 +182,8 @@
       "description": "JX-CONSOLE: main mixer with 8 channels (EQ, 2 sends, pan, mute, solo, fader), 2 stereo returns, master and VU meters; one per project, controlled in the Mixer view",
       "tags": [
         "Mixer"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-console.md"
     },
     {
       "slug": "Console16",
@@ -173,7 +191,8 @@
       "description": "JX-CONSOLE: main mixer with 16 channels (EQ, 2 sends, pan, mute, solo, fader), 2 stereo returns, master and VU meters; one per project, controlled in the Mixer view",
       "tags": [
         "Mixer"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-console.md"
     },
     {
       "slug": "Console32",
@@ -181,7 +200,8 @@
       "description": "JX-CONSOLE: main mixer with 32 channels (EQ, 2 sends, pan, mute, solo, fader), 2 stereo returns, master and VU meters; one per project, controlled in the Mixer view",
       "tags": [
         "Mixer"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-console.md"
     },
     {
       "slug": "Scope",
@@ -189,7 +209,8 @@
       "description": "JX-SCP: two-channel oscilloscope with a round green CRT, trigger and X-Y mode",
       "tags": [
         "Visual"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-scp.md"
     },
     {
       "slug": "Clock",
@@ -197,7 +218,8 @@
       "description": "JX-CLK: master clock from CLOCK IN, the transport or its own tempo; x4 to /16 with swing, reset, run",
       "tags": [
         "Clock generator"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-clk.md"
     },
     {
       "slug": "Euclid",
@@ -205,7 +227,8 @@
       "description": "JX-EUC: four Euclidean rhythm tracks with steps, hits, rotate, gate and accent outputs",
       "tags": [
         "Sequencer"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-euc.md"
     },
     {
       "slug": "Drums",
@@ -213,7 +236,8 @@
       "description": "JX-DRM: kick, snare, hi-hat (closed/open) and clap with tune, decay, tone, accent, outputs and mix",
       "tags": [
         "Drum"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-drm.md"
     },
     {
       "slug": "Reverb",
@@ -221,7 +245,8 @@
       "description": "JX-REV: stereo plate, hall and room reverb with size, decay, predelay, tone and mix",
       "tags": [
         "Reverb"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-rev.md"
     },
     {
       "slug": "Chorus",
@@ -229,7 +254,8 @@
       "description": "JX-CHR: stereo chorus and ensemble with rate, depth and mix",
       "tags": [
         "Chorus"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-chr.md"
     },
     {
       "slug": "Folder",
@@ -237,7 +263,8 @@
       "description": "JX-FLD: wavefolder with fold, symmetry and CV",
       "tags": [
         "Waveshaper"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-fld.md"
     },
     {
       "slug": "Ring",
@@ -245,7 +272,8 @@
       "description": "JX-RNG: ring modulator with dry/wet",
       "tags": [
         "Ring modulator"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-rng.md"
     },
     {
       "slug": "Logic",
@@ -253,7 +281,8 @@
       "description": "JX-LGC: AND, OR, XOR, NOT and a comparator",
       "tags": [
         "Logic"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-lgc.md"
     },
     {
       "slug": "Switch",
@@ -261,7 +290,8 @@
       "description": "JX-SW: sequential switch 4 to 1 and 1 to 4",
       "tags": [
         "Switch"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-sw.md"
     },
     {
       "slug": "Poly",
@@ -269,7 +299,8 @@
       "description": "JX-PLY: poly split, merge, voice count and mult",
       "tags": [
         "Polyphonic"
-      ]
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-ply.md"
     }
   ]
 }

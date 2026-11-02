@@ -148,7 +148,7 @@ struct Clap {
 
 	/** tune: band 800..2000 Hz; decay: tail 0.1..0.8 s; tone: band width */
 	float process(float dt, float tune, float decay, float tone) {
-		t += dt;
+		t = std::min(t + dt, 10.f);  // stays where float steps are fine (the tail is long over by then)
 		// Three short bursts 10 ms apart, then the tail
 		float env = 0.f;
 		for (int i = 0; i < 3; ++i) {
