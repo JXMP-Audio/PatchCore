@@ -158,6 +158,8 @@ Scene::Scene() {
 		addChild(internal->mixerView);
 		// Audio start-up notices, under the top bar (empty in plugins)
 		addChild(patchcore::createNoticeStrip());
+		// Tutorials: step panel, highlight, first-start offer (above the rack, below the quick search)
+		addChild(patchcore::createTutorialLayer());
 	}
 
 	browser = browserCreate();

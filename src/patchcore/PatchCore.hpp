@@ -57,6 +57,10 @@ struct Settings {
 	bool wheelKnobs = true;
 	/** Wheel sensitivity on knobs: 0 fine (one notch ≈ 1 %), 1 normal, 2 coarse (Rack's default) */
 	int wheelSensitivity = 0;
+	/** Ids of finished tutorial lessons (research_docs/15) */
+	std::vector<std::string> tutorialsDone;
+	/** The "New to modular?" offer was shown once */
+	bool tutorialOffered = false;
 };
 
 extern Settings settings;
@@ -195,6 +199,18 @@ std::string audioNotice();
 void restartApp();
 /** The amber notice strip under the top bar. */
 widget::Widget* createNoticeStrip();
+/** Interactive tutorials (Tutorial.cpp, research_docs/15) */
+struct TutorialInfo {
+	std::string id, title, description;
+	/** lesson.json parses */
+	bool available;
+	bool done;
+};
+std::vector<TutorialInfo> tutorialList();
+/** Asks to save unsaved work, opens the lesson's start patch untitled and starts the lesson */
+void openTutorial(const std::string& id);
+/** Full-scene layer: step panel, highlight, first-start offer */
+widget::Widget* createTutorialLayer();
 /** True when the internal transport drives the engine (standalone without a timebase master). */
 bool transportIsInternal();
 void transportTogglePlay();

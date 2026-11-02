@@ -8,6 +8,7 @@
 
 #include "DistrhoUtils.hpp"
 
+#include <functional>
 #include <string>
 
 extern const std::string CARDINAL_VERSION;
@@ -58,7 +59,7 @@ void switchDarkMode(bool darkMode);
 namespace patchUtils {
 
 void loadDialog();
-void loadPathDialog(const std::string& path, bool asTemplate = false);
+void loadPathDialog(const std::string& path, bool asTemplate = false, std::function<void()> afterLoad = nullptr);
 void loadSelectionDialog();
 void loadTemplate(bool factory);
 void loadTemplateDialog(bool factory);

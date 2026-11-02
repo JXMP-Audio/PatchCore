@@ -140,6 +140,15 @@ void loadSettings() {
 	if (json_t* const j = json_object_get(rootJ, "wheelSensitivity"))
 		settings.wheelSensitivity = math::clamp((int) json_integer_value(j), 0, 2);
 
+	if (json_t* const j = json_object_get(rootJ, "tutorialsDone")) {
+		settings.tutorialsDone.clear();
+		for (size_t i = 0; i < json_array_size(j); ++i)
+			if (json_is_string(json_array_get(j, i)))
+				settings.tutorialsDone.push_back(json_string_value(json_array_get(j, i)));
+	}
+	if (json_t* const j = json_object_get(rootJ, "tutorialOffered"))
+		settings.tutorialOffered = json_boolean_value(j);
+
 	json_decref(rootJ);
 }
 
@@ -152,6 +161,12 @@ void saveSettings() {
 	json_object_set_new(rootJ, "transportVisible", json_boolean(settings.transportVisible));
 	json_object_set_new(rootJ, "wheelKnobs", json_boolean(settings.wheelKnobs));
 	json_object_set_new(rootJ, "wheelSensitivity", json_integer(settings.wheelSensitivity));
+
+	json_t* const doneJ = json_array();
+	for (const std::string& id : settings.tutorialsDone)
+		json_array_append_new(doneJ, json_string(id.c_str()));
+	json_object_set_new(rootJ, "tutorialsDone", doneJ);
+	json_object_set_new(rootJ, "tutorialOffered", json_boolean(settings.tutorialOffered));
 
 	const std::string path = settingsPath();
 	if (json_dump_file(rootJ, path.c_str(), JSON_INDENT(2)) != 0)

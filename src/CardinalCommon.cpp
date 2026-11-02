@@ -1008,10 +1008,10 @@ void loadDialog()
 #endif
 }
 
-void loadPathDialog(const std::string& path, const bool asTemplate)
+void loadPathDialog(const std::string& path, const bool asTemplate, std::function<void()> afterLoad)
 {
 #ifndef HEADLESS_BEHAVIOUR
-    promptClear("The current patch is unsaved. Clear it and open the new patch?", [path, asTemplate]() {
+    promptClear("The current patch is unsaved. Clear it and open the new patch?", [path, asTemplate, afterLoad]() {
         APP->patch->loadAction(path);
 
         if (asTemplate)
@@ -1027,6 +1027,10 @@ void loadPathDialog(const std::string& path, const bool asTemplate)
         if (remoteUtils::RemoteDetails* const remoteDetails = remoteUtils::getRemote())
             if (remoteDetails->autoDeploy)
                 remoteUtils::sendFullPatchToRemote(remoteDetails);
+
+        // PatchCore: e.g. the tutorial starts its lesson once the start patch is in
+        if (afterLoad)
+            afterLoad();
     });
 #endif
 }
