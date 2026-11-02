@@ -41,8 +41,8 @@ SEQ, QNT, RND, EUC, DRM, LGC, MIX, DLY, CHR, REV = (ID_BASE + k for k in range(1
 CLK_X4, CLK_X2 = 0, 1
 CLOCK = {0: 110, 1: 1}                       # TEMPO 110 BPM, RUN on
 VCO_BASS = {6: -1}                           # OCTAVE_PARAM 6: one octave down
-PLUCK = {0: 0.05, 1: 0.35, 2: 0.2, 3: 0.3}   # ADSR attack, decay, sustain, release: short notes
-FILTER = {0: 0.45, 1: 0.55, 9: 0.5}          # VCF cutoff, resonance (RES 1), envelope amount (ENV_AMT 9)
+PLUCK = {0: 0.1, 1: 0.62, 2: 0.6, 3: 0.58}   # ADSR 1 ms * 10000^v: attack 2.5 ms, decay 300 ms, sustain 60 %, release 210 ms
+FILTER = {0: 0.6, 1: 0.4, 9: 0.5}            # VCF cutoff C4 * 2^(10v - 5) = 520 Hz, resonance 40 % (RES 1), envelope amount (ENV_AMT 9)
 FILTER_LFO = dict(FILTER, **{}); FILTER_LFO[3] = 0.35  # + Cutoff CV (FREQ_CV 3)
 LFO_SLOW = {0: -2.0}                         # LFO rate 0.25 Hz
 # A little melody for the sequencer (CV_PARAM 0-7, volts; the quantizer makes it A minor)

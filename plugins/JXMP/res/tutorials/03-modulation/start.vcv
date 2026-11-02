@@ -99,11 +99,11 @@
    "params": [
     {
      "id": 0,
-     "value": 0.45
+     "value": 0.6
     },
     {
      "id": 1,
-     "value": 0.55
+     "value": 0.4
     },
     {
      "id": 9,
@@ -123,19 +123,19 @@
    "params": [
     {
      "id": 0,
-     "value": 0.05
+     "value": 0.1
     },
     {
      "id": 1,
-     "value": 0.35
+     "value": 0.62
     },
     {
      "id": 2,
-     "value": 0.2
+     "value": 0.6
     },
     {
      "id": 3,
-     "value": 0.3
+     "value": 0.58
     }
    ],
    "pos": [
