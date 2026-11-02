@@ -3,6 +3,101 @@
 Handoff notes, updated at the end of every work session (rule: keep this file current before a session
 or weekly limit ends). Newest first.
 
+## 2026-11-02 — where we stopped (READ THIS FIRST in a new chat)
+
+### State: everything pushed, nothing merged
+
+- Branch `standalone-audio` (spec 12 / plan 13): sound card settings in the standalone, thin plugin bar,
+  PatchCore + PatchCore FX VST3, DPF vendored, review fixes. Built for jack and used daily; VST3 and Windows
+  not checked since the review fixes.
+- Branch `jxmp-set3` (on top of `standalone-audio`, HEAD 51fe67f), spec [14](14-jxmp-modules-set3-design.md):
+  all 11 modules of the third set are done and checked by screenshots front/back:
+  JX-SCP (accepted, Hantek DSO2D15 behaviour, see below), JX-CLK, JX-EUC, JX-DRM, JX-REV, JX-CHR, JX-FLD,
+  JX-RNG, JX-LGC, JX-SW, JX-PLY. Also on the branch: menus cleaned up (dark only, one-click switching,
+  highlight), selection only with Shift+click / Ctrl+drag, console VU = post-fader, scope draws a smooth line
+  with peak-detect bands for audio at slow time bases.
+- `patches/jxmp-workbench.vcv` = the showcase, rebuilt 2026-11-02 and liked by the user ("supr"): Am-F-C-G
+  one chord per bar, 100 BPM, uses every JXMP module (pad with chorus + reverb, folded pluck bass, ring-mod
+  bell arpeggio through PLY split + SW, drums from CLK > EUC > DRM with the clap via LGC AND, scope on the
+  bass). Generator script logic: one chord per bar from SEQ (clocked /4) > ATT offsets (third +0.2917 V,
+  fifth +0.5667 V, octave +1 V) > PLY merge > QNT A minor. `./run-patchcore.sh` opens it and rebuilds first.
+  Levels are a first guess (not measured): the user may ask to rebalance.
+- VU needles "dying": investigated, not a bug (dips were the old showcase sequence's gateless steps).
+- Tests in `plugins/JXMP/tests` (scope, clock, euclid, drums, reverb, chorus, shapers) are written, NOT run:
+  user rule = no builds/tests/Actions until the user says "build".
+- PluginCollection submodule pointer not bumped (it follows `main`; branches are not merged yet).
+
+### JX-SCP: accepted (2026-11-02, "super, paráda")
+
+Behaves as the user's Hantek DSO2D15 with an analogue look: square tube, thin bezel; trigger point always the
+centre; only whole pictures (double-buffered); NORM holds, AUTO waits for slow triggers; level kept on screen,
+dashed level line; TIME/DIV redraws at once (1 kHz 10 s memory for slower, zoom of the last picture for
+faster). No roll, no auto level, no top marker, no phosphor fade (all tried and rejected). The user said the
+drawing was "still a bit buggy"; the smooth line + peak bands (97c1fe3) is the answer, not yet confirmed by
+the user. Test patch: patches/jxmp-scope-test.vcv.
+
+### Next (in this order unless the user says otherwise)
+
+1. Ask the user how the new showcase sounds / looks; rebalance levels if needed (check the MASTER meter).
+2. When the user says "build": `make -j12 jack && make -j12 vst3`, run `src/patchcore/tests/run.sh` and
+   `plugins/JXMP/tests/run.sh`, fix failures; GUI checks with the user on workspace 3 (audio dialog, driver
+   switch, VST3 in a host).
+3. Final review, merge `standalone-audio` then `jxmp-set3` into `main`, push, bump PluginCollection
+   (`./update-plugins.sh`), update the PatchCore card in `web/index.html` (new screenshots in `docs/screenshots/`).
+4. Standalone Editor (piano roll, sub-project C of doc 11): needs its own spec (brainstorm with the user first).
+5. Windows build: WASAPI + ASIO (SDK sources added with the first Windows build).
+6. Later: JX808 panel polish (collection memory).
+
+### Working notes
+
+- Screenshots: `cap.sh` (scratchpad, recreate if lost) with PATCHCORE_DEV_PATCH/ZOOM/OFFSET/VIEW env vars;
+  window goes to workspace 3, which renders only while the user looks at it (check `hyprctl activeworkspace`).
+  If the user is on another workspace, just launch `./run-patchcore.sh` for them instead.
+- Kill the app with `pkill -x Cardinal` (never `pkill -f bin/Cardinal`: it kills the shell).
+
+## 2026-11-01 (evening) — standalone vs VST3, audio settings
+
+### In progress: branch `standalone-audio` (pushed, NOT merged, NOT BUILT)
+
+Spec [12](12-standalone-plugin-audio-design.md), plan [13](13-plan-standalone-plugin-audio.md); all 12 tasks
+written. The user said: **no builds, no tests, no GitHub Actions until they ask for a build** — so everything
+after Task 6 is uncompiled. Tasks 1–6 were built and checked (layout test, standalone + VST3 build, ALSA and JACK
+start paths).
+
+- Plugin: thin read-only bar (`TransportLayout.hpp`), names PatchCore / PatchCore FX by JXMP Audio, new IDs,
+  `make vst3` builds only those two. F1/F2/F4 keys.
+- DPF vendored (`dpf/` is a normal folder, `pugl` a submodule). `AudioDeviceSettings.hpp` (tested) holds
+  setup, config file `PatchCoreAudio.conf` next to `PatchCore.json` (`PATCHCORE_AUDIO_CONFIG` overrides),
+  fallback decisions.
+- The main variant keeps DPF's native RtAudio fallback now (ALSA); the saved driver decides at start.
+- RtAudioBridge: device by name, rate, buffer, live `reopen()` with revert, sample-rate callback, error →
+  "Audio stopped". Utils: `getAudioDevices/getAudioSetup/getAudioNotice/requestAudioSetup/isAudioRunning/showAsioPanel`.
+- JACK: the app connects its outputs to the default sink (pactl), `run-patchcore.sh` only launches.
+- `src/patchcore/AudioSettings.cpp` (per variant): dialog, test tone, notice strip, `restartApp()`.
+- Windows ASIO: wiring only; the SDK sources are added with the first Windows build.
+
+Also on the branch: a plain click on a module panel no longer selects it (the rack's selection box now
+needs a 6 px drag), and scratches in the patina never cross each other.
+
+Final review (fresh reviewer) done: the Critical (link) and all Important findings are fixed in 5e1db44,
+uncompiled. Deferred minors (see `.superpowers/sdd/13-plan-standalone-plugin-audio/progress.md`): Linux restart
+skips Rack's normal shutdown; JACK ignores the chosen rate and its buffer change is server-wide; ALSA default
+output + named input opens the default input; a card held by PipeWire is not listed under ALSA; config parse
+keeps `\r`; info-text truncation cuts UTF-8; CardinalRemote lacks AudioSettings.cpp; main and Synth variants
+share the name in LV2/CLAP; ASIO single-file include risky on 32-bit MinGW.
+
+### Next
+
+1. When the user asks for a build: `make -j12 jack && make -j12 vst3`, fix compile errors, run
+   `src/patchcore/tests/run.sh` and `plugins/JXMP/tests/run.sh`, then the GUI checks with the user
+   watching workspace 3: standalone bar, top bar F-keys labels, Audio Settings dialog, ALSA device switch,
+   rate change (pitch), driver switch restart (patch path + unsaved kept), missing-card notice; VST3 in a host.
+2. Final whole-branch review, merge `standalone-audio` into `main`, push, bump the collection.
+3. Then the Editor (sub-project C of doc 11) — needs its own spec.
+3b. Third JXMP module set, design [14](14-jxmp-modules-set3-design.md): JX-SCP first (round green CRT scope),
+   then JX-CLK + JX-EUC, JX-DRM, JX-REV + JX-CHR, the small ones. Order against the Editor: the user decides.
+4. JX-CONSOLE docs (design guide colour, plugins/JXMP/README.md, module list, demo patch).
+
 ## 2026-11-01
 
 ### Done (on `main`, pushed, collection bumped)
