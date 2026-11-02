@@ -3,52 +3,57 @@
 Handoff notes, updated at the end of every work session (rule: keep this file current before a session
 or weekly limit ends). Newest first.
 
-## 2026-11-02 (night) — third JXMP set in progress
+## 2026-11-02 — where we stopped (READ THIS FIRST in a new chat)
 
-### Branches (all pushed, NOT merged; builds only when the user asks, the launcher rebuilds itself)
+### State: everything pushed, nothing merged
 
-- `standalone-audio`: spec 12 / plan 13 done + review fixes; also selection only with Shift+click / Ctrl+drag,
-  scratches never cross, console VU = channel post-fader, LED meters red only at 0 dBFS with a dBFS scale.
-- `jxmp-set3` (on top of `standalone-audio`): spec [14](14-jxmp-modules-set3-design.md).
-  - [x] JX-SCP scope (round CRT, trigger, AUTO/NORM, X-Y, afterglow, live slow sweeps, trace clipped to the circle)
-  - [x] JX-CLK clock (CLOCK IN front/back one side at a time, transport, own tempo, x4…/16, swing)
-  - [x] JX-EUC Euclidean rhythms (4 tracks, display, gate + accent)
-  - [x] JX-DRM drums (kick, snare, hat open/closed, clap; accent; outs + mix)
-  - [x] JX-REV reverb (plate/hall/room FDN, RT60, predelay, tone, mix)
-  - [x] JX-CHR, JX-FLD, JX-RNG, JX-LGC, JX-SW, JX-PLY (2026-11-02 night, checked by screenshots front/back;
-        all in patches/jxmp-workbench.vcv rows 3-4)
-  - JX-SCP drawing: a smooth line through each point; audio at a slow time base shows as a peak-detect band
-    (min..max bars, the line breaks there) instead of a jagged trace. A point counts as a swing only when its
-    range is wider than the travel to its neighbours, so steep LFO slopes stay one line.
-  - Menus cleaned up (no light mode, no Cardinal/Rack-only options), one-click menu switching.
-  - VU "drops" investigated: DSP logging and 300 screen grabs showed no dropouts, only the dips of the
-    showcase sequence (a step without gate every ~6 s).
-- `run-patchcore.sh` with no argument opens `patches/jxmp-workbench.vcv` (showcase + console, scope, clock,
-  euclid — add every new module there) and rebuilds first when sources are newer.
+- Branch `standalone-audio` (spec 12 / plan 13): sound card settings in the standalone, thin plugin bar,
+  PatchCore + PatchCore FX VST3, DPF vendored, review fixes. Built for jack and used daily; VST3 and Windows
+  not checked since the review fixes.
+- Branch `jxmp-set3` (on top of `standalone-audio`, HEAD 51fe67f), spec [14](14-jxmp-modules-set3-design.md):
+  all 11 modules of the third set are done and checked by screenshots front/back:
+  JX-SCP (accepted, Hantek DSO2D15 behaviour, see below), JX-CLK, JX-EUC, JX-DRM, JX-REV, JX-CHR, JX-FLD,
+  JX-RNG, JX-LGC, JX-SW, JX-PLY. Also on the branch: menus cleaned up (dark only, one-click switching,
+  highlight), selection only with Shift+click / Ctrl+drag, console VU = post-fader, scope draws a smooth line
+  with peak-detect bands for audio at slow time bases.
+- `patches/jxmp-workbench.vcv` = the showcase, rebuilt 2026-11-02 and liked by the user ("supr"): Am-F-C-G
+  one chord per bar, 100 BPM, uses every JXMP module (pad with chorus + reverb, folded pluck bass, ring-mod
+  bell arpeggio through PLY split + SW, drums from CLK > EUC > DRM with the clap via LGC AND, scope on the
+  bass). Generator script logic: one chord per bar from SEQ (clocked /4) > ATT offsets (third +0.2917 V,
+  fifth +0.5667 V, octave +1 V) > PLY merge > QNT A minor. `./run-patchcore.sh` opens it and rebuilds first.
+  Levels are a first guess (not measured): the user may ask to rebalance.
+- VU needles "dying": investigated, not a bug (dips were the old showcase sequence's gateless steps).
+- Tests in `plugins/JXMP/tests` (scope, clock, euclid, drums, reverb, chorus, shapers) are written, NOT run:
+  user rule = no builds/tests/Actions until the user says "build".
+- PluginCollection submodule pointer not bumped (it follows `main`; branches are not merged yet).
 
-### JX-SCP: accepted by the user (2026-11-02, "super, paráda") at 3059185 — behaves as the user's Hantek
-DSO2D15 with an analogue look: square tube, thin bezel; trigger point always the centre; only whole pictures
-(double-buffered); NORM holds, AUTO waits for slow triggers; level kept on screen, dashed level line; TIME/DIV
-redraws at once (1 kHz 10 s memory for slower, zoom of the last picture for faster). No roll, no auto level,
-no top marker, no phosphor fade (all tried and rejected). Test patch: patches/jxmp-scope-test.vcv.
+### JX-SCP: accepted (2026-11-02, "super, paráda")
 
-### (old) Open bug (user, 00:25): JX-SCP with an LFO still drifts right→left every sweep
+Behaves as the user's Hantek DSO2D15 with an analogue look: square tube, thin bezel; trigger point always the
+centre; only whole pictures (double-buffered); NORM holds, AUTO waits for slow triggers; level kept on screen,
+dashed level line; TIME/DIV redraws at once (1 kHz 10 s memory for slower, zoom of the last picture for
+faster). No roll, no auto level, no top marker, no phosphor fade (all tried and rejected). The user said the
+drawing was "still a bit buggy"; the smooth line + peak bands (97c1fe3) is the answer, not yet confirmed by
+the user. Test patch: patches/jxmp-scope-test.vcv.
 
-Fix b2725d9 (AUTO waits 1.5× the trigger spacing) did not help the user. Not reproduced yet. Hypotheses to check
-first, in the running app with the user watching workspace 3:
-1. The trigger never fires (TRIG'D dark): trigger SOURCE is still CH1 (default; in the workbench CH1 = VCA audio,
-   CH2 = LFO), or the LFO is unipolar (0…10 V) and LEVEL = 0 V never gets crossed (hysteresis ±0.05 V). Then AUTO
-   free-runs and the picture drifts — real scopes do the same. If so: make it simpler (auto trigger level at the
-   middle of the signal when nothing triggers, and/or AUTO falls back to the triggering channel).
-2. The live slow-sweep drawing (sweep ≥ 0.1 s) mixing the buffer and the last frame.
-Tests in plugins/JXMP/tests (scope, clock, euclid) are written but have not been run (user rule).
+### Next (in this order unless the user says otherwise)
 
-### Next
+1. Ask the user how the new showcase sounds / looks; rebalance levels if needed (check the MASTER meter).
+2. When the user says "build": `make -j12 jack && make -j12 vst3`, run `src/patchcore/tests/run.sh` and
+   `plugins/JXMP/tests/run.sh`, fix failures; GUI checks with the user on workspace 3 (audio dialog, driver
+   switch, VST3 in a host).
+3. Final review, merge `standalone-audio` then `jxmp-set3` into `main`, push, bump PluginCollection
+   (`./update-plugins.sh`), update the PatchCore card in `web/index.html` (new screenshots in `docs/screenshots/`).
+4. Standalone Editor (piano roll, sub-project C of doc 11): needs its own spec (brainstorm with the user first).
+5. Windows build: WASAPI + ASIO (SDK sources added with the first Windows build).
+6. Later: JX808 panel polish (collection memory).
 
-1. The scope drift bug above.
-2. Next modules: JX-CHR, then JX-FLD, JX-RNG, JX-LGC, JX-SW, JX-PLY (add each to the workbench).
-   JX-CLK: CLOCK IN only on the back now (user: the front one was a strange idea).
-3. Later: full build + tests + VST3 check, merge `standalone-audio` then `jxmp-set3`, bump the collection.
+### Working notes
+
+- Screenshots: `cap.sh` (scratchpad, recreate if lost) with PATCHCORE_DEV_PATCH/ZOOM/OFFSET/VIEW env vars;
+  window goes to workspace 3, which renders only while the user looks at it (check `hyprctl activeworkspace`).
+  If the user is on another workspace, just launch `./run-patchcore.sh` for them instead.
+- Kill the app with `pkill -x Cardinal` (never `pkill -f bin/Cardinal`: it kills the shell).
 
 ## 2026-11-01 (evening) — standalone vs VST3, audio settings
 
