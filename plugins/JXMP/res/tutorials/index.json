@@ -1,7 +1,7 @@
 {
   "lessons": [
     {"id": "01-first-sound", "title": "1 · First sound",
-     "description": "Add modules, patch cables, hear and see an oscillator."},
+     "description": "Find our modules with @ and #, patch cables, hear and see an oscillator."},
     {"id": "02-filter-envelope", "title": "2 · Filter and envelope",
      "description": "Shape a sound: filter, gates and the ADSR envelope."},
     {"id": "03-modulation", "title": "3 · Modulation",
