@@ -4,7 +4,7 @@
  *
  * JX-PLY: poly utilities. SPLIT a polyphonic cable into 8 mono ones, MERGE 8 mono cables into one polyphonic
  * (as many voices as the highest patched input), the voice COUNT of SPLIT IN as a number and as 1 V per voice,
- * and a MULT that copies one cable to four. Design: research_docs/14-jxmp-modules-set3-design.md.
+ * and a MULT that copies one cable to four.
  */
 
 #include "JXMPWidget.hpp"

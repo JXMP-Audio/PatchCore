@@ -4,7 +4,7 @@
  *
  * JX-FLD: wavefolder. FOLD amplifies the input up to ten times and folds it back at ±5 V (more harmonics the
  * further you turn), SYMMETRY shifts it for uneven folds. CV for both. Polyphonic.
- * Design: research_docs/14-jxmp-modules-set3-design.md.
+ *
  */
 
 #include "JXMPWidget.hpp"

@@ -5,7 +5,7 @@
  * JX-CONSOLE: the project's main mixer, 4/8/16/32 mono channels with a three-band EQ, two sends, pan, mute,
  * solo and a fader each, two stereo returns, a master fader and two VU meters. At most one per project.
  * The module front only has the meters and the master; the channels are controlled in the Mixer view
- * (double-click the module, or Mixer in the top bar). Design: research_docs/11-views-console-editor-design.md
+ * (double-click the module, or Mixer in the top bar).
  */
 
 #include "JXMPWidget.hpp"

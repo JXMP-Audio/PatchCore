@@ -429,7 +429,7 @@ TARGETS = jack
 else ifeq ($(CARDINAL_VARIANT),native)
 TARGETS = jack
 else
-# PatchCore: VST3 only (research_docs/12)
+# PatchCore: VST3 only
 TARGETS = vst3
 endif
 

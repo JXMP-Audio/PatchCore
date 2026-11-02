@@ -98,7 +98,7 @@ struct QntWidget : JXMPModuleWidget {
 	QntWidget(Qnt* const module) {
 		setup(module, "JX-QNT", nvgRGB(0xc9, 0x4f, 0x9c), 8);
 
-		// Front: JXMP style (research_docs/10-jxmp-design-guide.md)
+		// Front: JXMP style
 		namespace st = jxmp::style;
 		styled();
 

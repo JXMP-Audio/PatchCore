@@ -124,7 +124,7 @@ struct FltWidget : JXMPModuleWidget {
 	FltWidget(Flt* const module) {
 		setup(module, "JX-FLT", nvgRGB(0x3a, 0x8d, 0xde), 14);
 
-		// Front: JXMP style (research_docs/10-jxmp-design-guide.md)
+		// Front: JXMP style
 		namespace st = jxmp::style;
 		styled();
 		const float nameSize = 7.5f;

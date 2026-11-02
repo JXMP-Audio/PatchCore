@@ -84,7 +84,7 @@ struct RndWidget : JXMPModuleWidget {
 	RndWidget(Rnd* const module) {
 		setup(module, "JX-RND", nvgRGB(0xe0, 0xa4, 0x3a), 8);
 
-		// Front: JXMP style (research_docs/10-jxmp-design-guide.md)
+		// Front: JXMP style
 		namespace st = jxmp::style;
 		styled();
 

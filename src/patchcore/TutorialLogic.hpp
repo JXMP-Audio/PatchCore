@@ -1,7 +1,7 @@
 /*
  * PatchCore: interactive tutorials — lesson data, parsing, rack snapshot, conditions, step runner.
  * No Rack dependency (jansson only); tested in src/patchcore/tests/test_tutorial.cpp.
- * Design: research_docs/15-tutorials-design.md
+ *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 #pragma once

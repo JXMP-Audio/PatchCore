@@ -83,7 +83,7 @@ struct SeqWidget : JXMPModuleWidget {
 	SeqWidget(Seq* const module) {
 		setup(module, "JX-SEQ", nvgRGB(0x2f, 0xb8, 0xc4), 18);
 
-		// Front: JXMP style (research_docs/10-jxmp-design-guide.md)
+		// Front: JXMP style
 		namespace st = jxmp::style;
 		styled();
 		const std::vector<st::Mark> volts = st::marks(0.f, 10.f, 1.f, 5, [](float v) { return string::f("%d", (int) v); });

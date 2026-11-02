@@ -106,7 +106,7 @@ struct AdsrWidget : JXMPModuleWidget {
 	AdsrWidget(Adsr* const module) {
 		setup(module, "JX-ENV", nvgRGB(0xf2, 0xc2, 0x30), 14);
 
-		// Front: JXMP style (research_docs/10-jxmp-design-guide.md)
+		// Front: JXMP style
 		namespace st = jxmp::style;
 		styled();
 		const float nameSize = 7.5f;

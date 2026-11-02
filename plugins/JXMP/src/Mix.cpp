@@ -71,7 +71,7 @@ struct MixWidget : JXMPModuleWidget {
 	MixWidget(Mix* const module) {
 		setup(module, "JX-MIX", nvgRGB(0xd8, 0x44, 0x3a), 14);
 
-		// Front: JXMP style (research_docs/10-jxmp-design-guide.md)
+		// Front: JXMP style
 		namespace st = jxmp::style;
 		styled();
 		const std::vector<st::Mark> percent =

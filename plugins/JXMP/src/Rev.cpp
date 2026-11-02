@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * JX-REV: stereo reverb — PLATE / HALL / ROOM, SIZE, DECAY (RT60), PREDELAY, TONE, MIX, CV for MIX and DECAY.
- * Meant for a JX-CONSOLE send / return. Design: research_docs/14-jxmp-modules-set3-design.md.
+ * Meant for a JX-CONSOLE send / return.
  */
 
 #include "JXMPWidget.hpp"

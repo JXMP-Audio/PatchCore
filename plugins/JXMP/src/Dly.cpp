@@ -70,7 +70,7 @@ struct DlyWidget : JXMPModuleWidget {
 	DlyWidget(Dly* const module) {
 		setup(module, "JX-DLY", nvgRGB(0x4a, 0xc0, 0xa0), 10);
 
-		// Front: JXMP style (research_docs/10-jxmp-design-guide.md)
+		// Front: JXMP style
 		namespace st = jxmp::style;
 		styled();
 		const std::vector<st::Mark> percent =

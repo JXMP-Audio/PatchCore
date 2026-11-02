@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * JX-LGC: logic. AND, OR, XOR and NOT of two gates (high above 1 V), and a comparator: CMP OUT is high while
- * CMP IN is above THRESHOLD. Polyphonic. Design: research_docs/14-jxmp-modules-set3-design.md.
+ * CMP IN is above THRESHOLD. Polyphonic.
  */
 
 #include "JXMPWidget.hpp"

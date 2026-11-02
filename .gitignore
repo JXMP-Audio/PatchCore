@@ -26,3 +26,11 @@ compile_commands.json
 /src/CardinalNative/resources/
 /utils/inno/resources.iss
 /utils/inno/version.iss
+
+# PatchCore: design notes, plans, mockups and the handoff STATUS stay local (never pushed)
+/research_docs/
+/.superpowers/
+# PatchCore: local tools and test patches (not part of the plugin)
+compile_flags.txt
+/run-patchcore.sh
+/patches/jxmp-*.vcv

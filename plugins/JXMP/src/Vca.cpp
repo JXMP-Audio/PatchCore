@@ -63,7 +63,7 @@ struct VcaWidget : JXMPModuleWidget {
 	VcaWidget(Vca* const module) {
 		setup(module, "JX-AMP", nvgRGB(0x3c, 0xb4, 0x6e), 8);
 
-		// Front: JXMP style (research_docs/10-jxmp-design-guide.md)
+		// Front: JXMP style
 		namespace st = jxmp::style;
 		styled();
 		for (int ch = 0; ch < 2; ++ch) {

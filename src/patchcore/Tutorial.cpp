@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-// Interactive tutorials (research_docs/15): the step panel, the highlight around the target, Show me, and the
+// Interactive tutorials: the step panel, the highlight around the target, Show me, and the
 // one-time "New to modular?" offer. The lesson logic is in TutorialLogic.hpp; this file only reads the rack into
 // a RackState every frame and acts on it.
 

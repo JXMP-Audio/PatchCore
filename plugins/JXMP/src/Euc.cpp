@@ -4,7 +4,7 @@
  *
  * JX-EUC: four Euclidean rhythm tracks. Each spreads HITS as evenly as possible over STEPS, shifted by ROTATE,
  * and steps on CLOCK (e.g. JX-CLK x4). GATE follows the clock on a hit, ACCENT on the first hit of the pattern.
- * Design: research_docs/14-jxmp-modules-set3-design.md.
+ *
  */
 
 #include "JXMPWidget.hpp"

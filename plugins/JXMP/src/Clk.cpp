@@ -5,7 +5,7 @@
  * JX-CLK: the master clock. Follows, in this order: pulses on CLOCK IN (e.g. Host MIDI's clock), the PatchCore
  * transport (standalone: its own; in a DAW: the host's), or its own TEMPO when RUN is on. Outputs ×4, ×2, beat,
  * /2, /4, /8, /16 with swing on ×4 and ×2, RESET on start, RUN while running. All sockets on the back.
- * Design: research_docs/14-jxmp-modules-set3-design.md.
+ *
  */
 
 #include "JXMPWidget.hpp"

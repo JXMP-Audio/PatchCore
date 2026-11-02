@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * JX-RNG: ring modulator. Multiplies IN A (carrier) by IN B (modulator): bell, metal and robot tones. MIX from
- * A dry to the product, with CV. Polyphonic. Design: research_docs/14-jxmp-modules-set3-design.md.
+ * A dry to the product, with CV. Polyphonic.
  */
 
 #include "JXMPWidget.hpp"

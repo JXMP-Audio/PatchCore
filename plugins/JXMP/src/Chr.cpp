@@ -4,7 +4,7 @@
  *
  * JX-CHR: chorus / ensemble. CHORUS: two voices, one per side; ENSEMBLE: three voices per side with a little
  * fast vibrato, as string machines did. RATE, DEPTH, MIX, CV for rate and depth, stereo in and out.
- * Design: research_docs/14-jxmp-modules-set3-design.md.
+ *
  */
 
 #include "JXMPWidget.hpp"

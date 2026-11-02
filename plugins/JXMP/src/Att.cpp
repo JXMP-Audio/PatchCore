@@ -61,7 +61,7 @@ struct AttWidget : JXMPModuleWidget {
 	AttWidget(Att* const module) {
 		setup(module, "JX-ATT", nvgRGB(0x6f, 0x86, 0xa8), 10);
 
-		// Front: JXMP style (research_docs/10-jxmp-design-guide.md)
+		// Front: JXMP style
 		namespace st = jxmp::style;
 		styled();
 

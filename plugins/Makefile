@@ -1496,7 +1496,7 @@ RESOURCE_FILES += cf/playeroscs
 RESOURCE_FILES += DHE-Modules/svg
 RESOURCE_FILES += WSTD-Drums/res/samples
 RESOURCE_FILES += Meander/res
-# PatchCore: tutorial lessons (research_docs/15)
+# PatchCore: tutorial lessons
 RESOURCE_FILES += JXMP/res/tutorials
 RESOURCE_FILES += MindMeldModular/res/ShapeMaster/CommunityPresets
 RESOURCE_FILES += MindMeldModular/res/ShapeMaster/CommunityShapes

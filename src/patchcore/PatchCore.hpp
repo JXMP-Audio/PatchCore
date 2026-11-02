@@ -39,7 +39,7 @@ enum ViewSide {
 	VIEW_BACK,
 };
 
-/** Color tokens, mirroring the `:root` block of research_docs/mockups/index.html */
+/** Color tokens of the PatchCore look */
 struct Theme {
 	NVGcolor chrome0, chrome1, chrome2, chrome3, chrome4;
 	NVGcolor line, lineSoft;
@@ -61,7 +61,7 @@ struct Settings {
 	bool wheelKnobs = true;
 	/** Wheel sensitivity on knobs: 0 fine (one notch ≈ 1 %), 1 normal, 2 coarse (Rack's default) */
 	int wheelSensitivity = 0;
-	/** Ids of finished tutorial lessons (research_docs/15) */
+	/** Ids of finished tutorial lessons */
 	std::vector<std::string> tutorialsDone;
 	/** The "New to modular?" offer was shown once */
 	bool tutorialOffered = false;
@@ -203,7 +203,7 @@ std::string audioNotice();
 void restartApp();
 /** The amber notice strip under the top bar. */
 widget::Widget* createNoticeStrip();
-/** Interactive tutorials (Tutorial.cpp, research_docs/15) */
+/** Interactive tutorials (Tutorial.cpp) */
 struct TutorialInfo {
 	std::string id, title, description;
 	/** lesson.json parses */

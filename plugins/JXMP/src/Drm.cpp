@@ -4,7 +4,7 @@
  *
  * JX-DRM: four drum voices in one module — KICK, SNARE, HAT (closed on TRIG, open on OPEN; closed chokes open)
  * and CLAP. Each with TUNE, DECAY, TONE, a trigger and an accent input and its own output; MIX sums them.
- * Design: research_docs/14-jxmp-modules-set3-design.md.
+ *
  */
 
 #include "JXMPWidget.hpp"

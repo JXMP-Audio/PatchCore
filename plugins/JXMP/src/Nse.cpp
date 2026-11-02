@@ -118,7 +118,7 @@ struct NseWidget : JXMPModuleWidget {
 	NseWidget(Nse* const module) {
 		setup(module, "JX-NSE", nvgRGB(0xc9, 0xcb, 0xd0), 6);
 
-		// Front: JXMP style (research_docs/10-jxmp-design-guide.md)
+		// Front: JXMP style
 		namespace st = jxmp::style;
 		styled();
 		section(3.f, 20.5f, 24.48f, 33.f, "NOISE");

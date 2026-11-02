@@ -61,7 +61,7 @@ struct SlwWidget : JXMPModuleWidget {
 	SlwWidget(Slw* const module) {
 		setup(module, "JX-SLW", nvgRGB(0x8f, 0xae, 0x3a), 8);
 
-		// Front: JXMP style (research_docs/10-jxmp-design-guide.md)
+		// Front: JXMP style
 		namespace st = jxmp::style;
 		styled();
 		const std::vector<st::Mark> times = {{0.f, "0"}, {0.25f, ""}, {0.5f, "100ms"}, {0.75f, ""}, {1.f, "10s"}};

@@ -4,7 +4,7 @@
  *
  * JX-SCP: two-channel oscilloscope with a round green CRT, styled after an old lab scope. Y–T with a trigger
  * (level, slope, source CH1 / CH2 / EXT; AUTO / NORM) or X–Y. It acquires as a digital scope (Hantek DSO) does:
- * the trigger point in the middle, a complete picture each time, NORM holds it. Square tube. Design: research_docs/14-jxmp-modules-set3-design.md.
+ * the trigger point in the middle, a complete picture each time, NORM holds it. Square tube.
  */
 
 #include "JXMPWidget.hpp"

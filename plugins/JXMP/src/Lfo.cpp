@@ -84,7 +84,7 @@ struct LfoWidget : JXMPModuleWidget {
 	LfoWidget(Lfo* const module) {
 		setup(module, "JX-LFO", nvgRGB(0x9a, 0x6b, 0xd6), 10);
 
-		// Front: JXMP style (research_docs/10-jxmp-design-guide.md)
+		// Front: JXMP style
 		namespace st = jxmp::style;
 		styled();
 		const float nameSize = 7.5f;

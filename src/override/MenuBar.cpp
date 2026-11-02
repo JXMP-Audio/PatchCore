@@ -799,7 +799,7 @@ struct HelpButton : MenuButton {
 		menu->cornerFlags = BND_CORNER_TOP;
 		menu->box.pos = getAbsoluteOffset(math::Vec(0, box.size.y));
 
-		// PatchCore: interactive lessons (research_docs/15); the Mini variant has no tutorial layer
+		// PatchCore: interactive lessons; the Mini variant has no tutorial layer
 		if (!isMini()) {
 			menu->addChild(createSubmenuItem("Tutorials", "", [](ui::Menu* menu) {
 				patchcore::appendTutorialItems(menu);

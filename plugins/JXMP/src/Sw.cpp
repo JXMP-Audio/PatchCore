@@ -4,7 +4,7 @@
  *
  * JX-SW: sequential switch. Each CLOCK moves one step (LENGTH 2-4, RESET back to 1). 4 → 1: OUT passes the
  * input of the current step. 1 → 4: IN goes to the output of the current step. Polyphonic.
- * Design: research_docs/14-jxmp-modules-set3-design.md.
+ *
  */
 
 #include "JXMPWidget.hpp"

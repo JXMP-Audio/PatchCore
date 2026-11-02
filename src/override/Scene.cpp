@@ -639,7 +639,7 @@ void Scene::onHoverKey(const HoverKeyEvent& e) {
 				e.consume(this);
 			}
 			if (e.key == GLFW_KEY_F4)
-				e.consume(this);  // the Editor (research_docs/11), not built yet
+				e.consume(this);  // the Editor, not built yet
 		}
 	}
 }
