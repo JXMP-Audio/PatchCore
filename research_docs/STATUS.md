@@ -30,6 +30,13 @@ or weekly limit ends). Newest first.
   are limits of JACK/ALSA, the dialog hint and the notice say so. Nothing is left to fix before the build.
 - PluginCollection submodule pointer not bumped (it follows `main`; branches are not merged yet).
 
+### Tutorials: spec 15 written (branch `tutorials`, on top of `jxmp-set3`)
+
+Interactive lessons (Help → Tutorials), designed with the user 2026-11-02: step panel that watches cables /
+knobs / sound and moves on, Show me, highlight; lessons as data in `res/tutorials`; lessons 1–3 (First sound,
+Filter and envelope, Modulation); English; also in VST3. Spec [15](15-tutorials-design.md) waits for the user's
+review; then the plan (writing-plans). Implementation comes after the requested build of the other branches.
+
 ### JX-SCP: accepted (2026-11-02, "super, paráda")
 
 Behaves as the user's Hantek DSO2D15 with an analogue look: square tube, thin bezel; trigger point always the
