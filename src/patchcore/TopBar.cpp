@@ -245,61 +245,6 @@ struct PatchNameLcd : widget::Widget {
 };
 
 
-/** "SHEEN" label and a horizontal slider for the panel gloss amount */
-struct SheenSlider : widget::OpaqueWidget {
-	static constexpr const float kLabelWidth = 52.f;
-
-	math::Rect trackRect() const {
-		return math::Rect(kLabelWidth, box.size.y * 0.5f - 2.f, box.size.x - kLabelWidth - 4.f, 4.f);
-	}
-
-	void setFromX(float x) {
-		const math::Rect track = trackRect();
-		settings.sheen = math::clamp((x - track.pos.x) / track.size.x, 0.f, 1.f);
-	}
-
-	void onButton(const ButtonEvent& e) override {
-		OpaqueWidget::onButton(e);
-		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT)
-			setFromX(e.pos.x);
-	}
-
-	void onDragMove(const DragMoveEvent& e) override {
-		const math::Rect track = trackRect();
-		settings.sheen = math::clamp(settings.sheen + e.mouseDelta.x / track.size.x, 0.f, 1.f);
-	}
-
-	void onDragEnd(const DragEndEvent& e) override {
-		saveSettings();
-	}
-
-	void draw(const DrawArgs& args) override {
-		NVGcontext* const vg = args.vg;
-		const Theme& t = theme();
-		draw::text(vg, uiFont(), 11.f, t.textDim, math::Vec(0, box.size.y * 0.5f), NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, "SHEEN", 0.8f);
-
-		const math::Rect track = trackRect();
-		nvgBeginPath(vg);
-		nvgRoundedRect(vg, RECT_ARGS(track), 2.f);
-		nvgFillColor(vg, t.chrome4);
-		nvgFill(vg);
-		nvgBeginPath(vg);
-		nvgRoundedRect(vg, track.pos.x, track.pos.y, track.size.x * settings.sheen, track.size.y, 2.f);
-		nvgFillColor(vg, t.accent);
-		nvgFill(vg);
-
-		const math::Vec knob(track.pos.x + track.size.x * settings.sheen, track.pos.y + track.size.y * 0.5f);
-		nvgBeginPath(vg);
-		nvgCircle(vg, knob.x, knob.y, 7.f);
-		nvgFillColor(vg, t.accent);
-		nvgFill(vg);
-		nvgStrokeWidth(vg, 1.f);
-		nvgStrokeColor(vg, nvgRGBA(0, 0, 0, 0x80));
-		nvgStroke(vg);
-	}
-};
-
-
 /** Selection summary, plus frame rate when the performance meters are on */
 struct StatusText : widget::Widget {
 	int frameCount = 0;
@@ -362,20 +307,16 @@ struct TopBarCenter : widget::Widget {
 
 
 struct TopBarRight : widget::Widget {
-	SheenSlider* sheen;
 	StatusText* status;
 
 	TopBarRight() {
-		sheen = new SheenSlider;
-		addChild(sheen);
 		status = new StatusText;
 		addChild(status);
 		box.size.x = 360.f;
 	}
 
 	void step() override {
-		sheen->box = math::Rect(0, 0, 120.f, box.size.y);
-		status->box = math::Rect(130.f, 0, box.size.x - 130.f, box.size.y);
+		status->box = math::Rect(0, 0, box.size.x, box.size.y);
 		status->setVisible(status->box.size.x >= 100.f);
 		Widget::step();
 	}

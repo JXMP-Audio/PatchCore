@@ -371,7 +371,7 @@ static void ModuleWidget_drawPatchCoreFront(ModuleWidget* const mw, const widget
 	}
 
 	// Panel sheen: top-left gloss and bottom-right falloff (CSS 162deg in the mockup)
-	const float sheen = patchcore::settings.sheen;
+	const float sheen = 0.55f;  // fixed (the top-bar slider was removed; the user's setting was about half)
 	if (ours && sheen > 0.f) {
 		const math::Vec dir(0.309f, 0.951f);
 		const float len = std::fabs(w * dir.x) + std::fabs(h * dir.y);

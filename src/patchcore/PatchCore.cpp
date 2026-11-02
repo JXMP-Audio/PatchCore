@@ -127,8 +127,6 @@ void loadSettings() {
 	}
 
 	// "theme" is no longer read: the Classic (plain Cardinal) look was removed, PatchCore always uses its own UI
-	if (json_t* const j = json_object_get(rootJ, "sheen"))
-		settings.sheen = math::clamp((float) json_number_value(j), 0.f, 1.f);
 	if (json_t* const j = json_object_get(rootJ, "mountScrews"))
 		settings.mountScrews = json_boolean_value(j);
 	if (json_t* const j = json_object_get(rootJ, "navigatorVisible"))
@@ -155,7 +153,6 @@ void loadSettings() {
 
 void saveSettings() {
 	json_t* const rootJ = json_object();
-	json_object_set_new(rootJ, "sheen", json_real(settings.sheen));
 	json_object_set_new(rootJ, "mountScrews", json_boolean(settings.mountScrews));
 	json_object_set_new(rootJ, "navigatorVisible", json_boolean(settings.navigatorVisible));
 	json_object_set_new(rootJ, "transportVisible", json_boolean(settings.transportVisible));
