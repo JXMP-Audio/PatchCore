@@ -4,7 +4,7 @@
  *
  * JX-SCP: two-channel oscilloscope with a round green CRT, styled after an old lab scope. Y–T with a trigger
  * (level, slope, source CH1 / CH2 / EXT; AUTO / NORM) or X–Y. It acquires as a digital scope (Hantek DSO) does:
- * the trigger point in the middle, a complete picture each time, NORM holds it; from 100 ms/div the screen rolls. Design: research_docs/14-jxmp-modules-set3-design.md.
+ * the trigger point in the middle, a complete picture each time, NORM holds it; from 0.5 s/div the screen rolls. Design: research_docs/14-jxmp-modules-set3-design.md.
  */
 
 #include "JXMPWidget.hpp"
@@ -39,6 +39,8 @@ struct Scp : engine::Module {
 	/** Recent range of the trigger signal (follows it within about 2 s), for the automatic level */
 	float trigLo = 0.f, trigHi = 0.f;
 	int lastTimeStep = -1;
+	/** The level the trigger really uses (the knob, or the middle of the signal), for the display marker */
+	float usedLevel = 0.f;
 
 	Scp() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -81,14 +83,16 @@ struct Scp : engine::Module {
 
 		// When LEVEL is outside the signal (e.g. a unipolar LFO and LEVEL at 0 V) it would never trigger; then
 		// the middle of the signal is used, as the automatic level of modern scopes
-		const float k = std::min(1.f, args.sampleTime * 0.5f);
+		// The range follows the signal slowly (about 10 s), so a slow LFO's peaks are still known between them
+		const float k = std::min(1.f, args.sampleTime * 0.1f);
 		trigLo = t < trigLo ? t : trigLo + (t - trigLo) * k;
 		trigHi = t > trigHi ? t : trigHi - (trigHi - t) * k;
 		float level = params[TRIG_LEVEL_PARAM].getValue();
 		const float span = trigHi - trigLo;
-		if (span > 0.1f && (level <= trigLo + 0.1f * span || level >= trigHi - 0.1f * span))
+		if (span > 0.1f && (level < trigLo || level > trigHi))
 			level = 0.5f * (trigLo + trigHi);
 
+		usedLevel = level;
 		const bool fired = trigger.process(t, level, params[TRIG_SLOPE_PARAM].getValue() > 0.5f);
 		if (fired && !xy)
 			trigLight = 1.f;
@@ -189,7 +193,7 @@ struct CrtScreen : widget::TransparentWidget {
 		const sc::Capture& cap = module->capture;
 
 		const NVGcolor colours[2] = {green, amber};
-		// As a Hantek DSO: the last complete acquisition, trigger in the middle; from 100 ms/div the screen rolls
+		// As a DSO: the last complete acquisition, trigger in the middle; from 0.5 s/div the screen rolls
 		// (newest sample at the right edge). Never half a picture.
 		const bool roll = !xy && sc::rolls(sc::timeDiv((int) std::round(module->params[Scp::TIME_PARAM].getValue())));
 		const int count = sc::kPoints;
@@ -233,6 +237,37 @@ struct CrtScreen : widget::TransparentWidget {
 				pts.push_back(point(c, r, x, sc::divisions(i % 2 ? hi[ch][i] : lo[ch][i], vd, pd)));
 			}
 			trace(vg, c, r, pts, colours[ch], 1.f);
+		}
+
+		// Markers as on a DSO: ROLL, or the trigger point (top, middle) and the trigger level (right edge)
+		const NVGcolor mark = nvgRGBA(0xff, 0xff, 0xff, 0xb0);
+		if (roll) {
+			jxmp::style::text(vg, math::Vec(c.x - r * 0.62f, c.y - r * 0.62f), "ROLL", 9.f, mark, jxmp::style::FONT_LABEL,
+			                  NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, 1.f);
+			return;
+		}
+		const float top = c.y - r + 2.f;
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, c.x - 4.f, top);
+		nvgLineTo(vg, c.x + 4.f, top);
+		nvgLineTo(vg, c.x, top + 6.f);
+		nvgClosePath(vg);
+		nvgFillColor(vg, mark);
+		nvgFill(vg);
+		// The level in the trigger source's scale (CH 2's when it is the source, else CH 1's)
+		const int source = (int) std::round(module->params[Scp::TRIG_SOURCE_PARAM].getValue());
+		const float lvDiv = source == 1 ? sc::divisions(module->usedLevel, v2, p2) : sc::divisions(module->usedLevel, v1, p1);
+		const float ly = c.y - lvDiv * r / 4.f;
+		const float half = std::sqrt(std::max(0.f, r * r - (ly - c.y) * (ly - c.y)));
+		if (half > 6.f) {
+			const float rx = c.x + half - 2.f;
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, rx, ly - 4.f);
+			nvgLineTo(vg, rx, ly + 4.f);
+			nvgLineTo(vg, rx - 6.f, ly);
+			nvgClosePath(vg);
+			nvgFillColor(vg, mark);
+			nvgFill(vg);
 		}
 	}
 

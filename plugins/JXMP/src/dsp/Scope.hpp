@@ -56,9 +56,9 @@ struct Trigger {
 	}
 };
 
-/** From this time base (seconds per division) on the screen rolls, as on a Hantek DSO: the trace moves from
-right to left with the newest sample at the right edge, no trigger */
-constexpr float kRollDiv = 0.1f;
+/** From this time base (seconds per division) on the screen rolls, as a DSO does on its slowest settings: the
+trace moves from right to left with the newest sample at the right edge, no trigger */
+constexpr float kRollDiv = 0.5f;
 
 inline bool rolls(float secondsPerDiv) {
 	return secondsPerDiv >= kRollDiv - 1e-6f;
