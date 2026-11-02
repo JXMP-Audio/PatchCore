@@ -90,6 +90,14 @@ int main() {
 	for (int i = 1; i < kPoints; ++i)
 		assert(env.shownHi[0][i] > 4.5f && env.shownLo[0][i] < -4.5f);
 
+	// Roll (from 100 ms/div): the ring holds the newest points; the one before rollPos is the newest sample
+	assert(rolls(0.1f) && rolls(1.f) && !rolls(0.05f));
+	Capture roll;
+	for (int i = 0; i < 48000; ++i)
+		roll.process((float) i / 48000.f, 0.f, false, dt, 0.1f);
+	const int newest = (roll.rollPos + kPoints - 1) % kPoints, oldest = roll.rollPos;
+	assert(roll.rollValue[0][newest] > 0.99f && roll.rollValue[0][oldest] < roll.rollValue[0][newest]);
+
 	std::printf("scope: all tests passed\n");
 	return 0;
 }

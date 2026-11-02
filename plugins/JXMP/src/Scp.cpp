@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * JX-SCP: two-channel oscilloscope with a round green CRT, styled after an old lab scope. Y–T with a trigger
- * (level, slope, source CH1 / CH2 / EXT; AUTO / NORM) or X–Y. It acquires as a digital scope does: the trigger
- * point in the middle, a complete picture each time (on slow time bases it fills as it comes), NORM holds it. Design: research_docs/14-jxmp-modules-set3-design.md.
+ * (level, slope, source CH1 / CH2 / EXT; AUTO / NORM) or X–Y. It acquires as a digital scope (Hantek DSO) does:
+ * the trigger point in the middle, a complete picture each time, NORM holds it; from 100 ms/div the screen rolls. Design: research_docs/14-jxmp-modules-set3-design.md.
  */
 
 #include "JXMPWidget.hpp"
@@ -189,14 +189,24 @@ struct CrtScreen : widget::TransparentWidget {
 		const sc::Capture& cap = module->capture;
 
 		const NVGcolor colours[2] = {green, amber};
-		// A slow time base shows the running acquisition as it fills (scan); otherwise the last complete one.
-		// Never both: the new picture is not joined to the old one.
-		const float sweepTime = sc::timeDiv((int) std::round(module->params[Scp::TIME_PARAM].getValue())) * sc::kDivisions;
-		const bool scan = !xy && sweepTime >= sc::kScanSweep && cap.running();
-		const int count = scan ? cap.index : sc::kPoints;
-		const float(*lo)[sc::kPoints] = scan ? cap.lo : cap.shownLo;
-		const float(*hi)[sc::kPoints] = scan ? cap.hi : cap.shownHi;
-		const float(*val)[sc::kPoints] = scan ? cap.value : cap.shownValue;
+		// As a Hantek DSO: the last complete acquisition, trigger in the middle; from 100 ms/div the screen rolls
+		// (newest sample at the right edge). Never half a picture.
+		const bool roll = !xy && sc::rolls(sc::timeDiv((int) std::round(module->params[Scp::TIME_PARAM].getValue())));
+		const int count = sc::kPoints;
+		float rl[2][sc::kPoints], rh[2][sc::kPoints], rv[2][sc::kPoints];
+		if (roll) {
+			const int start = cap.rollPos;
+			for (int ch = 0; ch < 2; ++ch)
+				for (int i = 0; i < sc::kPoints; ++i) {
+					const int k = (start + i) % sc::kPoints;
+					rl[ch][i] = cap.rollLo[ch][k];
+					rh[ch][i] = cap.rollHi[ch][k];
+					rv[ch][i] = cap.rollValue[ch][k];
+				}
+		}
+		const float(*lo)[sc::kPoints] = roll ? rl : cap.shownLo;
+		const float(*hi)[sc::kPoints] = roll ? rh : cap.shownHi;
+		const float(*val)[sc::kPoints] = roll ? rv : cap.shownValue;
 
 		if (xy) {
 			if (!(on1 && on2))
