@@ -57,6 +57,8 @@ int main() {
 			l.process(x, 0.f, lt.process(x, 0.f, true), dt, spd[k]);
 		}
 		assert(std::fabs(l.value[0][mid]) < 0.1f);
+		// What the screen shows is a complete sweep, centred on the trigger
+		assert(std::fabs(l.shownValue[0][mid]) < 0.1f && l.shownValue[0][mid + 2] > l.shownValue[0][mid - 2]);
 		for (int i = 1; i < kPoints; ++i)
 			assert(std::fabs(l.value[0][i] - l.value[0][i - 1]) < 0.5f);
 	}

@@ -57,15 +57,17 @@ struct Trigger {
 };
 
 /**
- * The capture, as VCV's Scope does it: one buffer of kPoints points that the display always draws. A sweep
- * starts on a trigger (or right away in free run) and overwrites the buffer from the left; without a trigger
- * the buffer simply stays — the picture holds. Each point keeps the minimum and maximum of the samples in its
+ * The capture, after VCV's Scope: a sweep starts on a trigger (or right away in free run); without a trigger
+ * the picture holds. The display shows only complete sweeps (`shown*`, swapped in whole), so the trigger is
+ * always in the middle and the screen never shows half a new sweep over half an old one. Each point keeps the minimum and maximum of the samples in its
  * time slice, so slow time bases do not alias. The trigger point is the middle of the sweep: the half before
  * it comes from a history that runs all the time. `value` holds the last sample of each point (for tests).
  */
 struct Capture {
 	static constexpr int kHalf = kPoints / 2;
 	float lo[2][kPoints] = {}, hi[2][kPoints] = {}, value[2][kPoints] = {};
+	/** The last complete sweep: what the display shows, swapped in whole, centred on its trigger */
+	float shownLo[2][kPoints] = {}, shownHi[2][kPoints] = {}, shownValue[2][kPoints] = {};
 	int sweeps = 0;
 	int index = kPoints;  // kPoints = holding, waiting for a trigger
 
@@ -126,8 +128,12 @@ struct Capture {
 			curHi[ch] = -INFINITY;
 		}
 		historyPos = (historyPos + 1) % kHalf;
-		if (running() && ++index >= kPoints)
+		if (running() && ++index >= kPoints) {
+			std::copy(&lo[0][0], &lo[0][0] + 2 * kPoints, &shownLo[0][0]);
+			std::copy(&hi[0][0], &hi[0][0] + 2 * kPoints, &shownHi[0][0]);
+			std::copy(&value[0][0], &value[0][0] + 2 * kPoints, &shownValue[0][0]);
 			++sweeps;
+		}
 	}
 };
 

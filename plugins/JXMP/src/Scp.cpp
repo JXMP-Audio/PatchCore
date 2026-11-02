@@ -186,13 +186,13 @@ struct CrtScreen : widget::TransparentWidget {
 				return;
 			std::vector<math::Vec> pts(sc::kPoints);
 			for (int i = 0; i < sc::kPoints; ++i)
-				pts[i] = point(c, r, sc::divisions(cap.value[0][i], v1, p1), sc::divisions(cap.value[1][i], v2, p2));
+				pts[i] = point(c, r, sc::divisions(cap.shownValue[0][i], v1, p1), sc::divisions(cap.shownValue[1][i], v2, p2));
 			trace(vg, c, r, pts, green, 1.f);
 			return;
 		}
 
-		// The one buffer, as on VCV's Scope: a new sweep overwrites it from the left, without a trigger it holds.
-		// Each point is drawn from its minimum to its maximum, so audio at a slow time base is a solid band.
+		// The last complete sweep, centred on its trigger; without a trigger it holds. Each point is drawn from its
+		// minimum to its maximum, so audio at a slow time base is a solid band.
 		for (int ch = 0; ch < 2; ++ch) {
 			if (!(ch == 0 ? on1 : on2))
 				continue;
@@ -200,7 +200,7 @@ struct CrtScreen : widget::TransparentWidget {
 			std::vector<math::Vec> pts;
 			pts.reserve(2 * sc::kPoints);
 			for (int i = 0; i < sc::kPoints; ++i) {
-				const float lo = cap.lo[ch][i], hi = cap.hi[ch][i];
+				const float lo = cap.shownLo[ch][i], hi = cap.shownHi[ch][i];
 				if (!std::isfinite(lo) || !std::isfinite(hi))
 					continue;
 				const float x = (float) i / (sc::kPoints - 1) * 8.f - 4.f;
@@ -208,20 +208,6 @@ struct CrtScreen : widget::TransparentWidget {
 				pts.push_back(point(c, r, x, sc::divisions(i % 2 ? hi : lo, vd, pd)));
 			}
 			trace(vg, c, r, pts, ch == 0 ? green : amber, 1.f);
-
-			// A slow sweep: a bright spot where the beam writes
-			const float sweepTime = sc::timeDiv((int) std::round(module->params[Scp::TIME_PARAM].getValue())) * sc::kDivisions;
-			const int at = cap.index - 1;
-			if (sweepTime >= 0.1f && cap.running() && at > 0) {
-				const math::Vec head = point(c, r, (float) at / (sc::kPoints - 1) * 8.f - 4.f, sc::divisions(cap.value[ch][at], vd, pd));
-				if (head.minus(c).norm() <= r) {
-					const NVGcolor col = ch == 0 ? green : amber;
-					nvgBeginPath(vg);
-					nvgCircle(vg, head.x, head.y, 2.6f);
-					nvgFillPaint(vg, nvgRadialGradient(vg, head.x, head.y, 0.5f, 4.f, nvgRGBAf(1, 1, 1, 0.9f), nvgRGBAf(col.r, col.g, col.b, 0)));
-					nvgFill(vg);
-				}
-			}
 		}
 	}
 
