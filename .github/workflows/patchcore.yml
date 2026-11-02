@@ -24,6 +24,9 @@ jobs:
   linux-x86_64:
     runs-on: ubuntu-22.04
     steps:
+      - name: Use GitHub mirrors for flaky submodule hosts
+        # gitlab.xiph.org often answers 502/504; xiph's official GitHub mirror has the same commits
+        run: git config --global url."https://github.com/xiph/speexdsp.git".insteadOf "https://gitlab.xiph.org/xiph/speexdsp.git"
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -72,6 +75,9 @@ jobs:
       - name: Install git
         run: |
           apt-get update -qq && apt-get install -yqq --no-install-recommends ca-certificates git openssl
+      - name: Use GitHub mirrors for flaky submodule hosts
+        # gitlab.xiph.org often answers 502/504; xiph's official GitHub mirror has the same commits
+        run: git config --global url."https://github.com/xiph/speexdsp.git".insteadOf "https://gitlab.xiph.org/xiph/speexdsp.git"
       - uses: actions/checkout@v4
         with:
           submodules: recursive
