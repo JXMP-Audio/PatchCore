@@ -19,10 +19,11 @@ or weekly limit ends). Newest first.
 - `run-patchcore.sh` with no argument opens `patches/jxmp-workbench.vcv` (showcase + console, scope, clock,
   euclid — add every new module there) and rebuilds first when sources are newer.
 
-### JX-SCP now: behaves as the user's Hantek DSO2D15 with an analogue look — square tube with a thin bezel,
-trigger point in the middle (pre-trigger history), only whole pictures, no roll, no auto level (a level outside
-the signal does not trigger: AUTO runs untriggered, NORM holds), dashed trigger-level line + markers.
-Test patch: patches/jxmp-scope-test.vcv (LFO into CH1 — how the user tests it).
+### JX-SCP: accepted by the user (2026-11-02, "super, paráda") at 3059185 — behaves as the user's Hantek
+DSO2D15 with an analogue look: square tube, thin bezel; trigger point always the centre; only whole pictures
+(double-buffered); NORM holds, AUTO waits for slow triggers; level kept on screen, dashed level line; TIME/DIV
+redraws at once (1 kHz 10 s memory for slower, zoom of the last picture for faster). No roll, no auto level,
+no top marker, no phosphor fade (all tried and rejected). Test patch: patches/jxmp-scope-test.vcv.
 
 ### (old) Open bug (user, 00:25): JX-SCP with an LFO still drifts right→left every sweep
 
