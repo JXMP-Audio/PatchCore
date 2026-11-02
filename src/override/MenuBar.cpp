@@ -802,18 +802,7 @@ struct HelpButton : MenuButton {
 		// PatchCore: interactive lessons (research_docs/15); the Mini variant has no tutorial layer
 		if (!isMini()) {
 			menu->addChild(createSubmenuItem("Tutorials", "", [](ui::Menu* menu) {
-				const std::vector<patchcore::TutorialInfo> list = patchcore::tutorialList();
-				if (list.empty())
-					menu->addChild(createMenuLabel("No lessons found"));
-				for (const patchcore::TutorialInfo& t : list) {
-					const std::string id = t.id;
-					ui::MenuItem* const item = createMenuItem(t.title, t.done ? CHECKMARK_STRING : "", [id]() {
-						patchcore::openTutorial(id);
-					});
-					item->disabled = !t.available;
-					menu->addChild(item);
-					menu->addChild(createMenuLabel("    " + t.description));
-				}
+				patchcore::appendTutorialItems(menu);
 			}));
 
 			menu->addChild(new ui::MenuSeparator);

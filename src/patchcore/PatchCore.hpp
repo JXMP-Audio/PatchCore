@@ -28,6 +28,10 @@ namespace plugin {
 struct Model;
 }
 
+namespace ui {
+struct Menu;
+}
+
 namespace patchcore {
 
 enum ViewSide {
@@ -211,6 +215,10 @@ std::vector<TutorialInfo> tutorialList();
 void openTutorial(const std::string& id);
 /** Full-scene layer: step panel, highlight, first-start offer */
 widget::Widget* createTutorialLayer();
+/** The lesson list (title, check mark when done, description) as menu items: Help → Tutorials and the Learn button */
+void appendTutorialItems(ui::Menu* menu);
+/** A lesson is running in the current scene */
+bool tutorialRunning();
 /** True when the internal transport drives the engine (standalone without a timebase master). */
 bool transportIsInternal();
 void transportTogglePlay();

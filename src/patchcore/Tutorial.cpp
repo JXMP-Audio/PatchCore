@@ -23,6 +23,8 @@
 #include <plugin.hpp>
 #include <string.hpp>
 #include <system.hpp>
+#include <ui/Menu.hpp>
+#include <ui/MenuItem.hpp>
 #include <widget/OpaqueWidget.hpp>
 #include <window/Window.hpp>
 
@@ -682,6 +684,28 @@ void openTutorial(const std::string& id) {
 		if (TutorialLayer* const layer = currentLayer())
 			layer->begin(id, lesson);
 	});
+}
+
+
+void appendTutorialItems(ui::Menu* menu) {
+	const std::vector<TutorialInfo> list = tutorialList();
+	if (list.empty())
+		menu->addChild(createMenuLabel("No lessons found"));
+	for (const TutorialInfo& t : list) {
+		const std::string id = t.id;
+		ui::MenuItem* const item = createMenuItem(t.title, t.done ? CHECKMARK_STRING : "", [id]() {
+			openTutorial(id);
+		});
+		item->disabled = !t.available;
+		menu->addChild(item);
+		menu->addChild(createMenuLabel("    " + t.description));
+	}
+}
+
+
+bool tutorialRunning() {
+	TutorialLayer* const layer = currentLayer();
+	return layer != nullptr && layer->active;
 }
 
 

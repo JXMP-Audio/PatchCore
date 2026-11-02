@@ -9,11 +9,13 @@
 #include <app/RackWidget.hpp>
 #include <app/Scene.hpp>
 #include <context.hpp>
+#include <helpers.hpp>
 #include <history.hpp>
 #include <patch.hpp>
 #include <settings.hpp>
 #include <string.hpp>
 #include <system.hpp>
+#include <ui/Menu.hpp>
 #include <widget/OpaqueWidget.hpp>
 
 namespace rack {
@@ -120,7 +122,7 @@ struct Logo : widget::Widget {
 };
 
 
-/** Segmented view switch: Rack | Back | Browser | Mixer */
+/** Segmented view switch: Rack | Back | Browser | Mixer, and Learn (the tutorial list) */
 struct ViewSegment : widget::OpaqueWidget {
 	struct Item {
 		std::string label;
@@ -134,6 +136,7 @@ struct ViewSegment : widget::OpaqueWidget {
 		{"Back", "F2"},
 		{"Search", "Enter"},
 		{"Mixer", "F4"},
+		{"Learn", ""},
 	};
 
 	bool isOn(size_t i) const {
@@ -141,7 +144,8 @@ struct ViewSegment : widget::OpaqueWidget {
 			case 0: return !mixerShown() && targetViewSide() == VIEW_FRONT;
 			case 1: return !mixerShown() && targetViewSide() == VIEW_BACK;
 			case 2: return APP->scene->browser->isVisible();
-			default: return mixerShown();
+			case 3: return mixerShown();
+			default: return tutorialRunning();
 		}
 	}
 
@@ -183,6 +187,14 @@ struct ViewSegment : widget::OpaqueWidget {
 			case 1: showMixer(false); setViewSide(VIEW_BACK); break;
 			case 2: APP->scene->browser->show(); break;
 			case 3: showMixer(!mixerShown()); break;
+			case 4: {
+				// The lesson list, under the button
+				ui::Menu* const menu = createMenu();
+				menu->box.pos = getAbsoluteOffset(math::Vec(items[4].x, box.size.y));
+				menu->addChild(createMenuLabel("Tutorials"));
+				appendTutorialItems(menu);
+				break;
+			}
 		}
 		e.consume(this);
 	}
