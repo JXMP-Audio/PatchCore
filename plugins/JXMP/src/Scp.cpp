@@ -207,19 +207,9 @@ struct CrtScreen : widget::TransparentWidget {
 		}
 	}
 
-	/** Markers as on a DSO: the trigger point (top, middle) and the trigger level (right edge) */
+	/** The trigger level: a dashed line and a marker at the right edge */
 	void drawMarkers(NVGcontext* vg, math::Vec c, float r, float v1, float v2, float p1, float p2) {
 		const NVGcolor mark = nvgRGBA(0xff, 0xff, 0xff, 0xb0);
-		// Where in time the trigger point of the shown picture is (the middle)
-		const float tx = point(c, r, (float) module->capture.shownPre / (sc::kPoints - 1) * 8.f - 4.f, 0.f).x;
-		const float top = c.y - r + 2.f;
-		nvgBeginPath(vg);
-		nvgMoveTo(vg, tx - 4.f, top);
-		nvgLineTo(vg, tx + 4.f, top);
-		nvgLineTo(vg, tx, top + 6.f);
-		nvgClosePath(vg);
-		nvgFillColor(vg, mark);
-		nvgFill(vg);
 		// The level in the trigger source's scale (CH 2's when it is the source, else CH 1's)
 		const int source = (int) std::round(module->params[Scp::TRIG_SOURCE_PARAM].getValue());
 		const float lvDiv = source == 1 ? sc::divisions(module->usedLevel, v2, p2) : sc::divisions(module->usedLevel, v1, p1);
