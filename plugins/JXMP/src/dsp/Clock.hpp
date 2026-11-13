@@ -110,6 +110,44 @@ static const double kPeriods[] = {0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0};
 constexpr int kOutputs = sizeof(kPeriods) / sizeof(kPeriods[0]);
 
 /** Swing applies to the subdivisions only (×4, ×2) */
+/** Where the clock's time comes from */
+enum Source { SRC_STOPPED, SRC_EXT, SRC_HOST, SRC_INT };
+
+/** The RUN switch, from the bottom up: STOP, SYNC (follows the transport), RUN (its own tempo) */
+enum RunMode { MODE_STOP = 0, MODE_SYNC = 1, MODE_RUN = 2 };
+
+/** STOP stands. SYNC follows the transport (standalone: PatchCore's own, in a DAW: the host's) and stands while it
+ * stands. RUN runs on its own tempo and ignores the transport, so several clocks can run apart (a pause still
+ * freezes them, as it freezes the whole engine). In SYNC and RUN pulses on CLOCK IN lead when it is patched. */
+inline Source chooseSource(RunMode mode, bool extPatched, bool extRunning, bool hostPlaying) {
+	if (mode == MODE_STOP)
+		return SRC_STOPPED;
+	if (extPatched)
+		return extRunning ? SRC_EXT : SRC_STOPPED;
+	if (mode == MODE_SYNC)
+		return hostPlaying ? SRC_HOST : SRC_STOPPED;
+	return SRC_INT;
+}
+
+/** RUN on the own tempo. RESET IN sends it back to beat 0 (a fresh start for everything after it) and keeps the
+ * tempo, so a free clock can be lined up with another one now and then: on its RESET, or every bar from its /4. */
+struct FreeRun {
+	double beats = 0.0;
+	bool running = false;
+
+	/** One sample; true when the clock (re)starts: its first sample after a stop, and every reset */
+	bool step(double dt, double bpm, bool reset) {
+		if (!running || reset) {
+			running = true;
+			beats = 0.0;
+			return true;
+		}
+		beats += dt * bpm / 60.0;
+		return false;
+	}
+	void stop() { running = false; }
+};
+
 inline bool swungOutput(int index) {
 	return index < 2;
 }

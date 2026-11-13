@@ -211,37 +211,37 @@
       }
     },
     {
-      "text": "The clock sends a reset when it starts. Press Tab and switch RUN of the clock off.",
+      "text": "The clock sends a reset when it starts. Press Tab and flip the clock's switch down to STOP.",
       "side": "front",
       "highlight": [
         {
           "module": "Clock",
-          "param": "Run"
+          "param": "Mode"
         }
       ],
       "done": {
         "param": {
           "module": "Clock",
-          "param": "Run"
+          "param": "Mode"
         },
         "max": 0
       }
     },
     {
-      "text": "Now switch RUN on again: both sequencers jump to step 1 together, and the drums and the melody start on the same beat.",
+      "text": "Now flip it back up to RUN: both sequencers jump to step 1 together, and the drums and the melody start on the same beat.",
       "side": "front",
       "highlight": [
         {
           "module": "Clock",
-          "param": "Run"
+          "param": "Mode"
         }
       ],
       "done": {
         "param": {
           "module": "Clock",
-          "param": "Run"
+          "param": "Mode"
         },
-        "min": 1
+        "min": 2
       }
     },
     {

@@ -2,8 +2,8 @@
  * JXMP Audio modules for PatchCore
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * JX-CLK: the master clock. Follows, in this order: pulses on CLOCK IN (e.g. Host MIDI's clock), the PatchCore
- * transport (standalone: its own; in a DAW: the host's), or its own TEMPO when RUN is on. Outputs ×4, ×2, beat,
+ * JX-CLK: the master clock. RUN / SYNC / STOP: its own TEMPO, the PatchCore transport (standalone: its own; in a
+ * DAW: the host's), or standing; pulses on CLOCK IN (e.g. Host MIDI's clock) lead in RUN and SYNC. Outputs ×4, ×2, beat,
  * /2, /4, /8, /16 with swing on ×4 and ×2, RESET on start, RUN while running. All sockets on the back.
  *
  */
@@ -16,16 +16,21 @@ namespace {
 
 namespace ck = jxmp::clock;
 
-enum Source { SRC_STOPPED, SRC_EXT, SRC_HOST, SRC_INT };
+using ck::Source;
+using ck::SRC_STOPPED;
+using ck::SRC_EXT;
+using ck::SRC_HOST;
+using ck::SRC_INT;
 
 struct Clk : engine::Module {
 	enum ParamIds { TEMPO_PARAM, RUN_PARAM, SWING_PARAM, PPQN_PARAM, NUM_PARAMS };
-	enum InputIds { CLOCK_INPUT, NUM_INPUTS };
+	enum InputIds { CLOCK_INPUT, RESET_INPUT, NUM_INPUTS };
 	enum OutputIds { ENUMS(DIV_OUTPUT, ck::kOutputs), RESET_OUTPUT, RUN_OUTPUT, NUM_OUTPUTS };
 	enum LightIds { BEAT_LIGHT, EXT_LIGHT, HOST_LIGHT, INT_LIGHT, NUM_LIGHTS };
 
 	CardinalPluginContext* const pcontext;
-	dsp::SchmittTrigger clockTrigger;
+	dsp::SchmittTrigger clockTrigger, resetInTrigger;
+	ck::FreeRun freeRun;
 	dsp::PulseGenerator resetPulse;
 	ck::StartHold startHold;
 	ck::PulseFollower follower;
@@ -40,10 +45,13 @@ struct Clk : engine::Module {
 	Clk() : pcontext(static_cast<CardinalPluginContext*>(APP)) {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(TEMPO_PARAM, 30.f, 300.f, 120.f, "Tempo", " BPM")
-		    ->description = "Its own tempo, used when nothing is on CLOCK IN and the transport is stopped.";
+		    ->description = "Its own tempo, used in RUN.";
 		// Toggles: lever up = the highest value
-		configSwitch(RUN_PARAM, 0.f, 1.f, 0.f, "Run", {"Stop", "Run"})
-		    ->description = "Starts and stops the clock's own tempo (the transport and CLOCK IN run it by themselves).";
+		// 0 STOP, 1 SYNC, 2 RUN (ck::RunMode); new clocks start in RUN
+		configSwitch(RUN_PARAM, 0.f, 2.f, 2.f, "Mode", {"Stop", "Sync", "Run"})
+		    ->description = "RUN: runs on its own TEMPO, whatever the transport does (a pause still freezes it). "
+		                    "SYNC: follows the transport (PatchCore's own, or the DAW's) and stops with it. "
+		                    "STOP: stands. Pulses on CLOCK IN lead in RUN and SYNC.";
 		configParam(SWING_PARAM, 50.f, 75.f, 50.f, "Swing", "%")
 		    ->description = "Delays every second x4 and x2 tick: 50 % straight, 66 % triplet feel, 75 % hard shuffle.";
 		configSwitch(PPQN_PARAM, 0.f, 2.f, 2.f, "Clock in pulses per beat", {"1 (beats)", "4 (sixteenths)", "24 (MIDI clock)"})
@@ -51,6 +59,9 @@ struct Clk : engine::Module {
 		configInput(CLOCK_INPUT, "Clock in")->description =
 		    "Clock pulses, e.g. the clock output of the Host MIDI module (tempo from the DAW or a MIDI device); "
 		    "PPQN on the front says how many make one beat.";
+		configInput(RESET_INPUT, "Reset in")->description =
+		    "In RUN, a trigger sends the clock back to beat 1 (and out of its RESET), keeping its own tempo. Patch "
+		    "another clock's RESET here to start together, or its /4 to line up every bar. Ignored in SYNC and STOP.";
 		const char* names[ck::kOutputs] = {"x4", "x2", "Beat", "/2", "/4", "/8", "/16"};
 		const char* what[ck::kOutputs] = {"Sixteenth notes (swing applies)", "Eighth notes (swing applies)", "Every beat",
 		                                  "Every 2 beats", "Every 4 beats (a bar in 4/4)", "Every 8 beats", "Every 16 beats"};
@@ -63,8 +74,24 @@ struct Clk : engine::Module {
 
 	bool resetWasConnected = false;
 
+	/** Patches from before the three-way switch stored 0 = Stop, 1 = Run and followed the transport either way:
+	 * they open in SYNC, so they play as they always did */
+	json_t* dataToJson() override {
+		json_t* const rootJ = json_object();
+		json_object_set_new(rootJ, "runModes", json_integer(3));
+		return rootJ;
+	}
+
+	void fromJson(json_t* rootJ) override {
+		Module::fromJson(rootJ);
+		json_t* const dataJ = json_object_get(rootJ, "data");
+		if (!dataJ || !json_object_get(dataJ, "runModes"))
+			params[RUN_PARAM].setValue((float) ck::MODE_SYNC);
+	}
+
 	void onReset() override {
 		follower.reset();
+		freeRun.stop();
 		beats = 0.0;
 		wasRunning = false;
 	}
@@ -78,15 +105,17 @@ struct Clk : engine::Module {
 		follower.process(ext && clockTrigger.process(inputs[CLOCK_INPUT].getVoltage(), 0.1f, 1.f), dt);
 
 		const bool hostPlaying = pcontext != nullptr && pcontext->playing && pcontext->bbtValid;
+		const ck::RunMode mode = (ck::RunMode) math::clamp((int) std::round(params[RUN_PARAM].getValue()), 0, 2);
+		const Source want = ck::chooseSource(mode, ext, follower.running, hostPlaying);
 		bool started = false;
-		if (ext) {
+		if (ext && mode != ck::MODE_STOP) {
 			source = follower.running ? SRC_EXT : SRC_STOPPED;
 			beats = follower.beats();
 			started = follower.started;
 			if (follower.bpm() > 0.0)
 				shownBpm = (float) follower.bpm();
 		}
-		else if (hostPlaying) {
+		else if (want == SRC_HOST) {
 			// The transport: resync to its position on every audio block, move on per sample in between
 			if (source != SRC_HOST || pcontext->processCounter != lastProcessCounter) {
 				lastProcessCounter = pcontext->processCounter;
@@ -99,15 +128,15 @@ struct Clk : engine::Module {
 			source = SRC_HOST;
 			shownBpm = (float) pcontext->beatsPerMinute;
 		}
-		else if (params[RUN_PARAM].getValue() > 0.5f) {
+		else if (want == SRC_INT) {
 			// Patching RESET restarts the own clock too: on opening a patch the clock runs before the cables are
-			// in, so the sequencers would start at random places in the bar; the restart lines them up
-			if (source != SRC_INT || (resetConnected && !resetWasConnected)) {
-				beats = 0.0;
-				started = true;
-			}
-			else
-				beats += dt * params[TEMPO_PARAM].getValue() / 60.0;
+			// in, so the sequencers would start at random places in the bar; the restart lines them up.
+			// A trigger on RESET IN restarts it as well, at its own tempo.
+			if (source != SRC_INT)
+				freeRun.stop();
+			const bool resetIn = resetInTrigger.process(inputs[RESET_INPUT].getVoltage(), 0.1f, 1.f);
+			started = freeRun.step(dt, params[TEMPO_PARAM].getValue(), resetIn || (resetConnected && !resetWasConnected));
+			beats = freeRun.beats;
 			source = SRC_INT;
 			shownBpm = params[TEMPO_PARAM].getValue();
 		}
@@ -163,7 +192,20 @@ struct BpmDisplay : widget::TransparentWidget {
 };
 
 
+// Back: the two inputs side by side (mm)
+const float kInY = 30.f, kClockInX = 18.f, kResetInX = 42.96f;
+
 struct ClkWidget : JXMPModuleWidget {
+	/** Under the input names a short line saying what each one does */
+	void drawBackLegends(NVGcontext* const vg) override {
+		JXMPModuleWidget::drawBackLegends(vg);
+		namespace st = jxmp::style;
+		st::text(vg, mm2px(math::Vec(kClockInX, kInY + 9.8f)), "PULSES · PPQN", 5.5f, st::legendDim(), st::FONT_LABEL,
+		         NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.3f);
+		st::text(vg, mm2px(math::Vec(kResetInX, kInY + 9.8f)), "TO BEAT 1 · RUN", 5.5f, st::legendDim(), st::FONT_LABEL,
+		         NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.3f);
+	}
+
 	ClkWidget(Clk* const module) {
 		namespace st = jxmp::style;
 		setup(module, "JX-CLK", nvgRGB(0xff, 0x7f, 0x6a), 12);
@@ -180,7 +222,8 @@ struct ClkWidget : JXMPModuleWidget {
 		addChild(lcd);
 		knob(math::Vec(18.f, 51.f), Clk::TEMPO_PARAM, 14.f, st::CAP_MAIN, 30.f, 300.f,
 		     st::marks(30.f, 300.f, 30.f, 9, [](float v) { return string::f("%d", (int) v); }));
-		toggle(math::Vec(44.f, 51.f), Clk::RUN_PARAM, 2, {"RUN", "STOP"});
+		toggle(math::Vec(42.f, 51.f), Clk::RUN_PARAM, 3, {});
+		ledLegends(math::Vec(42.f, 51.f), 3, {"RUN", "SYNC", "STOP"});
 
 		// Swing and where the tempo comes from
 		section(3.f, 67.f, 54.96f, 20.f, "SWING · SOURCE");
@@ -200,7 +243,8 @@ struct ClkWidget : JXMPModuleWidget {
 		toggle(math::Vec(47.f, 104.f), Clk::PPQN_PARAM, 3, {"24", "4", "1"});
 
 		// Back: clock in, then the outputs
-		addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(30.48f, 32.f)), module, Clk::CLOCK_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(kClockInX, kInY)), module, Clk::CLOCK_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(kResetInX, kInY)), module, Clk::RESET_INPUT));
 		const float xs[3] = {12.f, 30.48f, 48.96f};
 		const int order[9] = {Clk::DIV_OUTPUT + 0, Clk::DIV_OUTPUT + 1, Clk::DIV_OUTPUT + 2, Clk::DIV_OUTPUT + 3, Clk::DIV_OUTPUT + 4,
 		                      Clk::DIV_OUTPUT + 5, Clk::DIV_OUTPUT + 6, Clk::RESET_OUTPUT, Clk::RUN_OUTPUT};
