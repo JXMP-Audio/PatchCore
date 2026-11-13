@@ -1,0 +1,48 @@
+--- ../Rack/src/app/RackScrollWidget.cpp	2026-10-28 23:11:03.964573611 +0100
++++ RackScrollWidget.cpp	2026-11-13 21:08:22.052116005 +0100
+@@ -1,8 +1,24 @@
++/*
++ * DISTRHO Cardinal Plugin
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++/**
++ * This file is an edited version of VCVRack's app/RackScrollWidget.cpp
++ * Copyright (C) 2016-2023 VCV.
++ *
++ * This program is free software: you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 3 of
++ * the License, or (at your option) any later version.
++ */
++
+ #include <app/RackScrollWidget.hpp>
+ #include <app/Scene.hpp>
+ #include <app/RackWidget.hpp>
+ #include <app/ModuleWidget.hpp>
+ #include <app/PortWidget.hpp>
++#include <app/Knob.hpp>
+ #include <window/Window.hpp>
+ #include <context.hpp>
+ #include <settings.hpp>
+@@ -135,8 +151,19 @@
+ }
+ 
+ 
++/** The knob under the mouse, if any (the hovered widget or one of its parents) */
++static Knob* hoveredKnob() {
++	for (widget::Widget* w = APP->event->hoveredWidget; w; w = w->parent) {
++		if (Knob* const k = dynamic_cast<Knob*>(w))
++			return k;
++	}
++	return nullptr;
++}
++
++
+ void RackScrollWidget::onHoverScroll(const HoverScrollEvent& e) {
+-	if ((APP->window->getMods() & RACK_MOD_MASK) == RACK_MOD_CTRL) {
++	// PatchCore: Ctrl + wheel over a knob turns it finely (the knob's own Ctrl speed) instead of zooming the rack
++	if ((APP->window->getMods() & RACK_MOD_MASK) == RACK_MOD_CTRL && !(settings::knobScroll && hoveredKnob())) {
+ 		// Increase zoom
+ 		float zoomDelta = e.scrollDelta.y / 50 / 4;
+ 		if (settings::invertZoom)

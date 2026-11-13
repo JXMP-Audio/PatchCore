@@ -165,6 +165,7 @@ struct Navigator : widget::OpaqueWidget {
 			{"", "shift+drag: move module"},
 			{"", "shift+right: module menu"},
 			{"", "wheel: turn knobs"},
+			{"", "ctrl / shift+wheel: fine / coarse"},
 		};
 		float y = box.size.y - 14.f - (keys.size() - 1) * 19.f;
 		// A short window: the legend would cover the map, so it is left out

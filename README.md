@@ -34,7 +34,7 @@ It comes as a **standalone app** and as two **VST3 plugins**, **PatchCore** (ins
 | `Space` | play / pause (standalone): a pause freezes everything where it is; Space twice quickly (or ■) stops and goes back to the start |
 | Shift+click, Shift+drag | select / move a module; Shift+right-click opens its menu |
 | Ctrl+drag | select an area |
-| mouse wheel | turn knobs |
+| mouse wheel | turn knobs: Ctrl+wheel finely (1/10), Ctrl+Shift+wheel very finely, Shift+wheel coarsely; Ctrl+wheel elsewhere zooms the rack |
 
 Without Shift, knobs and jacks always work, even on a selected module.
 

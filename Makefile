@@ -440,6 +440,7 @@ TAR_ARGS = \
 	--exclude=src/Rack/src/app/MenuBar.cpp \
 	--exclude=src/Rack/src/app/MidiDisplay.cpp \
 	--exclude=src/Rack/src/app/ModuleWidget.cpp \
+	--exclude=src/Rack/src/app/RackScrollWidget.cpp \
 	--exclude=src/Rack/src/app/Scene.cpp \
 	--exclude=src/Rack/src/app/TipWindow.cpp \
 	--exclude=src/Rack/src/dsp/minblep.cpp \
