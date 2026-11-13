@@ -27,6 +27,7 @@ struct Clk : engine::Module {
 	CardinalPluginContext* const pcontext;
 	dsp::SchmittTrigger clockTrigger;
 	dsp::PulseGenerator resetPulse;
+	ck::StartHold startHold;
 	ck::PulseFollower follower;
 
 	Source source = SRC_STOPPED;
@@ -116,14 +117,18 @@ struct Clk : engine::Module {
 		}
 
 		const bool running = source != SRC_STOPPED;
-		if (started && running)
+		if (started && running) {
 			resetPulse.trigger(1e-3f);
+			startHold.start(1e-3f);
+		}
+		// Outputs low while the RESET pulse is high, so beat 0 is a fresh edge for every sequencer
+		const bool hold = startHold.process(args.sampleTime);
 		wasRunning = running;
 		resetWasConnected = resetConnected;
 
 		const float swing = params[SWING_PARAM].getValue() / 100.f;
 		for (int k = 0; k < ck::kOutputs; ++k)
-			outputs[DIV_OUTPUT + k].setVoltage(running && ck::gate(beats, ck::kPeriods[k], swing, ck::swungOutput(k)) ? 10.f : 0.f);
+			outputs[DIV_OUTPUT + k].setVoltage(running && !hold && ck::gate(beats, ck::kPeriods[k], swing, ck::swungOutput(k)) ? 10.f : 0.f);
 		outputs[RESET_OUTPUT].setVoltage(resetPulse.process(args.sampleTime) ? 10.f : 0.f);
 		outputs[RUN_OUTPUT].setVoltage(running ? 10.f : 0.f);
 

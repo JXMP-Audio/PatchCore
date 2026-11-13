@@ -84,6 +84,27 @@ inline bool gate(double beats, double period, float swing, bool swung) {
 	return local >= offset && local < offset + period * 0.5;
 }
 
+/**
+ * After a start or restart every output stays low for the length of the RESET pulse. A restart jumps to beat 0
+ * while a gate may already be high: without a fresh rising edge, the sequencers reset by the pulse would wait for
+ * their next clock and start late (a sixteenth or an eighth, each by its own clock), out of step with each other.
+ */
+struct StartHold {
+	float left = 0.f;
+
+	void start(float seconds) {
+		left = seconds;
+	}
+
+	/** True while the outputs must stay low */
+	bool process(float dt) {
+		if (left <= 0.f)
+			return false;
+		left -= dt;
+		return true;
+	}
+};
+
 /** Periods in beats of the outputs, in panel order: ×4 (sixteenths), ×2 (eighths), beat, /2, /4, /8, /16. */
 static const double kPeriods[] = {0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0};
 constexpr int kOutputs = sizeof(kPeriods) / sizeof(kPeriods[0]);
