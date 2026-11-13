@@ -615,7 +615,7 @@ struct Strip : widget::Widget {
 		nvgRect(vg, 0, 0, w, box.size.y);
 		nvgFillColor(vg, channel % 2 ? st::panel() : color::plus(st::panel(), nvgRGBf(0.012f, 0.012f, 0.012f)));
 		nvgFill(vg);
-		st::patina(vg, box.size, seed);
+		st::patina(vg, box.size, seed, false);  // mixer view strips have no screws
 		nvgBeginPath(vg);
 		nvgMoveTo(vg, w - 0.5f, 0);
 		nvgLineTo(vg, w - 0.5f, box.size.y);
@@ -669,7 +669,7 @@ struct MasterSection : widget::Widget {
 		nvgRect(vg, 0, 0, w, box.size.y);
 		nvgFillColor(vg, st::panelDark());
 		nvgFill(vg);
-		st::patina(vg, box.size, seed);
+		st::patina(vg, box.size, seed, false);  // mixer view strips have no screws
 		nvgBeginPath(vg);
 		nvgMoveTo(vg, 0.5f, 0);
 		nvgLineTo(vg, 0.5f, box.size.y);

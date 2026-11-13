@@ -9,8 +9,11 @@
 #pragma once
 
 #include "plugin.hpp"
+#include "PatinaLayout.hpp"
 
 #include <cstdint>
+#include <map>
+#include <tuple>
 #include <string>
 #include <vector>
 
@@ -61,50 +64,13 @@ inline void text(NVGcontext* vg, math::Vec pos, const std::string& s, float size
 }
 
 
-/** Small deterministic random generator for the per-unit patina */
-struct Rng {
-	uint32_t state;
-	explicit Rng(uint32_t seed) : state(seed * 2654435761u + 1u) {}
-	float next() {
-		state ^= state << 13;
-		state ^= state >> 17;
-		state ^= state << 5;
-		return (state & 0xffffff) / float(0x1000000);
-	}
-};
+/** Small deterministic random generator (the panel wear has its own in PatinaLayout.hpp) */
+using Rng = patina::Rng;
 
-/** Distance from point p to the segment a–b. */
-inline float segmentDistance(math::Vec p, math::Vec a, math::Vec b) {
-	const math::Vec ab = b.minus(a);
-	const float len2 = ab.dot(ab);
-	const float t = len2 > 0.f ? math::clamp(p.minus(a).dot(ab) / len2, 0.f, 1.f) : 0.f;
-	return p.minus(a.plus(ab.mult(t))).norm();
-}
-
-/** Scratches already on a panel, as straight segments: a new one must keep `gap` away from all of them, so no
-scratch crosses another. */
-struct ScratchField {
-	std::vector<std::pair<math::Vec, math::Vec>> segments;
-
-	bool fits(math::Vec a, math::Vec b, float gap) const {
-		for (const auto& s : segments) {
-			// Sample both segments: close enough for short, nearly straight scratches
-			for (int i = 0; i <= 4; ++i) {
-				const float t = i / 4.f;
-				if (segmentDistance(a.plus(b.minus(a).mult(t)), s.first, s.second) < gap)
-					return false;
-				if (segmentDistance(s.first.plus(s.second.minus(s.first).mult(t)), a, b) < gap)
-					return false;
-			}
-		}
-		return true;
-	}
-};
-
-/** Wear: worn lighter edges, scratches, grime, chipped paint, different for every unit (`seed`). Drawn under
-the legends and controls, so the text stays readable. Clipped to the panel: chips and scratches near an edge
-must not spill onto the neighbouring modules. */
-inline void patina(NVGcontext* vg, math::Vec size, uint32_t seed) {
+/** Draws a wear layout (see PatinaLayout.hpp): worn lighter edges, scratches, grime, chipped paint. Drawn under the
+legends and controls, so the text stays readable, and under the screws. Clipped to the panel: chips and scratches near
+an edge must not spill onto the neighbouring modules. */
+inline void drawPatina(NVGcontext* vg, math::Vec size, const patina::Layout& l) {
 	nvgSave(vg);
 	nvgIntersectScissor(vg, 0, 0, size.x, size.y);
 	// Worn edges
@@ -117,156 +83,102 @@ inline void patina(NVGcontext* vg, math::Vec size, uint32_t seed) {
 	nvgFillPaint(vg, nvgBoxGradient(vg, 0, 0, size.x, size.y, e, e * 1.5f, nvgRGBAf(1, 1, 1, 0), nvgRGBAf(1, 1, 1, 0.07f)));
 	nvgFill(vg);
 
-	Rng rng(seed);
-	ScratchField field;
-	const int count = 44 + (int) (rng.next() * 26);
 	nvgLineCap(vg, NVG_ROUND);
-	for (int i = 0; i < count; ++i) {
-		// A few tries to find a place where it crosses no other scratch; otherwise it is left out
-		float x = 0.f, y = 0.f, a = 0.f, len = 0.f;
-		bool placed = false;
-		for (int attempt = 0; attempt < 6 && !placed; ++attempt) {
-			x = rng.next() * size.x;
-			y = rng.next() * size.y;
-			a = rng.next() * 2.f * M_PI;
-			len = mm2px(0.8f + rng.next() * rng.next() * 7.f);
-			const math::Vec p0(x, y), p1(x + std::cos(a) * len, y + std::sin(a) * len);
-			if (field.fits(p0, p1, mm2px(0.6f))) {
-				field.segments.push_back(std::make_pair(p0, p1));
-				placed = true;
-			}
-		}
-		if (!placed)
-			continue;
+	auto stroke = [&](const patina::Scratch& s, float o) {
+		const float mx = 0.5f * (s.a.x + s.b.x), my = 0.5f * (s.a.y + s.b.y);
+		const float dx = s.b.x - s.a.x, dy = s.b.y - s.a.y, len = std::max(std::hypot(dx, dy), 1e-3f);
 		nvgBeginPath(vg);
-		nvgMoveTo(vg, x, y);
-		nvgQuadTo(vg, x + std::cos(a) * len * 0.5f + (rng.next() - 0.5f) * 3.f, y + std::sin(a) * len * 0.5f,
-		          x + std::cos(a) * len, y + std::sin(a) * len);
-		nvgStrokeWidth(vg, 0.4f + rng.next() * 0.5f);
-		nvgStrokeColor(vg, nvgRGBAf(1, 1, 1, 0.03f + rng.next() * 0.06f));
+		nvgMoveTo(vg, s.a.x + o, s.a.y + o);
+		nvgQuadTo(vg, mx - dy / len * s.bend + o, my + dx / len * s.bend + o, s.b.x + o, s.b.y + o);
+	};
+	// Light scratches
+	for (const patina::Scratch& s : l.scratches) {
+		if (s.deep)
+			continue;
+		stroke(s, 0.f);
+		nvgStrokeWidth(vg, s.width);
+		nvgStrokeColor(vg, nvgRGBAf(1, 1, 1, s.alpha));
 		nvgStroke(vg);
 	}
-	// Chipped paint along the edges, more near the corners: irregular flakes of bare aluminium with a dark
-	// rim where the paint breaks
-	const int chips = 18 + (int) (rng.next() * 14);
-	for (int i = 0; i < chips; ++i) {
-		const int edge = (int) (rng.next() * 4.f) % 4;
-		float t = rng.next();
-		if (rng.next() < 0.4f)
-			t = rng.next() < 0.5f ? t * 0.1f : 1.f - t * 0.1f;  // near a corner
-		const float inset = mm2px(rng.next() * 0.5f);
-		math::Vec cpos;
-		switch (edge) {
-		case 0: cpos = math::Vec(t * size.x, inset); break;
-		case 1: cpos = math::Vec(size.x - inset, t * size.y); break;
-		case 2: cpos = math::Vec(t * size.x, size.y - inset); break;
-		default: cpos = math::Vec(inset, t * size.y); break;
-		}
-		const float rad = mm2px(0.35f + rng.next() * rng.next() * 2.4f);
-		const int verts = 7 + (int) (rng.next() * 4);
+	// Chipped paint: irregular flakes of bare aluminium with a dark rim where the paint breaks
+	for (const patina::Chip& c : l.chips) {
 		nvgBeginPath(vg);
-		for (int v = 0; v < verts; ++v) {
-			const float a = v * 2.f * M_PI / verts + (rng.next() - 0.5f) * 0.5f;
-			const float rr = rad * (0.45f + 0.55f * rng.next());
-			const float px = cpos.x + std::cos(a) * rr * (edge % 2 == 0 ? 1.4f : 0.8f);
-			const float py = cpos.y + std::sin(a) * rr * (edge % 2 == 0 ? 0.8f : 1.4f);
-			if (v == 0) nvgMoveTo(vg, px, py); else nvgLineTo(vg, px, py);
+		for (size_t v = 0; v < c.points.size(); ++v) {
+			if (v == 0)
+				nvgMoveTo(vg, c.points[v].x, c.points[v].y);
+			else
+				nvgLineTo(vg, c.points[v].x, c.points[v].y);
 		}
 		nvgClosePath(vg);
-		nvgFillPaint(vg, nvgLinearGradient(vg, cpos.x - rad, cpos.y - rad, cpos.x + rad, cpos.y + rad, nvgRGBA(0xc4, 0xc7, 0xcc, 230), nvgRGBA(0x7e, 0x82, 0x89, 230)));
+		nvgFillPaint(vg, nvgLinearGradient(vg, c.c.x - c.rad, c.c.y - c.rad, c.c.x + c.rad, c.c.y + c.rad, nvgRGBA(0xc4, 0xc7, 0xcc, 230), nvgRGBA(0x7e, 0x82, 0x89, 230)));
 		nvgFill(vg);
 		nvgStrokeWidth(vg, 0.6f);
 		nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.45f));
 		nvgStroke(vg);
 	}
-
 	// Worn paint line along the very edge, broken in places
 	nvgStrokeWidth(vg, 0.8f);
-	for (int e = 0; e < 4; ++e) {
-		const bool horiz = e % 2 == 0;
-		const float len = horiz ? size.x : size.y;
-		float pos = 0.f;
-		while (pos < len) {
-			const float seg = mm2px(1.f + rng.next() * 8.f);
-			if (rng.next() < 0.55f) {
-				const float off = 0.6f;
-				nvgBeginPath(vg);
-				if (e == 0) { nvgMoveTo(vg, pos, off); nvgLineTo(vg, pos + seg, off); }
-				else if (e == 1) { nvgMoveTo(vg, size.x - off, pos); nvgLineTo(vg, size.x - off, pos + seg); }
-				else if (e == 2) { nvgMoveTo(vg, pos, size.y - off); nvgLineTo(vg, pos + seg, size.y - off); }
-				else { nvgMoveTo(vg, off, pos); nvgLineTo(vg, off, pos + seg); }
-				nvgStrokeColor(vg, nvgRGBAf(0.75f, 0.77f, 0.8f, 0.10f + rng.next() * 0.15f));
-				nvgStroke(vg);
-			}
-			pos += seg;
-		}
-	}
-
-	// Grime: soft darker smudges, more towards the bottom where hands rest
-	const int smudges = 5 + (int) (rng.next() * 4);
-	for (int i = 0; i < smudges; ++i) {
-		const float x = rng.next() * size.x, y = (0.3f + 0.7f * rng.next()) * size.y, r = mm2px(3.f + rng.next() * 7.f);
+	for (const patina::EdgeLine& el : l.edgeLines) {
 		nvgBeginPath(vg);
-		nvgCircle(vg, x, y, r);
-		nvgFillPaint(vg, nvgRadialGradient(vg, x, y, 0, r, nvgRGBAf(0, 0, 0, 0.06f + rng.next() * 0.05f), nvgRGBAf(0, 0, 0, 0)));
+		nvgMoveTo(vg, el.a.x, el.a.y);
+		nvgLineTo(vg, el.b.x, el.b.y);
+		nvgStrokeColor(vg, nvgRGBAf(0.75f, 0.77f, 0.8f, el.alpha));
+		nvgStroke(vg);
+	}
+	// Grime and faint rubs
+	for (const patina::Smudge& m : l.smudges) {
+		nvgBeginPath(vg);
+		nvgCircle(vg, m.c.x, m.c.y, m.r);
+		const NVGcolor in = m.light ? nvgRGBAf(1, 1, 1, m.alpha) : nvgRGBAf(0, 0, 0, m.alpha);
+		const NVGcolor out = m.light ? nvgRGBAf(1, 1, 1, 0) : nvgRGBAf(0, 0, 0, 0);
+		nvgFillPaint(vg, nvgRadialGradient(vg, m.c.x, m.c.y, 0, m.r, in, out));
 		nvgFill(vg);
 	}
-
-	// A few deeper scratches: a dark groove with a light lip
-	const int deep = 2 + (int) (rng.next() * 3);
-	for (int i = 0; i < deep; ++i) {
-		float x = 0.f, y = 0.f, a = 0.f, len = 0.f, bend = 0.f;
-		bool placed = false;
-		for (int attempt = 0; attempt < 8 && !placed; ++attempt) {
-			x = rng.next() * size.x;
-			y = rng.next() * size.y;
-			a = rng.next() * 2.f * M_PI;
-			len = mm2px(3.f + rng.next() * 9.f);
-			bend = (rng.next() - 0.5f) * mm2px(2.f);
-			const math::Vec p0(x, y), p1(x + std::cos(a) * len, y + std::sin(a) * len);
-			// The bent middle is up to half the bend off the chord: keep that much more room
-			if (field.fits(p0, p1, mm2px(0.8f) + std::fabs(bend) * 0.5f)) {
-				field.segments.push_back(std::make_pair(p0, p1));
-				placed = true;
-			}
-		}
-		if (!placed)
+	// Deeper scratches: a dark groove with a light lip
+	for (const patina::Scratch& s : l.scratches) {
+		if (!s.deep)
 			continue;
 		for (int layer = 0; layer < 2; ++layer) {
-			const float o = layer ? 0.7f : 0.f;
-			nvgBeginPath(vg);
-			nvgMoveTo(vg, x + o, y + o);
-			nvgQuadTo(vg, x + std::cos(a) * len * 0.5f - std::sin(a) * bend + o, y + std::sin(a) * len * 0.5f + std::cos(a) * bend + o,
-			          x + std::cos(a) * len + o, y + std::sin(a) * len + o);
-			nvgStrokeWidth(vg, layer ? 0.5f : 0.8f);
-			nvgStrokeColor(vg, layer ? nvgRGBAf(1, 1, 1, 0.10f) : nvgRGBAf(0, 0, 0, 0.35f));
+			stroke(s, layer ? 0.7f : 0.f);
+			nvgStrokeWidth(vg, layer ? 0.5f : s.width);
+			nvgStrokeColor(vg, layer ? nvgRGBAf(1, 1, 1, 0.10f) : nvgRGBAf(0, 0, 0, s.alpha));
 			nvgStroke(vg);
 		}
 	}
-
 	// Small paint chips inside the panel
-	const int dots = 3 + (int) (rng.next() * 5);
-	for (int i = 0; i < dots; ++i) {
-		const float x = mm2px(2.f) + rng.next() * (size.x - mm2px(4.f)), y = mm2px(2.f) + rng.next() * (size.y - mm2px(4.f));
-		const float r = mm2px(0.2f + rng.next() * 0.45f);
+	for (const patina::Dot& d : l.dots) {
 		nvgBeginPath(vg);
-		nvgEllipse(vg, x, y, r * (0.8f + rng.next() * 0.6f), r * (0.6f + rng.next() * 0.5f));
+		nvgEllipse(vg, d.c.x, d.c.y, d.rx, d.ry);
 		nvgFillColor(vg, nvgRGBA(0xa8, 0xac, 0xb2, 190));
 		nvgFill(vg);
 		nvgStrokeWidth(vg, 0.5f);
 		nvgStrokeColor(vg, nvgRGBAf(0, 0, 0, 0.4f));
 		nvgStroke(vg);
 	}
-
-	// A few faint rub marks
-	for (int i = 0; i < 4; ++i) {
-		const float x = rng.next() * size.x, y = rng.next() * size.y, r = mm2px(2.f + rng.next() * 5.f);
-		nvgBeginPath(vg);
-		nvgCircle(vg, x, y, r);
-		nvgFillPaint(vg, nvgRadialGradient(vg, x, y, 0, r, nvgRGBAf(1, 1, 1, 0.025f), nvgRGBAf(1, 1, 1, 0)));
-		nvgFill(vg);
-	}
 	nvgRestore(vg);
+}
+
+/** Wear for a panel of `size` and a unit `seed` (its serial). `screws`: keep the four screw places clear. The layout
+is made once per unit and size (UI thread only) and then only drawn. */
+inline void patina(NVGcontext* vg, math::Vec size, uint32_t seed, bool screws = true) {
+	struct Key {
+		uint32_t seed;
+		float w, h;
+		bool screws;
+		bool operator<(const Key& o) const {
+			return std::tie(seed, w, h, screws) < std::tie(o.seed, o.w, o.h, o.screws);
+		}
+	};
+	static std::map<Key, patina::Layout> cache;
+	const Key key{seed, size.x, size.y, screws};
+	auto it = cache.find(key);
+	if (it == cache.end()) {
+		if (cache.size() > 512)
+			cache.clear();
+		const std::vector<patina::Keepout> keep = screws ? patina::screwKeepouts(size.x, size.y) : std::vector<patina::Keepout>();
+		it = cache.emplace(key, patina::make(size.x, size.y, seed, keep)).first;
+	}
+	drawPatina(vg, size, it->second);
 }
 
 /** One scale position: `t` = the parameter value (normalised by JXMPModuleWidget::knob), a label for major marks. */

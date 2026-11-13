@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <functional>
+
 #include "plugin.hpp"
 #include "Serial.hpp"
 #include "JXMPStyle.hpp"
@@ -42,7 +44,10 @@ struct JXMPPanelDecor : widget::TransparentWidget {
 		float width;    // px
 	};
 	bool styled = false;
-	/** Patina seed: the unit's serial, so every unit wears a little differently */
+	/** Patina seed: the unit's serial, so every unit wears a little differently. Asked at every draw: Cardinal makes
+	the widget of a module loaded from a patch before the module gets its id, so a seed taken then was the same
+	("----") for every module and all of them wore alike. */
+	std::function<uint32_t()> seedOf;
 	uint32_t seed = 1;
 	std::vector<Section> sections;
 	std::vector<Scale> scales;
@@ -87,7 +92,7 @@ struct JXMPPanelDecor : widget::TransparentWidget {
 		nvgFillColor(vg, stripe);
 		nvgFill(vg);
 
-		st::patina(vg, box.size, seed);
+		st::patina(vg, box.size, seedOf ? seedOf() : seed);
 		st::text(vg, math::Vec(w / 2, mm2px(6.6f)), title, titleSize(vg, w), st::legend(), st::FONT_TITLE, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.8f);
 		st::text(vg, math::Vec(w / 2, h - mm2px(4.5f)), w < mm2px(32.f) ? "JXMP" : "JXMP AUDIO", 8.5f, st::legendDim(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 2.f);
 
@@ -202,7 +207,7 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 	/** Switches this module to the JXMP style and adds the panel screws. */
 	void styled() {
 		decor->styled = true;
-		decor->seed = patinaSeed();
+		decor->seedOf = [this]() { return patinaSeed(); };
 		addChild(createWidget<ScrewBlack>(math::Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(math::Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		if (box.size.x > 8 * RACK_GRID_WIDTH) {
