@@ -6,11 +6,16 @@
  * slot n, V/OCT n its note (without a cable the slot plays at its original pitch). The front edits the slot chosen
  * with CH: start / end, loop off / forward / ping-pong, root note, fine tune, level, pan. Samples are saved inside
  * the patch (the module's patch storage folder, which Cardinal packs into the .vcv and into the DAW project).
+ * The four buttons beside CH open a menu in the display: edits of the sample (crop, normalize, reverse, loop
+ * crossfade, snap to zero), the view (zoom, seam) and loading / clearing; every edit can be undone.
  */
 
 #include "JXMPWidget.hpp"
 #include "dsp/Sampler.hpp"
 #include "dsp/SampleFile.hpp"
+#include "dsp/SampleEdit.hpp"
+#include "dsp/SampleMenu.hpp"
+#include "dsp/PitchDetect.hpp"
 
 #include <atomic>
 #include <memory>
@@ -44,6 +49,11 @@ struct Smpl : engine::Module {
 		FINE_PARAM,
 		LEVEL_PARAM,
 		PAN_PARAM,
+		// The menu buttons (LOAD above stays for old patches, it has no button any more)
+		MENU_PARAM,
+		UP_PARAM,
+		DOWN_PARAM,
+		OK_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds { ENUMS(GATE_INPUT, kSlots), ENUMS(VOCT_INPUT, kSlots), NUM_INPUTS };
@@ -60,28 +70,28 @@ struct Smpl : engine::Module {
 		float ratio = 1.f, fadeRatio = 1.f;
 		dsp::SchmittTrigger gate;
 		bool high = false;
-		double position = -1.0;  // for the display
+		// For the display (read on the UI thread)
+		std::atomic<double> shownPos{-1.0};
+		std::atomic<bool> shownActive{false};
 	};
 	AudioSlot audio[kSlots];
 
-	/** A new sample (or new settings) waiting for the audio thread */
+	/** A new sample (or only new settings) waiting for the audio thread */
 	struct Pending {
-		bool has = false;
+		bool has = false, settingsOnly = false;
 		std::shared_ptr<const sm::SampleData> data;
 		sm::SlotSettings set;
 	};
 	std::mutex pendingMutex;
 	Pending pending[kSlots];
 	std::atomic<bool> anyPending{false};
-	/** Set by the audio thread when a loop point turns but cannot do what was asked; the UI says why:
-	 * 1 = the loop does not apply (ONE-SHOT or LOOP OFF), 2 = the loop stays between START and END */
-	std::atomic<int> loopHint{0};
 	/** Counts process() calls: when it stands still the engine is paused (the display then hides the playhead) */
 	std::atomic<uint32_t> ticks{0};
 
-	/** UI side of every slot (the UI thread only) */
+	/** UI side of every slot (the UI thread only). `set` is the slot's settings, written under pendingMutex. */
 	struct UiSlot {
 		std::shared_ptr<const sm::SampleData> data;
+		sm::SlotSettings set;
 		std::string name, message;
 		double messageTime = 0.0;
 		std::vector<float> overMin, overMax;
@@ -94,15 +104,22 @@ struct Smpl : engine::Module {
 	bool hasSaved[kSlots] = {};
 	bool added = false;
 
-	// Edit knobs ↔ selected slot
+	/** The menu in the display (UI thread) */
+	sm::Menu menu;
+
+	// Edit knobs ↔ selected slot (UI thread)
 	int lastSel = -1;
-	bool refreshEdit = true;
+	std::atomic<bool> refreshEdit{true};  // set from onAdd / undo too
 	float lastWritten[kEdit] = {};
 
 	Smpl() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(CH_PARAM, 0.f, kSlots - 1, 0.f, "Slot", "", 0.f, 1.f, 1.f)->snapEnabled = true;
 		configButton(LOAD_PARAM, "Load a WAV into the selected slot");
+		configButton(MENU_PARAM, "Menu (open, back, close)");
+		configButton(UP_PARAM, "Menu up");
+		configButton(DOWN_PARAM, "Menu down");
+		configButton(OK_PARAM, "Menu OK");
 		configButton(PLAY_PARAM, "Play the selected slot (while held)");
 		configSwitch(MODE_PARAM, 0.f, 1.f, 1.f, "Mode", {"Gate (plays while the gate is high)", "One-shot (plays to the end)"});
 		configParam(START_PARAM, 0.f, 1.f, 0.f, "Start", " %", 0.f, 100.f);
@@ -140,6 +157,11 @@ struct Smpl : engine::Module {
 			if (!p.has)
 				continue;
 			AudioSlot& a = audio[i];
+			if (p.settingsOnly) {
+				a.set = p.set;
+				p.has = p.settingsOnly = false;
+				continue;
+			}
 			// The old sound fades out over 2 ms on its own sample, the new one starts silent
 			if (a.live && a.voice.active()) {
 				a.fading = a.live;
@@ -153,8 +175,6 @@ struct Smpl : engine::Module {
 			a.set = p.set;
 			p.has = false;
 			p.data.reset();  // the UI still holds it: never freed here
-			if (i == selected())
-				refreshEdit = true;
 		}
 		anyPending.store(false, std::memory_order_release);
 	}
@@ -175,13 +195,44 @@ struct Smpl : engine::Module {
 		}
 	}
 
-	/** Moves turned edit knobs into the selected slot, the slot's values onto the knobs when CH changes */
+	/** Puts value `v` of edit knob `param` into `s`; returns the point it moved (sm::Point) or -1 */
+	int applyEdit(sm::SlotSettings& s, int param, float v, size_t frames) const {
+		auto frame = [&](float t) { return (size_t) std::lround(math::clamp(t, 0.f, 1.f) * frames); };
+		switch (param) {
+		case MODE_PARAM: s.mode = modeOf(v); break;
+		case START_PARAM: s.start = frame(v); return sm::P_START;
+		case END_PARAM: s.end = frame(v); return sm::P_END;
+		case LOOP_PARAM: s.loop = loopOf(v); break;
+		case LOOP_START_PARAM: s.loopStart = frame(v); return sm::P_LOOP_START;
+		case LOOP_END_PARAM: s.loopEnd = frame(v); return sm::P_LOOP_END;
+		case ROOT_PARAM: s.root = (int) std::round(v); break;
+		case FINE_PARAM: s.fine = v; break;
+		case LEVEL_PARAM: s.level = v; break;
+		case PAN_PARAM: s.pan = v; break;
+		}
+		return -1;
+	}
+
+	size_t framesOf(int i) const { return ui[i].data ? ui[i].data->frames() : 0; }
+
+	/** Slot i's settings with edit knob `param` at `v` (for undo) */
+	sm::SlotSettings settingsWith(int i, int param, float v) {
+		sm::SlotSettings c = currentSettings(i);
+		const int moved = applyEdit(c, param, v, framesOf(i));
+		if (framesOf(i))
+			sm::constrain(c, framesOf(i), moved < 0 ? sm::P_START : moved);
+		return c;
+	}
+
+	/** UI thread, every frame: turned edit knobs go into the selected slot, the slot's values onto the knobs when CH
+	 * changes. Here and not in process(): the UI owns the settings (no race with the display), and knobs work while
+	 * the engine is paused. */
 	void syncEdit() {
 		const int sel = selected();
-		AudioSlot& a = audio[sel];
-		const size_t frames = a.live ? a.live->frames() : 0;
+		const size_t frames = framesOf(sel);
+		sm::SlotSettings cur = currentSettings(sel);
 		if (sel != lastSel || refreshEdit) {
-			writeEdit(a.set, frames);
+			writeEdit(cur, frames);
 			lastSel = sel;
 			refreshEdit = false;
 			return;
@@ -193,50 +244,40 @@ struct Smpl : engine::Module {
 			if (v == lastWritten[k])
 				continue;
 			changed = true;
-			auto frame = [&](float t) { return (size_t) std::lround(math::clamp(t, 0.f, 1.f) * frames); };
-			switch (MODE_PARAM + k) {
-			case MODE_PARAM: a.set.mode = modeOf(v); break;
-			case START_PARAM: a.set.start = frame(v); moved = sm::P_START; break;
-			case END_PARAM: a.set.end = frame(v); moved = sm::P_END; break;
-			case LOOP_PARAM: a.set.loop = loopOf(v); break;
-			case LOOP_START_PARAM: a.set.loopStart = frame(v); moved = sm::P_LOOP_START; break;
-			case LOOP_END_PARAM: a.set.loopEnd = frame(v); moved = sm::P_LOOP_END; break;
-			case ROOT_PARAM: a.set.root = (int) std::round(v); break;
-			case FINE_PARAM: a.set.fine = v; break;
-			case LEVEL_PARAM: a.set.level = v; break;
-			case PAN_PARAM: a.set.pan = v; break;
-			}
+			const int m = applyEdit(cur, MODE_PARAM + k, v, frames);
+			if (m >= 0)
+				moved = m;
 		}
 		if (!changed)
 			return;
 		const bool loopMoved = moved == sm::P_LOOP_START || moved == sm::P_LOOP_END;
-		if (loopMoved && !(a.set.mode == sm::GATE && a.set.loop != sm::LOOP_OFF))
-			loopHint.store(1, std::memory_order_relaxed);
+		if (loopMoved && !(cur.mode == sm::GATE && cur.loop != sm::LOOP_OFF))
+			message(sel, "LOOP: GATE + FWD/PING");
 		if (frames) {
-			const sm::SlotSettings asked = a.set;
-			sm::constrain(a.set, frames, moved < 0 ? sm::P_START : moved);
+			const sm::SlotSettings asked = cur;
+			sm::constrain(cur, frames, moved < 0 ? sm::P_START : moved);
 			// Only points that constrain() moved go back onto their knobs: rewriting every knob with its value rounded
 			// to a frame would undo small drags on short samples
 			const float n = (float) frames;
 			const size_t was[4] = {asked.start, asked.end, asked.loopStart, asked.loopEnd};
-			const size_t now[4] = {a.set.start, a.set.end, a.set.loopStart, a.set.loopEnd};
+			const size_t now[4] = {cur.start, cur.end, cur.loopStart, cur.loopEnd};
 			const int ids[4] = {START_PARAM, END_PARAM, LOOP_START_PARAM, LOOP_END_PARAM};
 			for (int k = 0; k < 4; ++k)
 				if (was[k] != now[k])
 					params[ids[k]].setValue(now[k] / n);
 			// A loop point pushed against START / END: it cannot go further that way
 			if (loopMoved && was[moved] != now[moved])
-				loopHint.store(2, std::memory_order_relaxed);
+				message(sel, "LOOP STAYS BETWEEN S AND E");
 		}
 		for (int k = 0; k < kEdit; ++k)
 			lastWritten[k] = params[MODE_PARAM + k].getValue();
+		postSettings(sel, cur);
 	}
 
 	void process(const ProcessArgs& args) override {
 		ticks.fetch_add(1, std::memory_order_relaxed);
 		if (anyPending.load(std::memory_order_acquire))
 			takePending();
-		syncEdit();
 		const int sel = selected();
 		const bool play = params[PLAY_PARAM].getValue() > 0.5f;
 		sm::MixBus mix;
@@ -270,13 +311,15 @@ struct Smpl : engine::Module {
 				const bool st = a.live->stereo;
 				out += (st ? 0.5f * (vl + vr) : vl) * 5.f * a.set.level;
 				mix.add(vl * 5.f, vr * 5.f, st, a.set.level, a.set.pan, ownOut);
-				a.position = a.voice.position();
+				a.shownPos.store(a.voice.position(), std::memory_order_relaxed);
 			}
 			else {
-				a.position = -1.0;
+				a.shownPos.store(-1.0, std::memory_order_relaxed);
 			}
+			const bool active = a.voice.active() || (a.fading && a.fadeVoice.active());
+			a.shownActive.store(active, std::memory_order_relaxed);
 			outputs[OUT_OUTPUT + i].setVoltage(out);
-			lights[SLOT_LIGHT + i].setBrightness(a.voice.active() ? 1.f : 0.f);
+			lights[SLOT_LIGHT + i].setBrightness(active ? 1.f : 0.f);
 		}
 		outputs[MIX_L_OUTPUT].setVoltage(sm::softLimit10(mix.L));
 		outputs[MIX_R_OUTPUT].setVoltage(sm::softLimit10(mix.R));
@@ -284,12 +327,33 @@ struct Smpl : engine::Module {
 
 	// ---- UI thread ----
 
+	/** A new sample (or none) with its settings for slot i */
 	void post(int i, std::shared_ptr<const sm::SampleData> data, const sm::SlotSettings& set) {
 		std::lock_guard<std::mutex> lock(pendingMutex);
+		ui[i].set = set;
 		pending[i].has = true;
+		pending[i].settingsOnly = false;
 		pending[i].data = data;
 		pending[i].set = set;
 		anyPending.store(true, std::memory_order_release);
+	}
+
+	/** New settings for slot i, same sample: the sound goes on with them */
+	void postSettings(int i, const sm::SlotSettings& set) {
+		std::lock_guard<std::mutex> lock(pendingMutex);
+		ui[i].set = set;
+		if (!pending[i].has)
+			pending[i].settingsOnly = true;  // else a new sample is waiting: it takes these settings along
+		pending[i].has = true;
+		pending[i].set = set;
+		anyPending.store(true, std::memory_order_release);
+	}
+
+	/** Frees replaced samples the audio thread no longer holds (UI thread) */
+	void pruneRetired() {
+		retired.erase(std::remove_if(retired.begin(), retired.end(),
+		                             [](const std::shared_ptr<const sm::SampleData>& p) { return p.use_count() == 1; }),
+		              retired.end());
 	}
 
 	void message(int i, const std::string& text) {
@@ -301,9 +365,10 @@ struct Smpl : engine::Module {
 		return system::join(createPatchStorageDirectory(), string::f("slot%02d.wav", i + 1));
 	}
 
-	/** Min / max of the sample in 256 parts for the display */
+	/** Min / max of the sample in kOverParts parts for the display (a zoomed view reads the frames themselves) */
+	static constexpr size_t kOverParts = 4096;
 	static void overview(const sm::SampleData& d, std::vector<float>& lo, std::vector<float>& hi) {
-		const size_t parts = 256, n = d.frames();
+		const size_t parts = kOverParts, n = d.frames();
 		lo.assign(parts, 0.f);
 		hi.assign(parts, 0.f);
 		for (size_t p = 0; p < parts && n; ++p) {
@@ -319,8 +384,11 @@ struct Smpl : engine::Module {
 		}
 	}
 
-	/** Installs decoded bytes into slot i. `set` = settings to apply (from the patch), or defaults when null. */
-	bool install(int i, const std::vector<uint8_t>& bytes, const std::string& name, const sm::SlotSettings* set) {
+	/** Installs decoded bytes into slot i. `set` = settings to apply (from the patch), or defaults when null.
+	 * `wasCut` (if given) says whether the file was longer than 60 s and was shortened. */
+	bool install(int i, const std::vector<uint8_t>& bytes, const std::string& name, const sm::SlotSettings* set,
+	             bool* wasCut = nullptr) {
+		pruneRetired();
 		auto data = std::make_shared<sm::SampleData>();
 		std::string error;
 		bool cut = false;
@@ -339,7 +407,10 @@ struct Smpl : engine::Module {
 			sm::constrain(s, data->frames(), sm::P_START);
 		}
 		post(i, data, s);
+		refreshEdit = true;
 		message(i, cut ? "CUT TO 60 S" : "");
+		if (wasCut)
+			*wasCut = cut;
 		return true;
 	}
 
@@ -360,10 +431,15 @@ struct Smpl : engine::Module {
 		std::string name = string::uppercase(system::getStem(path));
 		if (name.size() > 24)
 			name = name.substr(0, 24);
-		if (!install(i, bytes, name, nullptr))
+		bool cut = false;
+		if (!install(i, bytes, name, nullptr, &cut))
 			return;
 		try {
-			system::writeFile(storagePath(i), bytes);
+			// A file cut to 60 s: the patch keeps only what plays
+			if (cut)
+				system::writeFile(storagePath(i), sm::encodeWav(*ui[i].data));
+			else
+				system::writeFile(storagePath(i), bytes);
 		}
 		catch (std::exception& e) {
 			WARN("JX-SMPL: cannot save slot %d into the patch: %s", i + 1, e.what());
@@ -371,11 +447,37 @@ struct Smpl : engine::Module {
 	}
 
 	void clearSlot(int i) {
+		pruneRetired();
 		if (ui[i].data)
 			retired.push_back(ui[i].data);
 		ui[i] = UiSlot();
 		post(i, nullptr, sm::SlotSettings());
+		refreshEdit = true;
 		// The file stays until the patch is saved, so Undo of Initialize can bring the sample back
+	}
+
+	/** Puts an edited sample (or none) into slot i with its settings and name, and keeps it in the patch: the edits
+	 * and their undo. The sample goes into the patch storage as a 32-bit float WAV. */
+	void replaceSample(int i, std::shared_ptr<const sm::SampleData> data, const sm::SlotSettings& set, const std::string& name) {
+		if (!data) {
+			clearSlot(i);
+			ui[i].name = name;
+			return;
+		}
+		pruneRetired();
+		if (ui[i].data)
+			retired.push_back(ui[i].data);
+		ui[i].data = data;
+		ui[i].name = name;
+		overview(*data, ui[i].overMin, ui[i].overMax);
+		post(i, data, set);
+		refreshEdit = true;
+		try {
+			system::writeFile(storagePath(i), sm::encodeWav(*data));
+		}
+		catch (std::exception& e) {
+			WARN("JX-SMPL: cannot save slot %d into the patch: %s", i + 1, e.what());
+		}
 	}
 
 	std::string slotFile(int i) { return system::join(getPatchStorageDirectory(), string::f("slot%02d.wav", i + 1)); }
@@ -422,10 +524,10 @@ struct Smpl : engine::Module {
 		refreshEdit = true;
 	}
 
-	/** The settings the audio thread uses now (pending ones first) */
+	/** Slot i's settings (the audio thread gets them a moment later) */
 	sm::SlotSettings currentSettings(int i) {
 		std::lock_guard<std::mutex> lock(pendingMutex);
-		return pending[i].has ? pending[i].set : audio[i].set;
+		return ui[i].set;
 	}
 
 	json_t* dataToJson() override {
@@ -490,7 +592,7 @@ struct Smpl : engine::Module {
 			if (added && ui[i].data) {
 				sm::SlotSettings c = t;
 				sm::constrain(c, ui[i].data->frames(), sm::P_START);
-				post(i, ui[i].data, c);
+				postSettings(i, c);
 			}
 			else if (added) {
 				installFromStorage(i, &t);
@@ -500,15 +602,101 @@ struct Smpl : engine::Module {
 	}
 };
 
+/** Undo / redo of a change to one slot's settings: selects that slot and puts its settings back */
+struct SlotChange : history::ModuleAction {
+	int slot = 0;
+	sm::SlotSettings before, after;
+	void apply(const sm::SlotSettings& s) {
+		Smpl* const m = dynamic_cast<Smpl*>(APP->engine->getModule(moduleId));
+		if (!m)
+			return;
+		m->params[Smpl::CH_PARAM].setValue((float) slot);
+		m->postSettings(slot, s);
+		m->refreshEdit = true;
+	}
+	void undo() override { apply(before); }
+	void redo() override { apply(after); }
+};
+
+inline double dclamp(double v, double lo, double hi) { return std::min(std::max(v, lo), hi); }
+
+/** Undo / redo of an edit that changed a slot's sample (crop, normalize, reverse, crossfade, clear): puts the sample,
+ * its settings and name back, and the file in the patch with them */
+struct SampleSwap : history::ModuleAction {
+	struct State {
+		std::shared_ptr<const sm::SampleData> data;
+		sm::SlotSettings set;
+		std::string name;
+	};
+	int slot = 0;
+	State before, after;
+	void apply(const State& s) {
+		Smpl* const m = dynamic_cast<Smpl*>(APP->engine->getModule(moduleId));
+		if (!m)
+			return;
+		m->params[Smpl::CH_PARAM].setValue((float) slot);
+		m->replaceSample(slot, s.data, s.set, s.name);
+	}
+	void undo() override { apply(before); }
+	void redo() override { apply(after); }
+};
+
 /** The VFD of JX-SMPL: the selected slot's name, root note, mode and loop; its waveform with START / END handles below
- * and the loop flags above (drag them); a strip of the 16 slots (click one to select it). Drop a WAV here to load it. */
+ * and the loop flags above (drag them); a strip of the 16 slots (click one to select it). The wheel zooms around the
+ * pointer, dragging the wave pans, a double click shows the whole sample. The menu (MENU button) fills the window. */
 struct SmplDisplay : widget::OpaqueWidget {
 	Smpl* module = nullptr;
-	enum Handle { H_NONE = -1, H_START, H_END, H_LOOP_START, H_LOOP_END };
+	enum Handle { H_NONE = -1, H_START, H_END, H_LOOP_START, H_LOOP_END, H_PAN };
 	int dragging = H_NONE;
 	uint32_t lastTicks = 0;
 	double lastTickTime = 0.0;
-	float dragX = 0.f, oldValue = 0.f;
+	float dragX = 0.f, dragStartX = 0.f, oldValue = 0.f;
+	// The view: frames view0..view1 of the selected slot's sample; the whole sample again when the slot or the
+	// sample's length changes
+	double view0 = 0.0, view1 = 1.0, panView0 = 0.0;
+	bool seam = false;
+	int viewSel = -1;
+	size_t viewFrames = 0;
+	int menuTop = 0;
+
+	const sm::SampleData* data() const {
+		return module ? module->ui[module->selected()].data.get() : nullptr;
+	}
+	size_t frames() const {
+		const sm::SampleData* d = data();
+		return d ? d->frames() : 0;
+	}
+
+	void syncView() {
+		if (!module)
+			return;
+		const int sel = module->selected();
+		if (sel != viewSel || frames() != viewFrames) {
+			viewSel = sel;
+			viewFrames = frames();
+			whole();
+		}
+	}
+	void whole() {
+		view0 = 0.0;
+		view1 = std::max<double>(1.0, (double) frames());
+		seam = false;
+	}
+	void clampView() {
+		const double n = std::max<double>(1.0, (double) frames());
+		const double w = dclamp(view1 - view0, std::min(16.0, n), n);
+		const double a = dclamp(view0, 0.0, n - w);
+		view0 = a;
+		view1 = a + w;
+	}
+	void zoomToLoop(const sm::SlotSettings& s) {
+		const double m = std::max(8.0, (s.loopEnd - (double) s.loopStart) * 0.08);
+		view0 = s.loopStart - m;
+		view1 = s.loopEnd + m;
+		clampView();
+		seam = false;
+	}
+	double zoom() const { return frames() ? frames() / (view1 - view0) : 1.0; }
 
 	math::Rect waveRect() const {
 		return math::Rect(mm2px(math::Vec(3.f, 10.5f)), math::Vec(box.size.x - mm2px(6.f), box.size.y - mm2px(19.5f)));
@@ -517,18 +705,185 @@ struct SmplDisplay : widget::OpaqueWidget {
 		const float x0 = mm2px(4.f), w = (box.size.x - 2 * x0) / kSlots;
 		return math::Rect(math::Vec(x0 + i * w + 1.f, box.size.y - mm2px(4.2f)), math::Vec(w - 2.f, mm2px(2.4f)));
 	}
+	float xOf(double f) const {
+		const math::Rect wr = waveRect();
+		return wr.pos.x + (float) ((f - view0) / (view1 - view0)) * wr.size.x;
+	}
+	double fOf(float x) const {
+		const math::Rect wr = waveRect();
+		return view0 + (x - wr.pos.x) / wr.size.x * (view1 - view0);
+	}
 
 	int paramOf(int h) const {
 		static const int ids[4] = {Smpl::START_PARAM, Smpl::END_PARAM, Smpl::LOOP_START_PARAM, Smpl::LOOP_END_PARAM};
 		return ids[h];
 	}
 
+	/** The wave of frames f0..f1 into x0..x0+w as one path (min / max per pixel column, or a line through the frames
+	 * when zoomed in that far); `dots` marks single frames when they are far apart */
+	void wavePath(NVGcontext* vg, const Smpl::UiSlot& u, double f0, double f1, float x0, float w, bool& dots) const {
+		const sm::SampleData& d = *u.data;
+		const math::Rect wr = waveRect();
+		const float mid = wr.pos.y + wr.size.y / 2, amp = wr.size.y * 0.48f;
+		const long n = (long) d.frames();
+		const double span = f1 - f0;
+		const int cols = std::max(1, (int) w);
+		const double perCol = span / cols;
+		dots = false;
+		nvgBeginPath(vg);
+		if (perCol > 1.5) {
+			const double partFrames = (double) n / (double) u.overMin.size();
+			for (int c = 0; c < cols; ++c) {
+				const double a = f0 + c * perCol, b = a + perCol;
+				float lo = 1e9f, hi = -1e9f;
+				if (perCol >= 2.0 * partFrames && !u.overMin.empty()) {
+					// Far out: the overview
+					const long pa = std::max(0L, (long) (a / partFrames)), pb = std::min((long) u.overMin.size(), (long) std::ceil(b / partFrames));
+					for (long p = pa; p < pb; ++p) {
+						lo = std::min(lo, u.overMin[(size_t) p]);
+						hi = std::max(hi, u.overMax[(size_t) p]);
+					}
+				}
+				else {
+					const long ka = std::max(0L, (long) a), kb = std::min(n, (long) std::ceil(b));
+					for (long k = ka; k < kb; ++k) {
+						const float v = sm::monoAt(d, (size_t) k);
+						lo = std::min(lo, v);
+						hi = std::max(hi, v);
+					}
+				}
+				if (hi < lo)
+					continue;
+				const float x = x0 + c + 0.5f, y0 = mid - hi * amp, y1 = mid - lo * amp;
+				nvgMoveTo(vg, x, y0);
+				nvgLineTo(vg, x, std::max(y1, y0 + 0.6f));
+			}
+		}
+		else {
+			bool first = true;
+			for (long k = (long) std::floor(f0) - 1; k <= (long) std::ceil(f1) + 1; ++k) {
+				if (k < 0 || k >= n)
+					continue;
+				const float x = x0 + (float) ((k - f0) / span) * w, y = mid - sm::monoAt(d, (size_t) k) * amp;
+				if (first)
+					nvgMoveTo(vg, x, y);
+				else
+					nvgLineTo(vg, x, y);
+				first = false;
+			}
+			dots = w / span > 6.0;
+		}
+	}
+
+	void frameDots(NVGcontext* vg, const Smpl::UiSlot& u, double f0, double f1, float x0, float w, NVGcolor c) const {
+		const math::Rect wr = waveRect();
+		const float mid = wr.pos.y + wr.size.y / 2, amp = wr.size.y * 0.48f;
+		const long n = (long) u.data->frames();
+		nvgBeginPath(vg);
+		for (long k = (long) std::ceil(f0); k <= (long) std::floor(f1); ++k) {
+			if (k < 0 || k >= n)
+				continue;
+			nvgCircle(vg, x0 + (float) ((k - f0) / (f1 - f0)) * w, mid - sm::monoAt(*u.data, (size_t) k) * amp, 1.3f);
+		}
+		nvgFillColor(vg, c);
+		nvgFill(vg);
+	}
+
 	void draw(const DrawArgs& args) override {
 		namespace st = jxmp::style;
 		NVGcontext* const vg = args.vg;
 		const NVGcolor lit = st::vfdTint(kColour);
-		auto dim = [&](float a) { return nvgRGBAf(lit.r, lit.g, lit.b, a); };
 		st::vfdWindow(vg, box.size, lit);
+		if (module && module->menu.open)
+			drawMenu(vg, lit);
+		else
+			drawSlot(vg, lit);
+	}
+
+	void drawMenu(NVGcontext* vg, NVGcolor lit) {
+		namespace st = jxmp::style;
+		auto dim = [&](float a) { return nvgRGBAf(lit.r, lit.g, lit.b, a); };
+		const sm::Menu& m = module->menu;
+		const int sel = module->selected();
+		const float line1 = mm2px(4.f), left = mm2px(3.f), right = box.size.x - mm2px(3.f);
+		const std::string title = m.depth == 0 ? string::f("%02d  %s", sel + 1, module->ui[sel].name.empty() ? "EMPTY" : module->ui[sel].name.c_str())
+		                                       : m.path();
+		st::vfdText(vg, math::Vec(left, line1), title, 10.f, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, lit);
+		st::vfdLegend(vg, math::Vec(right, line1), m.depth ? "MENU = BACK" : "MENU = CLOSE", 6.5f, true,
+		              NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, dim(0.6f));
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, left, mm2px(6.6f));
+		nvgLineTo(vg, right, mm2px(6.6f));
+		nvgStrokeWidth(vg, 0.7f);
+		nvgStrokeColor(vg, dim(0.35f));
+		nvgStroke(vg);
+		if (m.confirming) {
+			st::vfdText(vg, math::Vec(box.size.x / 2, mm2px(15.f)), string::f("CLEAR SAMPLE %02d?", sel + 1), 10.f,
+			            NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, lit);
+			st::vfdLegend(vg, math::Vec(box.size.x / 2, mm2px(21.f)), "OK = YES     MENU = NO", 7.5f, true,
+			              NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, dim(0.75f));
+			return;
+		}
+		const int rows = 5, count = m.count(), cur = m.selected();
+		if (cur < menuTop)
+			menuTop = cur;
+		if (cur >= menuTop + rows)
+			menuTop = cur - rows + 1;
+		menuTop = math::clamp(menuTop, 0, std::max(0, count - rows));
+		const float rowH = mm2px(4.1f), y0 = mm2px(7.8f), barR = right - mm2px(2.f);
+		for (int r = 0; r < rows; ++r) {
+			const int i = menuTop + r;
+			if (i >= count)
+				break;
+			const sm::MenuItem& it = m.current()[i];
+			const float y = y0 + r * rowH + rowH / 2;
+			const bool on = i == cur;
+			const NVGcolor textC = on ? nvgRGB(0x14, 0x08, 0x0c) : lit;
+			if (on) {
+				nvgBeginPath(vg);
+				nvgRect(vg, left, y - rowH / 2 + 1.f, barR - left, rowH - 2.f);
+				nvgFillColor(vg, dim(0.95f));
+				nvgFill(vg);
+				st::text(vg, math::Vec(left + mm2px(2.f), y), it.name, 8.5f, textC, st::FONT_LABEL, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, 0.8f);
+			}
+			else
+				st::vfdText(vg, math::Vec(left + mm2px(2.f), y), it.name, 8.5f, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, lit);
+			const float ax = barR - mm2px(2.f);
+			if (it.sub) {
+				// A folder: a small arrow on the right
+				nvgBeginPath(vg);
+				nvgMoveTo(vg, ax - 3.f, y - 3.5f);
+				nvgLineTo(vg, ax + 2.f, y);
+				nvgLineTo(vg, ax - 3.f, y + 3.5f);
+				nvgClosePath(vg);
+				nvgFillColor(vg, textC);
+				nvgFill(vg);
+			}
+			if (it.action == sm::A_XFADE && it.value == m.lastXfade) {
+				// The crossfade length used last
+				nvgBeginPath(vg);
+				nvgCircle(vg, ax, y, 2.f);
+				nvgFillColor(vg, textC);
+				nvgFill(vg);
+			}
+		}
+		if (count > rows) {
+			const float bh = rows * rowH, bx = right - mm2px(0.6f);
+			nvgBeginPath(vg);
+			nvgRect(vg, bx, y0, 1.5f, bh);
+			nvgFillColor(vg, dim(0.15f));
+			nvgFill(vg);
+			nvgBeginPath(vg);
+			nvgRect(vg, bx - 0.5f, y0 + bh * menuTop / count, 2.5f, bh * rows / count);
+			nvgFillColor(vg, dim(0.8f));
+			nvgFill(vg);
+		}
+	}
+
+	void drawSlot(NVGcontext* vg, NVGcolor lit) {
+		namespace st = jxmp::style;
+		auto dim = [&](float a) { return nvgRGBAf(lit.r, lit.g, lit.b, a); };
+		syncView();
 		const int sel = module ? module->selected() : 6;
 		const Smpl::UiSlot* u = module ? &module->ui[sel] : nullptr;
 		const bool has = u && u->data;
@@ -542,14 +897,22 @@ struct SmplDisplay : widget::OpaqueWidget {
 			st::vfdText(vg, math::Vec(box.size.x - mm2px(3.f), line1),
 			            sm::noteName(module ? set.root : 40) + string::f("  %+03d", module ? (int) std::round(set.fine) : 0), 10.f,
 			            NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, lit);
-		// Line 2: a fresh message, else mode and loop on the left, rate and length on the right
+		// Line 2: a fresh message, else the seam view / zoom / mode and loop on the left, rate and length on the right
 		const bool fresh = u && !u->message.empty() && system::getTime() - u->messageTime < 4.0;
+		const double z = zoom();
 		if (fresh)
 			st::vfdText(vg, math::Vec(mm2px(3.f), line2), u->message, 7.5f, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, lit);
 		else if (has) {
-			std::string mode = set.mode == sm::ONE_SHOT ? "ONE-SHOT" : "GATE";
-			if (set.mode == sm::GATE)
-				mode += set.loop == sm::LOOP_OFF ? "  LOOP OFF" : set.loop == sm::LOOP_FWD ? "  LOOP FWD" : "  LOOP PING";
+			std::string mode;
+			if (seam)
+				mode = "LOOP SEAM   END | START";
+			else if (z > 1.05)
+				mode = z < 10.0 ? string::f("ZOOM %.1fX", z) : string::f("ZOOM %dX", (int) std::round(z));
+			else {
+				mode = set.mode == sm::ONE_SHOT ? "ONE-SHOT" : "GATE";
+				if (set.mode == sm::GATE)
+					mode += set.loop == sm::LOOP_OFF ? "  LOOP OFF" : set.loop == sm::LOOP_FWD ? "  LOOP FWD" : "  LOOP PING";
+			}
 			st::vfdLegend(vg, math::Vec(mm2px(3.f), line2), mode, 7.5f, true, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, dim(0.75f));
 		}
 		if (has)
@@ -557,9 +920,9 @@ struct SmplDisplay : widget::OpaqueWidget {
 			              string::f("%.1f kHz  %.2f s", u->data->rate / 1000.f, u->data->frames() / u->data->rate), 7.5f, true,
 			              NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, dim(0.75f));
 		else if (module && !fresh)
-			st::vfdLegend(vg, math::Vec(mm2px(3.f), line2), "LOAD OR DROP A WAV", 7.5f, true, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, dim(0.75f));
+			st::vfdLegend(vg, math::Vec(mm2px(3.f), line2), "MENU > SAMPLE > LOAD, OR DROP A WAV", 7.5f, true,
+			              NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, dim(0.75f));
 
-		// Waveform
 		const math::Rect wr = waveRect();
 		const float mid = wr.pos.y + wr.size.y / 2;
 		nvgBeginPath(vg);
@@ -569,119 +932,17 @@ struct SmplDisplay : widget::OpaqueWidget {
 		nvgStrokeColor(vg, dim(0.18f));
 		nvgStroke(vg);
 		if (has) {
-			const float frames = (float) u->data->frames();
-			auto xOf = [&](double f) { return wr.pos.x + (float) (f / frames) * wr.size.x; };
-			// The loop is always shown (and can be dragged); dimmed when it does not apply (ONE-SHOT or LOOP OFF)
-			const bool loopOn = set.mode == sm::GATE && set.loop != sm::LOOP_OFF;
-			const float loopA = loopOn ? 1.f : 0.35f;
-			{
-				nvgBeginPath(vg);
-				nvgRect(vg, xOf(set.loopStart), wr.pos.y, xOf(set.loopEnd) - xOf(set.loopStart), wr.size.y);
-				nvgFillColor(vg, dim(0.12f * loopA));
-				nvgFill(vg);
-			}
-			// Outside START..END dimmer
-			const size_t parts = u->overMin.size();
-			nvgBeginPath(vg);
-			for (size_t p = 0; p < parts; ++p) {
-				const float x = wr.pos.x + (p + 0.5f) * wr.size.x / parts;
-				const float y0 = mid - u->overMax[p] * wr.size.y * 0.48f, y1 = mid - u->overMin[p] * wr.size.y * 0.48f;
-				nvgMoveTo(vg, x, y0);
-				nvgLineTo(vg, x, std::max(y1, y0 + 0.6f));
-			}
-			nvgStrokeWidth(vg, std::max(0.8f, wr.size.x / parts * 0.9f));
-			nvgStrokeColor(vg, lit);
-			nvgSave(vg);
-			nvgScissor(vg, xOf(set.start), wr.pos.y - 2.f, xOf(set.end) - xOf(set.start), wr.size.y + 4.f);
-			nvgStroke(vg);
-			nvgRestore(vg);
-			// What START and END cut off: only a faint trace of the wave under a dark veil, so the part that plays
-			// stands out at a glance
-			nvgStrokeColor(vg, dim(0.14f));
-			const float cutL = xOf(set.start) - wr.pos.x, cutR = wr.pos.x + wr.size.x - xOf(set.end);
-			for (int k = 0; k < 2; ++k) {
-				const float x = k == 0 ? wr.pos.x : xOf(set.end), w = k == 0 ? cutL : cutR;
-				if (w <= 0.f)
-					continue;
-				nvgSave(vg);
-				nvgScissor(vg, x, wr.pos.y - 2.f, w, wr.size.y + 4.f);
-				nvgStroke(vg);
-				nvgRestore(vg);
-				nvgBeginPath(vg);
-				nvgRect(vg, x, wr.pos.y - 1.f, w, wr.size.y + 2.f);
-				nvgFillColor(vg, nvgRGBAf(0.f, 0.f, 0.f, 0.45f));
-				nvgFill(vg);
-			}
-			// START / END lines with handles below
-			const NVGcolor pale = nvgRGBf(lit.r * 0.4f + 0.6f, lit.g * 0.4f + 0.6f, lit.b * 0.4f + 0.6f);
-			const char* const se[2] = {"S", "E"};
-			const size_t sePos[2] = {set.start, set.end};
-			for (int k = 0; k < 2; ++k) {
-				const float x = xOf(sePos[k]);
-				nvgBeginPath(vg);
-				nvgMoveTo(vg, x, wr.pos.y);
-				nvgLineTo(vg, x, wr.pos.y + wr.size.y);
-				nvgStrokeWidth(vg, 0.8f);
-				nvgStrokeColor(vg, pale);
-				nvgStroke(vg);
-				const float hy = wr.pos.y + wr.size.y;
-				nvgBeginPath(vg);
-				nvgMoveTo(vg, x, hy);
-				nvgLineTo(vg, x - 3.5f, hy + 4.f);
-				nvgLineTo(vg, x + 3.5f, hy + 4.f);
-				nvgClosePath(vg);
-				nvgFillColor(vg, pale);
-				nvgFill(vg);
-				// The letter inside the window beside its line, on the side that plays (clear of the slot numbers)
-				st::vfdLegend(vg, math::Vec(x + (k == 0 ? 2.5f : -2.5f), hy - 4.f), se[k], 6.f, true,
-				              (k == 0 ? NVG_ALIGN_LEFT : NVG_ALIGN_RIGHT) | NVG_ALIGN_MIDDLE, pale);
-			}
-			// Loop flags at the top
-			{
-				const size_t lp[2] = {set.loopStart, set.loopEnd};
-				for (int k = 0; k < 2; ++k) {
-					const float x = xOf(lp[k]);
-					nvgBeginPath(vg);
-					nvgMoveTo(vg, x, wr.pos.y);
-					nvgLineTo(vg, x, wr.pos.y + wr.size.y);
-					nvgStrokeWidth(vg, 0.7f);
-					nvgStrokeColor(vg, dim(0.7f * loopA));
-					nvgStroke(vg);
-					// The flag hangs inside the wave area from its top edge, clear of the text lines above
-					nvgBeginPath(vg);
-					nvgMoveTo(vg, x, wr.pos.y);
-					nvgLineTo(vg, x + (k ? -6.f : 6.f), wr.pos.y + 2.5f);
-					nvgLineTo(vg, x, wr.pos.y + 5.f);
-					nvgClosePath(vg);
-					nvgFillColor(vg, dim(loopA));
-					nvgFill(vg);
-				}
-			}
-			// Playhead; hidden while the engine is paused (Space), so nothing but S marks where the sample begins
-			const uint32_t ticks = module->ticks.load(std::memory_order_relaxed);
-			const double now = system::getTime();
-			if (ticks != lastTicks) {
-				lastTicks = ticks;
-				lastTickTime = now;
-			}
-			const bool running = now - lastTickTime < 0.1;
-			const double pos = module->audio[sel].position;
-			if (pos >= 0.0 && running) {
-				const float x = xOf(pos);
-				nvgBeginPath(vg);
-				nvgMoveTo(vg, x, wr.pos.y);
-				nvgLineTo(vg, x, wr.pos.y + wr.size.y);
-				nvgStrokeWidth(vg, 1.2f);
-				nvgStrokeColor(vg, nvgRGBf(1.f, 1.f, 1.f));
-				nvgStroke(vg);
-			}
+			if (seam)
+				drawSeam(vg, lit, *u, set);
+			else
+				drawWave(vg, lit, *u, set, sel, z);
 		}
 
 		// Slot strip: filled = has a sample, bright = playing, white frame = selected
 		for (int i = 0; i < kSlots; ++i) {
 			const math::Rect b = stripBox(i);
 			const bool loaded = module ? (bool) module->ui[i].data : (i < 9 || i == 12);
-			const bool playing = module ? module->audio[i].voice.active() : (i == 0 || i == 6);
+			const bool playing = module ? module->audio[i].shownActive.load(std::memory_order_relaxed) : (i == 0 || i == 6);
 			nvgBeginPath(vg);
 			nvgRoundedRect(vg, RECT_ARGS(b), 1.f);
 			if (loaded) {
@@ -696,15 +957,171 @@ struct SmplDisplay : widget::OpaqueWidget {
 		}
 	}
 
+	void drawWave(NVGcontext* vg, NVGcolor lit, const Smpl::UiSlot& u, const sm::SlotSettings& set, int sel, double z) {
+		namespace st = jxmp::style;
+		auto dim = [&](float a) { return nvgRGBAf(lit.r, lit.g, lit.b, a); };
+		const math::Rect wr = waveRect();
+		auto visible = [&](float x) { return x >= wr.pos.x - 1.f && x <= wr.pos.x + wr.size.x + 1.f; };
+		nvgSave(vg);
+		nvgScissor(vg, wr.pos.x - 1.f, wr.pos.y - mm2px(1.6f), wr.size.x + 2.f, wr.size.y + mm2px(3.2f));
+		// The loop is always shown (and can be dragged); dimmed when it does not apply (ONE-SHOT or LOOP OFF)
+		const bool loopOn = set.mode == sm::GATE && set.loop != sm::LOOP_OFF;
+		const float loopA = loopOn ? 1.f : 0.35f;
+		nvgBeginPath(vg);
+		nvgRect(vg, xOf(set.loopStart), wr.pos.y, xOf(set.loopEnd) - xOf(set.loopStart), wr.size.y);
+		nvgFillColor(vg, dim(0.12f * loopA));
+		nvgFill(vg);
+		// The wave: bright between START and END, only a faint trace under a dark veil outside
+		bool dots = false;
+		wavePath(vg, u, view0, view1, wr.pos.x, wr.size.x, dots);
+		const float xs = math::clamp(xOf(set.start), wr.pos.x, wr.pos.x + wr.size.x);
+		const float xe = math::clamp(xOf(set.end), wr.pos.x, wr.pos.x + wr.size.x);
+		nvgStrokeWidth(vg, dots || z > 1.05 ? 1.1f : std::max(0.8f, 0.9f));
+		for (int k = 0; k < 3; ++k) {
+			const float x = k == 0 ? xs : k == 1 ? wr.pos.x : xe;
+			const float w = k == 0 ? xe - xs : k == 1 ? xs - wr.pos.x : wr.pos.x + wr.size.x - xe;
+			if (w <= 0.f)
+				continue;
+			nvgSave(vg);
+			nvgIntersectScissor(vg, x, wr.pos.y - 2.f, w, wr.size.y + 4.f);
+			nvgStrokeColor(vg, k == 0 ? lit : dim(0.14f));
+			nvgStroke(vg);
+			nvgRestore(vg);
+		}
+		if (dots) {
+			const NVGcolor pale = nvgRGBf(lit.r * 0.4f + 0.6f, lit.g * 0.4f + 0.6f, lit.b * 0.4f + 0.6f);
+			frameDots(vg, u, view0, view1, wr.pos.x, wr.size.x, pale);
+		}
+		for (int k = 0; k < 2; ++k) {
+			const float x = k == 0 ? wr.pos.x : xe, w = k == 0 ? xs - wr.pos.x : wr.pos.x + wr.size.x - xe;
+			if (w <= 0.f)
+				continue;
+			nvgBeginPath(vg);
+			nvgRect(vg, x, wr.pos.y - 1.f, w, wr.size.y + 2.f);
+			nvgFillColor(vg, nvgRGBAf(0.f, 0.f, 0.f, 0.45f));
+			nvgFill(vg);
+		}
+		// START / END lines with handles below
+		const NVGcolor pale = nvgRGBf(lit.r * 0.4f + 0.6f, lit.g * 0.4f + 0.6f, lit.b * 0.4f + 0.6f);
+		const char* const se[2] = {"S", "E"};
+		const size_t sePos[2] = {set.start, set.end};
+		for (int k = 0; k < 2; ++k) {
+			const float x = xOf((double) sePos[k]);
+			if (!visible(x))
+				continue;
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, x, wr.pos.y);
+			nvgLineTo(vg, x, wr.pos.y + wr.size.y);
+			nvgStrokeWidth(vg, 0.8f);
+			nvgStrokeColor(vg, pale);
+			nvgStroke(vg);
+			const float hy = wr.pos.y + wr.size.y;
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, x, hy);
+			nvgLineTo(vg, x - 3.5f, hy + 4.f);
+			nvgLineTo(vg, x + 3.5f, hy + 4.f);
+			nvgClosePath(vg);
+			nvgFillColor(vg, pale);
+			nvgFill(vg);
+			st::vfdLegend(vg, math::Vec(x + (k == 0 ? 2.5f : -2.5f), hy - 4.f), se[k], 6.f, true,
+			              (k == 0 ? NVG_ALIGN_LEFT : NVG_ALIGN_RIGHT) | NVG_ALIGN_MIDDLE, pale);
+		}
+		// Loop flags at the top
+		const size_t lp[2] = {set.loopStart, set.loopEnd};
+		for (int k = 0; k < 2; ++k) {
+			const float x = xOf((double) lp[k]);
+			if (!visible(x))
+				continue;
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, x, wr.pos.y);
+			nvgLineTo(vg, x, wr.pos.y + wr.size.y);
+			nvgStrokeWidth(vg, 0.7f);
+			nvgStrokeColor(vg, dim(0.7f * loopA));
+			nvgStroke(vg);
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, x, wr.pos.y);
+			nvgLineTo(vg, x + (k ? -6.f : 6.f), wr.pos.y + 2.5f);
+			nvgLineTo(vg, x, wr.pos.y + 5.f);
+			nvgClosePath(vg);
+			nvgFillColor(vg, dim(loopA));
+			nvgFill(vg);
+		}
+		// Where the view is in the sample: a thin bar over the wave while zoomed
+		if (z > 1.05) {
+			const float y = wr.pos.y - mm2px(1.2f), n = (float) u.data->frames();
+			nvgBeginPath(vg);
+			nvgRect(vg, wr.pos.x, y, wr.size.x, 1.5f);
+			nvgFillColor(vg, dim(0.18f));
+			nvgFill(vg);
+			nvgBeginPath(vg);
+			nvgRect(vg, wr.pos.x + (float) (view0 / n) * wr.size.x, y - 0.5f,
+			        std::max(3.f, (float) ((view1 - view0) / n) * wr.size.x), 2.5f);
+			nvgFillColor(vg, dim(0.9f));
+			nvgFill(vg);
+		}
+		// Playhead; hidden while the engine is paused (Space), so nothing but S marks where the sample begins
+		const uint32_t ticks = module->ticks.load(std::memory_order_relaxed);
+		const double now = system::getTime();
+		if (ticks != lastTicks) {
+			lastTicks = ticks;
+			lastTickTime = now;
+		}
+		const bool running = now - lastTickTime < 0.1;
+		const double pos = module->audio[sel].shownPos.load(std::memory_order_relaxed);
+		if (pos >= 0.0 && running && visible(xOf(pos))) {
+			const float x = xOf(pos);
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, x, wr.pos.y);
+			nvgLineTo(vg, x, wr.pos.y + wr.size.y);
+			nvgStrokeWidth(vg, 1.2f);
+			nvgStrokeColor(vg, nvgRGBf(1.f, 1.f, 1.f));
+			nvgStroke(vg);
+		}
+		nvgRestore(vg);
+	}
+
+	/** The loop seam: the end of the loop on the left, its start on the right, joined in the middle */
+	void drawSeam(NVGcontext* vg, NVGcolor lit, const Smpl::UiSlot& u, const sm::SlotSettings& set) {
+		namespace st = jxmp::style;
+		auto dim = [&](float a) { return nvgRGBAf(lit.r, lit.g, lit.b, a); };
+		const math::Rect wr = waveRect();
+		const float half = wr.size.x / 2, cx = wr.pos.x + half;
+		const double span = std::min(300.0, std::max(16.0, (double) set.loopEnd - set.loopStart));
+		const NVGcolor pale = nvgRGBf(lit.r * 0.4f + 0.6f, lit.g * 0.4f + 0.6f, lit.b * 0.4f + 0.6f);
+		nvgSave(vg);
+		nvgScissor(vg, wr.pos.x, wr.pos.y - 2.f, wr.size.x, wr.size.y + 4.f);
+		for (int k = 0; k < 2; ++k) {
+			const double f0 = k == 0 ? set.loopEnd - span : set.loopStart;
+			bool dots = false;
+			wavePath(vg, u, f0, f0 + span, k == 0 ? wr.pos.x : cx, half, dots);
+			nvgStrokeWidth(vg, 1.1f);
+			nvgStrokeColor(vg, lit);
+			nvgStroke(vg);
+			if (dots)
+				frameDots(vg, u, f0, f0 + span, k == 0 ? wr.pos.x : cx, half, pale);
+		}
+		nvgRestore(vg);
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, cx, wr.pos.y);
+		nvgLineTo(vg, cx, wr.pos.y + wr.size.y);
+		nvgStrokeWidth(vg, 0.8f);
+		nvgStrokeColor(vg, dim(0.7f));
+		nvgStroke(vg);
+		const float by = wr.pos.y + wr.size.y - 4.f;
+		st::vfdLegend(vg, math::Vec(cx - 3.f, by), "LOOP END", 6.f, true, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, pale);
+		st::vfdLegend(vg, math::Vec(cx + 3.f, by), "LOOP ST", 6.f, true, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, pale);
+		const bool clicks = sm::seamClicks(*u.data, set.loopStart, set.loopEnd);
+		st::vfdLegend(vg, math::Vec(cx, wr.pos.y + 4.f), clicks ? "SEAM CLICKS" : "SEAM IS SMOOTH", 6.f, true,
+		              NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, clicks ? nvgRGBf(1.f, 1.f, 1.f) : dim(0.8f));
+	}
+
 	/** Which handle is near x (and in its zone: S / E below the middle, loop flags above) */
 	int handleAt(math::Vec p) const {
-		if (!module || !module->ui[module->selected()].data)
+		if (!module || !data() || seam || module->menu.open)
 			return H_NONE;
 		const int sel = module->selected();
 		const sm::SlotSettings set = module->currentSettings(sel);
 		const math::Rect wr = waveRect();
-		const float frames = (float) module->ui[sel].data->frames();
-		auto xOf = [&](size_t f) { return wr.pos.x + f / frames * wr.size.x; };
 		const bool upper = p.y < wr.pos.y + wr.size.y / 2;
 		int best = H_NONE;
 		float bestD = mm2px(2.5f);
@@ -714,7 +1131,7 @@ struct SmplDisplay : widget::OpaqueWidget {
 			// Loop flags in the upper half, START / END in the lower half
 			if (isLoop != upper)
 				continue;
-			const float d = std::fabs(p.x - xOf(pts[h]));
+			const float d = std::fabs(p.x - xOf((double) pts[h]));
 			if (d < bestD) {
 				bestD = d;
 				best = h;
@@ -723,8 +1140,13 @@ struct SmplDisplay : widget::OpaqueWidget {
 		return best;
 	}
 
+	bool overWave(math::Vec p) const {
+		const math::Rect wr = waveRect();
+		return wr.grow(math::Vec(0.f, mm2px(1.5f))).contains(p);
+	}
+
 	void onButton(const ButtonEvent& e) override {
-		if (e.button != GLFW_MOUSE_BUTTON_LEFT || e.action != GLFW_PRESS || !module)
+		if (e.button != GLFW_MOUSE_BUTTON_LEFT || e.action != GLFW_PRESS || !module || module->menu.open)
 			return OpaqueWidget::onButton(e);
 		for (int i = 0; i < kSlots; ++i) {
 			math::Rect b = stripBox(i);
@@ -751,6 +1173,14 @@ struct SmplDisplay : widget::OpaqueWidget {
 			e.consume(this);
 			return;
 		}
+		// Dragging the wave pans a zoomed view
+		if (data() && !seam && overWave(e.pos)) {
+			dragging = H_PAN;
+			dragX = dragStartX = e.pos.x;
+			panView0 = view0;
+			e.consume(this);
+			return;
+		}
 		OpaqueWidget::onButton(e);
 	}
 
@@ -758,13 +1188,23 @@ struct SmplDisplay : widget::OpaqueWidget {
 		if (dragging == H_NONE || !module)
 			return;
 		dragX += e.mouseDelta.x / getAbsoluteZoom();
-		const math::Rect wr = waveRect();
-		const float t = math::clamp((dragX - wr.pos.x) / wr.size.x, 0.f, 1.f);
+		if (dragging == H_PAN) {
+			const math::Rect wr = waveRect();
+			const double w = view1 - view0;
+			view0 = panView0 - (dragX - dragStartX) / wr.size.x * w;
+			view1 = view0 + w;
+			clampView();
+			return;
+		}
+		const double n = (double) frames();
+		if (n <= 0.0)
+			return;
+		const float t = (float) dclamp(fOf(dragX) / n, 0.0, 1.0);
 		module->paramQuantities[paramOf(dragging)]->setValue(t);
 	}
 
 	void onDragEnd(const DragEndEvent& e) override {
-		if (dragging != H_NONE && module) {
+		if (dragging >= H_START && dragging <= H_LOOP_END && module) {
 			history::ParamChange* const h = new history::ParamChange;
 			h->name = "move JX-SMPL point";
 			h->moduleId = module->id;
@@ -775,7 +1215,129 @@ struct SmplDisplay : widget::OpaqueWidget {
 		}
 		dragging = H_NONE;
 	}
+
+	void onHoverScroll(const HoverScrollEvent& e) override {
+		if (!module || module->menu.open || !data() || !overWave(e.pos))
+			return OpaqueWidget::onHoverScroll(e);
+		// The wheel zooms around the frame under the pointer
+		const double f = fOf(e.pos.x), k = e.scrollDelta.y > 0.f ? 1.0 / 1.3 : 1.3;
+		view0 = f - (f - view0) * k;
+		view1 = f + (view1 - f) * k;
+		seam = false;
+		clampView();
+		e.consume(this);
+	}
+
+	void onDoubleClick(const DoubleClickEvent& e) override {
+		if (module && !module->menu.open && data()) {
+			whole();
+			e.consume(this);
+			return;
+		}
+		OpaqueWidget::onDoubleClick(e);
+	}
 };
+
+/** The menu buttons: the same button as PLAY with an icon on its cap (▲ ▼ ≡ ✓). They act on press. */
+struct IconButton : VCVButton {
+	enum Icon { UP, DOWN, MENU, OK };
+	Icon icon = UP;
+	std::function<void()> action;
+
+	void onDragStart(const DragStartEvent& e) override {
+		VCVButton::onDragStart(e);
+		if (e.button == GLFW_MOUSE_BUTTON_LEFT && action)
+			action();
+	}
+
+	void draw(const DrawArgs& args) override {
+		VCVButton::draw(args);
+		NVGcontext* const vg = args.vg;
+		const math::Vec c = box.size.div(2);
+		const float s = box.size.x * 0.17f;
+		const NVGcolor ic = nvgRGB(0xd2, 0xd4, 0xd9);
+		nvgBeginPath(vg);
+		switch (icon) {
+		case UP:
+		case DOWN: {
+			const float d = icon == UP ? -1.f : 1.f;
+			nvgMoveTo(vg, c.x, c.y + d * s * 0.8f);
+			nvgLineTo(vg, c.x + s, c.y - d * s * 0.6f);
+			nvgLineTo(vg, c.x - s, c.y - d * s * 0.6f);
+			nvgClosePath(vg);
+			nvgFillColor(vg, ic);
+			nvgFill(vg);
+			break;
+		}
+		case MENU:
+			for (int k = -1; k <= 1; ++k) {
+				nvgMoveTo(vg, c.x - s, c.y + k * s * 0.62f);
+				nvgLineTo(vg, c.x + s, c.y + k * s * 0.62f);
+			}
+			nvgStrokeWidth(vg, 1.2f);
+			nvgLineCap(vg, NVG_ROUND);
+			nvgStrokeColor(vg, ic);
+			nvgStroke(vg);
+			break;
+		case OK:
+			nvgMoveTo(vg, c.x - s, c.y + s * 0.05f);
+			nvgLineTo(vg, c.x - s * 0.3f, c.y + s * 0.72f);
+			nvgLineTo(vg, c.x + s, c.y - s * 0.6f);
+			nvgStrokeWidth(vg, 1.3f);
+			nvgLineCap(vg, NVG_ROUND);
+			nvgLineJoin(vg, NVG_ROUND);
+			nvgStrokeColor(vg, ic);
+			nvgStroke(vg);
+			break;
+		}
+	}
+};
+
+/** A grey frame round the four menu buttons (like the section lines) with MENU in a gap of its top line. The word is
+ * the menu's light: dark green while the menu is closed, lit (green with a glow, like the toggles' LEDs) while open. */
+struct MenuFrame : widget::TransparentWidget {
+	Smpl* module = nullptr;
+	math::Rect frame;  // in this widget, px
+
+	void draw(const DrawArgs& args) override {
+		namespace st = jxmp::style;
+		NVGcontext* const vg = args.vg;
+		const bool on = module && module->menu.open;
+		const float size = 6.f, r = mm2px(1.2f);
+		const math::Vec t(frame.pos.x + frame.size.x / 2, frame.pos.y);
+		// The gap in the top line: the word's width and a little air
+		float half = mm2px(5.f);
+		if (std::shared_ptr<window::Font> f = st::font(st::FONT_LABEL)) {
+			nvgFontFaceId(vg, f->handle);
+			nvgFontSize(vg, size);
+			nvgTextLetterSpacing(vg, 0.8f);
+			float bounds[4];
+			const float w = nvgTextBounds(vg, 0, 0, "MENU", nullptr, bounds);
+			half = w / 2 + mm2px(1.f);
+		}
+		const float x0 = frame.pos.x, y0 = frame.pos.y, x1 = x0 + frame.size.x, y1 = y0 + frame.size.y;
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, t.x + half, y0);
+		nvgArcTo(vg, x1, y0, x1, y1, r);
+		nvgArcTo(vg, x1, y1, x0, y1, r);
+		nvgArcTo(vg, x0, y1, x0, y0, r);
+		nvgArcTo(vg, x0, y0, t.x - half, y0, r);
+		nvgLineTo(vg, t.x - half, y0);
+		nvgStrokeWidth(vg, 0.8f);
+		nvgStrokeColor(vg, st::line());
+		nvgStroke(vg);
+		if (on) {
+			nvgFontBlur(vg, 3.f);
+			st::text(vg, t, "MENU", size, nvgRGBAf(0.36f, 0.94f, 0.42f, 0.8f), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.8f);
+			nvgFontBlur(vg, 0.f);
+		}
+		st::text(vg, t, "MENU", size, on ? nvgRGB(0x5d, 0xf0, 0x6a) : nvgRGB(0x1f, 0x4a, 0x27), st::FONT_LABEL,
+		         NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.8f);
+	}
+};
+
+// SLOT row (mm): the menu buttons' offsets from the square's middle; how far MODE's legends reach right of the lever
+const float kMenuDx = 4.4f, kMenuDy = 4.1f, kModeLegendSpan = 18.5f;
 
 // Back layout (mm): two blocks of eight slots, MIX on the right
 const float kBlockA = 27.f, kBlockB = 71.f, kGateY = 10.f, kVoctY = 20.5f, kOutY = 32.f, kMixX = 109.f;
@@ -783,6 +1345,7 @@ inline float colX(int i) { return 17.f + i * 10.4f; }
 
 struct SmplWidget : JXMPModuleWidget {
 	bool loadHeld = false;
+	SmplDisplay* display = nullptr;
 
 	SmplWidget(Smpl* const module) {
 		namespace st = jxmp::style;
@@ -813,7 +1376,7 @@ struct SmplWidget : JXMPModuleWidget {
 
 		const float hSample = 19.f;
 		section(3.f, hSample, w - 6.f, 34.f, "SAMPLE");
-		SmplDisplay* const display = new SmplDisplay;
+		display = new SmplDisplay;
 		display->module = module;
 		display->box = math::Rect(mm2px(math::Vec(5.f, hSample + kHead + kAir)), mm2px(math::Vec(w - 10.f, 29.f)));
 		addChild(display);
@@ -835,18 +1398,47 @@ struct SmplWidget : JXMPModuleWidget {
 		{
 			const float n = nameY(hSlot), t = topY(hSlot);
 			const float chD = 8.5f;
-			label(math::Vec(col[0], n), "CH", 6.f);
-			knob(math::Vec(col[0], t + knobTop(chD)), Smpl::CH_PARAM, chD, st::CAP_MAIN, 0.f, 15.f,
+			// Left to right: CH on the first column (like START and ROOT), the menu buttons, PLAY, MODE whose legends
+			// end where LOOP END and PAN end; the menu square and PLAY share the space between with equal gaps.
+			// Widths (mm) are what each one takes up: CH with its scale numbers, MODE with its legends.
+			const float chX = col[0], chRight = chX + 8.f;
+			const float modeRight = col[4] + 6.f, modeX = modeRight - kModeLegendSpan, modeLeft = modeX - 3.f;
+			const float menuW = 2.f * kMenuDx + 6.1f, playW = 6.1f;
+			const float gap = (modeLeft - chRight - menuW - playW) / 3.f;
+			const float menuX = chRight + gap + menuW / 2.f, playX = chRight + 2.f * gap + menuW + playW / 2.f;
+			label(math::Vec(chX, n), "CH", 6.f);
+			knob(math::Vec(chX, t + knobTop(chD)), Smpl::CH_PARAM, chD, st::CAP_MAIN, 0.f, 15.f,
 			     st::marks(0.f, 15.f, 1.f, 15, [](float v) { return string::f("%d", (int) v + 1); }));
-			label(math::Vec(col[1], n), "LOAD", 6.f);
 			// The buttons sit on the row's middle line (CH and MODE), not under their names like the taller controls
 			const float mid = t + knobTop(chD);
-			addParam(createParamCentered<VCVButton>(mm2px(math::Vec(col[1], mid)), module, Smpl::LOAD_PARAM));
-			label(math::Vec(col[2], n), "PLAY", 6.f);
-			addParam(createParamCentered<VCVButton>(mm2px(math::Vec(col[2], mid)), module, Smpl::PLAY_PARAM));
-			label(math::Vec(col[3], n), "MODE", 6.f);
-			toggle(math::Vec(col[3], t + toggleTop), Smpl::MODE_PARAM, 2, {});
-			ledLegends(math::Vec(col[3], t + toggleTop), 2, {"ONE-SHOT", "GATE"});
+			// Menu: ▲ ▼ one under the other on the left, MENU over OK on the right; no names, the icons say it
+			const IconButton::Icon icons[4] = {IconButton::UP, IconButton::DOWN, IconButton::MENU, IconButton::OK};
+			const int ids[4] = {Smpl::UP_PARAM, Smpl::DOWN_PARAM, Smpl::MENU_PARAM, Smpl::OK_PARAM};
+			for (int k = 0; k < 4; ++k) {
+				IconButton* const b = createParamCentered<IconButton>(
+				    mm2px(math::Vec(menuX + (k < 2 ? -kMenuDx : kMenuDx), mid + (k % 2 ? kMenuDy : -kMenuDy))), module, ids[k]);
+				b->icon = icons[k];
+				const int which = ids[k];
+				b->action = [this, which]() { menuButton(which); };
+				addParam(b);
+			}
+			// The frame round the menu buttons, MENU in its top line (the menu's light)
+			{
+				const float pad = 1.5f, rb = 3.05f;
+				const math::Vec a(menuX - kMenuDx - rb - pad, mid - kMenuDy - rb - pad - 0.6f);
+				const math::Vec b(menuX + kMenuDx + rb + pad, mid + kMenuDy + rb + pad);
+				MenuFrame* const fr = new MenuFrame;
+				fr->module = module;
+				fr->box.pos = mm2px(a.minus(math::Vec(1.f, 2.f)));
+				fr->box.size = mm2px(b.minus(a).plus(math::Vec(2.f, 3.f)));
+				fr->frame = math::Rect(mm2px(math::Vec(1.f, 2.f)), mm2px(b.minus(a)));
+				addChild(fr);
+			}
+			label(math::Vec(playX, n), "PLAY", 6.f);
+			addParam(createParamCentered<VCVButton>(mm2px(math::Vec(playX, mid)), module, Smpl::PLAY_PARAM));
+			label(math::Vec(modeX, n), "MODE", 6.f);
+			toggle(math::Vec(modeX, t + toggleTop), Smpl::MODE_PARAM, 2, {});
+			ledLegends(math::Vec(modeX, t + toggleTop), 2, {"ONE-SHOT", "GATE"});
 			hLoopBottom = std::max(t + knobTop(chD) + knobBottom(chD, true), t + toggleTop + toggleBottom);
 		}
 
@@ -966,16 +1558,173 @@ struct SmplWidget : JXMPModuleWidget {
 		Smpl* const m = smpl();
 		if (!m)
 			return;
-		if (const int hint = m->loopHint.exchange(0, std::memory_order_relaxed))
-			m->message(m->selected(), hint == 1 ? "LOOP: GATE + FWD/PING" : "LOOP STAYS BETWEEN S AND E");
+		m->syncEdit();
+		slotUndo(m);
 		const bool held = m->params[Smpl::LOAD_PARAM].getValue() > 0.5f;
 		if (held && !loadHeld)
 			openDialog();
 		loadHeld = held;
 		// Free the replaced samples the audio thread no longer plays
-		m->retired.erase(std::remove_if(m->retired.begin(), m->retired.end(),
-		                                [](const std::shared_ptr<const sm::SampleData>& p) { return p.use_count() == 1; }),
-		                 m->retired.end());
+		m->pruneRetired();
+	}
+
+	/** An edit knob's undo step names the slot it was turned on: Rack's own step would change whichever slot is
+	 * selected when Undo comes. The newest step, when it is such a knob change, is swapped for a SlotChange. */
+	history::Action* lastTop = nullptr;
+	void slotUndo(Smpl* m) {
+		history::State* const hs = APP->history;
+		if (!hs || hs->actionIndex <= 0 || hs->actionIndex != (int) hs->actions.size())
+			return;
+		history::Action* const top = hs->actions[hs->actionIndex - 1];
+		if (top == lastTop)
+			return;
+		lastTop = top;
+		history::ParamChange* const pc = dynamic_cast<history::ParamChange*>(top);
+		if (!pc || pc->moduleId != m->id || pc->paramId < Smpl::MODE_PARAM || pc->paramId > Smpl::PAN_PARAM)
+			return;
+		SlotChange* const sc = new SlotChange;
+		sc->name = pc->name;
+		sc->moduleId = m->id;
+		sc->slot = m->selected();
+		sc->after = m->currentSettings(sc->slot);
+		sc->before = m->settingsWith(sc->slot, pc->paramId, pc->oldValue);
+		hs->actions[hs->actionIndex - 1] = sc;
+		delete pc;
+		lastTop = sc;
+	}
+
+	/** A menu button was pressed */
+	void menuButton(int which) {
+		Smpl* const m = smpl();
+		if (!m)
+			return;
+		sm::MenuResult r;
+		switch (which) {
+		case Smpl::MENU_PARAM: m->menu.pressMenu(); break;
+		case Smpl::UP_PARAM: m->menu.up(); break;
+		case Smpl::DOWN_PARAM: m->menu.down(); break;
+		case Smpl::OK_PARAM: r = m->menu.ok(); break;
+		}
+		if (r.action != sm::A_NONE)
+			run(m, r);
+	}
+
+	/** Pushes an undo step for an edit of slot i's sample and installs the result */
+	void editSample(Smpl* m, int i, std::shared_ptr<const sm::SampleData> data, const sm::SlotSettings& set,
+	                const char* what) {
+		SampleSwap* const h = new SampleSwap;
+		h->name = std::string("JX-SMPL ") + what;
+		h->moduleId = m->id;
+		h->slot = i;
+		h->before = {m->ui[i].data, m->currentSettings(i), m->ui[i].name};
+		h->after = {data, set, data ? m->ui[i].name : std::string()};
+		APP->history->push(h);
+		m->replaceSample(i, data, set, h->after.name);
+	}
+
+	/** Runs a menu item on the selected slot */
+	void run(Smpl* m, const sm::MenuResult& r) {
+		const int i = m->selected();
+		const std::shared_ptr<const sm::SampleData> d = m->ui[i].data;
+		const sm::SlotSettings set = m->currentSettings(i);
+		const bool needsSample = r.action != sm::A_LOAD;
+		if (needsSample && !d) {
+			m->message(i, "SLOT IS EMPTY");
+			return;
+		}
+		switch (r.action) {
+		case sm::A_CROP: {
+			sm::SlotSettings s = set;
+			auto c = std::make_shared<sm::SampleData>(sm::cropped(*d, s));
+			editSample(m, i, c, s, "crop");
+			m->message(i, string::f("CROPPED TO %.2f S", c->frames() / c->rate));
+			break;
+		}
+		case sm::A_NORMALIZE: {
+			auto c = std::make_shared<sm::SampleData>(*d);
+			const float g = sm::normalize(*c);
+			if (g <= 0.f) {
+				m->message(i, "SAMPLE IS SILENT");
+				break;
+			}
+			editSample(m, i, c, set, "normalize");
+			const float db = 20.f * std::log10(g);
+			m->message(i, string::f("NORMALIZED %+.1f DB", std::fabs(db) < 0.05f ? 0.f : db));
+			break;
+		}
+		case sm::A_REVERSE: {
+			auto c = std::make_shared<sm::SampleData>(*d);
+			sm::reverse(*c, set.start, set.end);
+			editSample(m, i, c, set, "reverse");
+			m->message(i, "REVERSED S-E");
+			break;
+		}
+		case sm::A_XFADE: {
+			auto c = std::make_shared<sm::SampleData>(*d);
+			if (!sm::crossfadeLoop(*c, set, r.value)) {
+				m->message(i, "NO ROOM BEFORE LOOP ST");
+				break;
+			}
+			editSample(m, i, c, set, "loop crossfade");
+			m->message(i, string::f("LOOP CROSSFADE %d MS", (int) r.value));
+			break;
+		}
+		case sm::A_SNAP: {
+			sm::SlotSettings s = set;
+			sm::snapToZero(*d, s);
+			SlotChange* const h = new SlotChange;
+			h->name = "JX-SMPL snap to zero";
+			h->moduleId = m->id;
+			h->slot = i;
+			h->before = set;
+			h->after = s;
+			APP->history->push(h);
+			m->postSettings(i, s);
+			m->refreshEdit = true;
+			m->message(i, "POINTS ON ZERO CROSSINGS");
+			break;
+		}
+		case sm::A_SEAM:
+			if (display)
+				display->seam = true;
+			break;
+		case sm::A_ZOOM_LOOP:
+			if (display)
+				display->zoomToLoop(set);
+			break;
+		case sm::A_WHOLE:
+			if (display)
+				display->whole();
+			break;
+		case sm::A_LOAD: openDialog(); break;
+		case sm::A_DETECT: {
+			// The note START..END sounds at goes into ROOT, the rest into FINE; no clear pitch: nothing changes
+			const sm::PitchResult p = sm::detectRoot(*d, set.start, set.end);
+			if (!p.found) {
+				m->message(i, "NO CLEAR PITCH");
+				break;
+			}
+			sm::SlotSettings s = set;
+			s.root = p.root;
+			s.fine = std::round(p.fine);
+			SlotChange* const h = new SlotChange;
+			h->name = "JX-SMPL detect root";
+			h->moduleId = m->id;
+			h->slot = i;
+			h->before = set;
+			h->after = s;
+			APP->history->push(h);
+			m->postSettings(i, s);
+			m->refreshEdit = true;
+			m->message(i, string::f("ROOT %s  FINE %+d", sm::noteName(s.root).c_str(), (int) s.fine));
+			break;
+		}
+		case sm::A_CLEAR:
+			editSample(m, i, nullptr, sm::SlotSettings(), "clear sample");
+			m->message(i, string::f("SAMPLE %02d CLEARED", i + 1));
+			break;
+		default: break;
+		}
 	}
 
 	void onPathDrop(const PathDropEvent& e) override {

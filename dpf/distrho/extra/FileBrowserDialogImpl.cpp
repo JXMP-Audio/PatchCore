@@ -777,28 +777,12 @@ bool fileBrowserIdle(const FileBrowserHandle handle)
                                 if (! isHexChar(s[1]) || ! isHexChar(s[2]))
                                     continue;
 
+                                // every escaped byte, so UTF-8 names (e.g. "Stažené") decode too; never a NUL
                                 const int decodedNum = toHexChar(s[1]) * 0x10 + toHexChar(s[2]);
+                                if (decodedNum == 0)
+                                    continue;
 
-                                char replacementChar;
-                                switch (decodedNum)
-                                {
-                                case 0x20: replacementChar = ' '; break;
-                                case 0x22: replacementChar = '\"'; break;
-                                case 0x23: replacementChar = '#'; break;
-                                case 0x25: replacementChar = '%'; break;
-                                case 0x3c: replacementChar = '<'; break;
-                                case 0x3e: replacementChar = '>'; break;
-                                case 0x5b: replacementChar = '['; break;
-                                case 0x5c: replacementChar = '\\'; break;
-                                case 0x5d: replacementChar = ']'; break;
-                                case 0x5e: replacementChar = '^'; break;
-                                case 0x60: replacementChar = '`'; break;
-                                case 0x7b: replacementChar = '{'; break;
-                                case 0x7c: replacementChar = '|'; break;
-                                case 0x7d: replacementChar = '}'; break;
-                                case 0x7e: replacementChar = '~'; break;
-                                default: continue;
-                                }
+                                const char replacementChar = static_cast<char>(decodedNum);
 
                                 s[0] = replacementChar;
                                 std::memmove(s + 1, s + 3, std::strlen(s) - 2);

@@ -134,12 +134,35 @@ inline float pitchRatio(float fileRate, float engineRate, bool voctPatched, floa
 	return fileRate / engineRate * std::pow(2.f, octaves);
 }
 
-/** 4-point Hermite read of `x` at `pos` (indices clamped to the data) */
-inline float hermite(const std::vector<float>& x, double pos) {
+/** Where the interpolation reads around a loop: inside a playing loop the frames past LOOP END are the loop's own
+ * (forward: from LOOP ST again; ping-pong: mirrored back), so the seam never hears what lies outside the loop */
+struct LoopFold {
+	Loop loop = LOOP_OFF;
+	long ls = 0, le = 0;
+	long fold(long k) const {
+		const long len = le - ls;
+		if (loop == LOOP_OFF || len < 2)
+			return k;
+		if (loop == LOOP_FWD) {
+			if (k >= le)
+				return ls + (k - le) % len;
+			if (k < ls)
+				return le - 1 - (ls - 1 - k) % len;
+			return k;
+		}
+		// Ping-pong: mirror about the ends (the head turns there)
+		for (int guard = 0; guard < 4 && (k >= le || k < ls); ++guard)
+			k = k >= le ? 2 * le - 1 - k : 2 * ls - 1 - k;
+		return std::min(std::max(k, ls), le - 1);
+	}
+};
+
+/** 4-point Hermite read of `x` at `pos` (indices folded into a playing loop, then clamped to the data) */
+inline float hermite(const std::vector<float>& x, double pos, const LoopFold& lf = LoopFold()) {
 	const long n = (long) x.size();
 	const long i = (long) std::floor(pos);
 	const float t = (float) (pos - i);
-	auto at = [&](long k) { return x[(size_t) std::min(std::max(k, 0L), n - 1)]; };
+	auto at = [&](long k) { return x[(size_t) std::min(std::max(lf.fold(k), 0L), n - 1)]; };
 	const float xm1 = at(i - 1), x0 = at(i), x1 = at(i + 1), x2 = at(i + 2);
 	const float c1 = 0.5f * (x1 - xm1);
 	const float c2 = xm1 - 2.5f * x0 + 2.f * x1 - 0.5f * x2;
@@ -148,10 +171,12 @@ inline float hermite(const std::vector<float>& x, double pos) {
 }
 
 /** The voice of one slot. A new trigger fades the running sound out over 2 ms while the new one starts at START; in
- * GATE mode the gate end fades out over 10 ms (a loop holds the tone until then). Output in sample units (±1). */
+ * GATE mode the gate end fades out over 10 ms (a loop holds the tone until then). Output in sample units (±1).
+ * Up to kTails older sounds fade out at once (fast retriggers); when all are busy the quietest one makes room. */
 struct Voice {
 	static constexpr float kRetriggerFade = 0.002f;
 	static constexpr float kRelease = 0.010f;
+	static constexpr int kTails = 4;
 
 	struct Head {
 		double pos = 0.0;
@@ -159,7 +184,7 @@ struct Voice {
 		float gain = 0.f, fadeStep = 0.f;
 		bool on = false, fading = false;
 	};
-	Head cur, old;
+	Head cur, tails[kTails];
 	bool pendingTrigger = false, pendingRelease = false, pendingFade = false;
 
 	void trigger() {
@@ -172,7 +197,14 @@ struct Voice {
 		pendingFade = true;
 		pendingTrigger = pendingRelease = false;
 	}
-	bool active() const { return cur.on || old.on; }
+	bool active() const {
+		if (cur.on)
+			return true;
+		for (const Head& t : tails)
+			if (t.on)
+				return true;
+		return false;
+	}
 	/** Where the main head plays (frames), for the display; negative when silent */
 	double position() const { return cur.on ? cur.pos : -1.0; }
 
@@ -180,7 +212,9 @@ struct Voice {
 		outL = outR = 0.f;
 		const size_t frames = d.frames();
 		if (frames == 0) {
-			cur.on = old.on = false;
+			cur.on = false;
+			for (Head& t : tails)
+				t.on = false;
 			pendingTrigger = pendingRelease = pendingFade = false;
 			return;
 		}
@@ -194,9 +228,23 @@ struct Voice {
 
 		if (pendingTrigger) {
 			if (cur.on) {
-				old = cur;
-				old.fading = true;
-				old.fadeStep = 1.f / (kRetriggerFade * sr);
+				// A free tail, else the quietest (its cut is the smallest click)
+				Head* slot = &tails[0];
+				for (Head& t : tails) {
+					if (!t.on) {
+						slot = &t;
+						break;
+					}
+					if (t.gain < slot->gain)
+						slot = &t;
+				}
+				const float step = 1.f / (kRetriggerFade * sr);
+				*slot = cur;
+				if (!slot->fading || slot->fadeStep < step) {
+					slot->fading = true;
+					// Fades out over 2 ms from where it is
+					slot->fadeStep = std::max(slot->fadeStep, slot->gain * step);
+				}
 			}
 			cur = Head();
 			cur.pos = start;
@@ -212,7 +260,7 @@ struct Voice {
 			pendingRelease = false;
 		}
 		if (pendingFade) {
-			for (Head* h : {&cur, &old}) {
+			for (Head* h = &cur; h != tails + kTails; h = h == &cur ? tails : h + 1) {
 				const float step = 1.f / (kRetriggerFade * sr);
 				if (h->on && (!h->fading || h->fadeStep < step)) {
 					h->fading = true;
@@ -221,12 +269,19 @@ struct Voice {
 			}
 			pendingFade = false;
 		}
-		for (Head* h : {&cur, &old}) {
+		for (Head* h = &cur; h != tails + kTails; h = h == &cur ? tails : h + 1) {
 			if (!h->on)
 				continue;
 			h->pos = std::min(std::max(h->pos, 0.0), (double) (frames - 1));
-			const float l = hermite(d.l, h->pos) * h->gain;
-			const float r = d.stereo && d.r.size() == frames ? hermite(d.r, h->pos) * h->gain : l;
+			// Inside a playing loop the read folds around its ends
+			LoopFold lf;
+			if (looping && (h->pos >= ls || h->dir < 0)) {
+				lf.loop = set.loop;
+				lf.ls = (long) ls;
+				lf.le = (long) le;
+			}
+			const float l = hermite(d.l, h->pos, lf) * h->gain;
+			const float r = d.stereo && d.r.size() == frames ? hermite(d.r, h->pos, lf) * h->gain : l;
 			outL += l;
 			outR += r;
 			h->pos += h->dir * ratio;

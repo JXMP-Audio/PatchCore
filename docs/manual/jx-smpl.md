@@ -10,15 +10,15 @@
 
 | Control | What it does |
 |---|---|
-| Display | The selected slot: number, name, root note ("C-4") and fine tune, mode and loop, file rate and length. The waveform shows START / END (lines with S / E handles below; what they cut off is darkened) and the loop (flags at the top, shaded area; dimmed while the loop does not apply); drag a handle in the lower half or a flag in the upper half to move it. The row 1–16 shows every slot: filled = has a sample, bright = playing, white frame = selected; click one to select it. Drop a WAV file on the module to load it into the selected slot. |
+| Display | The selected slot: number, name, root note ("C-4") and fine tune, mode and loop, file rate and length. The waveform shows START / END (lines with S / E handles below; what they cut off is darkened) and the loop (flags at the top, shaded area; dimmed while the loop does not apply); drag a handle in the lower half or a flag in the upper half to move it. The mouse wheel over the wave zooms in around the pointer (down to single samples), dragging the wave moves along it, a double click shows the whole sample again; while zoomed, line 2 says ZOOM and a thin bar shows where you are. The row 1–16 shows every slot: filled = has a sample, bright = playing, white frame = selected; click one to select it. Drop a WAV file on the module to load it into the selected slot. |
 | CH | Selects the slot 1–16 that the display and the knobs below show. |
-| LOAD | Opens a file dialog: the WAV goes into the selected slot. |
+| ▲ ▼ ≡ ✓ | The menu: ≡ opens it over the whole display, ▲ ▼ move, ✓ (OK) opens a folder or runs the item. ≡ goes one folder back, and closes the menu at the top. The word MENU over the buttons lights up green while the menu is open. See *The menu* below. |
 | PLAY | Plays the selected slot while held. |
 | MODE | ONE-SHOT: a gate plays the sample to the end (drums). GATE: plays while the gate is high, then fades in 10 ms; a loop holds the tone. |
 | START, END | The part of the sample that plays. |
 | LOOP | OFF, FWD (from LOOP END back to LOOP ST), PING (back and forth). Only in GATE mode: turning LOOP ST / LOOP END otherwise shows "LOOP: GATE + FWD/PING". |
 | LOOP ST, LOOP END | The loop. It is at least 16 samples long and always inside START…END (pushed against S or E it stops there and the display says so). |
-| ROOT | The note the sample sounds at, FastTracker style (C-4 = 0 V on V/OCT). A guitar E recorded at E-2: set ROOT to E-2, and V/OCT plays it in tune. |
+| ROOT | The note the sample sounds at, FastTracker style (C-4 = 0 V on V/OCT). A guitar E recorded at E-2: set ROOT to E-2, and V/OCT plays it in tune. Menu › SAMPLE › DETECT ROOT finds it for you. |
 | FINE | Fine tune, ±100 cents. |
 | LEVEL | Level of the slot, 100 % = the sample as recorded. |
 | PAN | Position of the slot in the MIX. For a stereo sample it works as a balance. |
@@ -38,10 +38,32 @@ The knobs below CH always belong to the selected slot: turn CH and they jump to 
 
 - WAV files: 8, 16, 24 or 32 bit or float, mono or stereo (more channels: the first two), any sample rate.
 - Up to 60 s per slot; a longer file is shortened and the display says CUT TO 60 S.
+- Menu › SAMPLE › LOAD SAMPLE opens a file dialog for the selected slot, or drop a WAV on the module.
 - Right click the module: Load… and Clear slot for the selected slot. Initialize empties all slots.
+
+## The menu
+
+Press ≡, choose with ▲ ▼, confirm with ✓. After an edit the display says what it did for a few seconds, and Ctrl+Z
+undoes it (the sample, its points and the copy in the patch come back).
+
+| Folder | Item | What it does |
+|---|---|---|
+| EDIT | CROP TO S-E | Throws away what START and END cut off: the sample gets shorter and takes less room in the patch. |
+| | NORMALIZE | Raises the whole sample until its loudest peak is at full level; the display says by how much. |
+| | REVERSE S-E | Turns the part between START and END backwards. |
+| LOOP | CROSSFADE ▸ 5 / 10 / 20 / 50 MS | Smooths the loop seam: the end of the loop blends into what leads into LOOP ST, so the jump back does not click. Needs that much sound before LOOP ST. The dot marks the length used last. |
+| | SNAP TO ZERO | Moves S, E and both loop points to the nearest place where the wave crosses zero going up: fewer clicks. |
+| | SHOW SEAM | Shows the end of the loop (left) and its start (right) side by side, the way they join, and says SEAM IS SMOOTH or SEAM CLICKS. Wheel or double click leaves it. |
+| VIEW | ZOOM TO LOOP | Zooms in on the loop. |
+| | WHOLE SAMPLE | Shows the whole sample (same as a double click). |
+| SAMPLE | LOAD SAMPLE | Opens a file dialog for the selected slot. |
+| | DETECT ROOT | Listens to START…END and sets ROOT to the note the sample sounds at and FINE to the rest, so V/OCT plays it in tune (a sample 30 cents sharp of A-5: ROOT A-5, FINE −30). Drums, noise and chords have no clear pitch: nothing changes and the display says NO CLEAR PITCH. Ctrl+Z undoes it. |
+| | CLEAR SAMPLE | Empties the slot; asks first (✓ = yes, ≡ = no). |
+
+A good loop in three steps: set LOOP ST and LOOP END roughly, SNAP TO ZERO, then CROSSFADE 20 MS and check SHOW SEAM.
 
 ## How to use it
 
 - Your own drum machine: JX-EUC GATE 1–4 → GATE 1–4 of a kick, snare, hat and clap; MIX → the console.
-- A melody from one note: a guitar note in slot 7 in GATE mode with a loop, JX-SEQ CV → V/OCT 7, GATE → GATE 7.
+- A melody from one note: a guitar note in slot 7 in GATE mode with a loop, JX-SEQ CV → V/OCT 7, GATE → GATE 7. Smooth the loop with the menu (LOOP › SNAP TO ZERO, CROSSFADE).
 - One drum through an effect: patch its OUT to JX-DLY; it leaves the MIX, the rest stays.

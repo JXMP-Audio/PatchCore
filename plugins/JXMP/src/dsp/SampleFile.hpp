@@ -12,6 +12,8 @@
 #include "../../../Fundamental/src/dr_wav.h"
 
 #include <algorithm>
+#include <cmath>
+#include <cstring>
 #include <cstdint>
 #include <exception>
 #include <string>
@@ -89,6 +91,47 @@ inline bool decodeWav(const uint8_t* bytes, size_t size, SampleData& out, std::s
 	out = std::move(d);
 	error.clear();
 	return true;
+}
+
+/** A 32-bit float WAV (mono or stereo, the sample's rate) of `d`: what is kept in the patch when the file had to be cut,
+ * so the patch holds no more than plays. Little-endian, as WAV is. */
+inline std::vector<uint8_t> encodeWav(const SampleData& d) {
+	const uint32_t channels = d.stereo && d.r.size() == d.l.size() ? 2 : 1;
+	const uint32_t frames = (uint32_t) d.frames();
+	const uint32_t dataBytes = frames * channels * 4;
+	std::vector<uint8_t> out;
+	out.reserve(44 + dataBytes);
+	auto u32 = [&](uint32_t v) {
+		for (int k = 0; k < 4; ++k)
+			out.push_back((uint8_t) (v >> (8 * k)));
+	};
+	auto u16 = [&](uint16_t v) {
+		out.push_back((uint8_t) v);
+		out.push_back((uint8_t) (v >> 8));
+	};
+	auto tag = [&](const char* t) { out.insert(out.end(), t, t + 4); };
+	const uint32_t rate = (uint32_t) std::lround(d.rate);
+	tag("RIFF");
+	u32(36 + dataBytes);
+	tag("WAVE");
+	tag("fmt ");
+	u32(16);
+	u16(3);  // IEEE float
+	u16((uint16_t) channels);
+	u32(rate);
+	u32(rate * channels * 4);
+	u16((uint16_t) (channels * 4));
+	u16(32);
+	tag("data");
+	u32(dataBytes);
+	for (uint32_t k = 0; k < frames; ++k)
+		for (uint32_t c = 0; c < channels; ++c) {
+			const float v = c ? d.r[k] : d.l[k];
+			uint32_t bits;
+			std::memcpy(&bits, &v, 4);
+			u32(bits);
+		}
+	return out;
 }
 
 } // namespace sampler
