@@ -51,7 +51,7 @@ struct Osc : engine::Module {
 		configInput(MORPH_INPUT, "Morph")->description = "Morph CV: moves the MIX output through sine, triangle, saw and square, amount set by MORPH CV.";
 		configOutput(SIN_OUTPUT, "Sin")->description = "Sine wave, ±5 V (all unison voices summed).";
 		configOutput(TRI_OUTPUT, "Tri")->description = "Triangle wave, ±5 V.";
-		configOutput(SAW_OUTPUT, "Saw")->description = "Sawtooth wave, ±5 V.";
+		configOutput(SAW_OUTPUT, "Saw")->description = "Sawtooth wave, 10 V peak to peak, centred on 0 V (no DC).";
 		configOutput(SQR_OUTPUT, "Sqr")->description = "Square / pulse wave, ±5 V, width set by PW.";
 		configOutput(SUB_OUTPUT, "Sub")->description = "Sub oscillator on its own: a square one or two octaves down (SUB OCT), always at full level.";
 		configOutput(MIX_OUTPUT, "Mix")->description = "The morphed shape (MORPH) plus the sub oscillator at the SUB LEVEL.";

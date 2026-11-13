@@ -3,12 +3,13 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * Based on VCV Fundamental (GPL-3.0-or-later), src/VCO.cpp, Copyright (C) VCV and contributors.
- * Band-limited oscillator core, unchanged apart from the namespace.
+ * Band-limited oscillator core, unchanged apart from the namespace and the analogue saw centred on 0 V (no DC).
  */
 
 #pragma once
 
 #include "../plugin.hpp"
+#include "Osc.hpp"
 
 namespace jxmp {
 
@@ -224,7 +225,7 @@ struct VoltageControlledOscillator {
 		T x = phase + 0.5f;
 		x -= simd::trunc(x);
 		if (analog) {
-			v = -expCurve(x);
+			v = -expCurve(x) - kAnalogSawMean;  // no DC (see dsp/Osc.hpp)
 		}
 		else {
 			v = 2 * x - 1;

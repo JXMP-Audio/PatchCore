@@ -9,6 +9,16 @@
 
 namespace jxmp {
 
+/** Average of the analogue saw curve −expCurve over a cycle: 9 − 16.875·ln(5/3). The curve alone sits +0.38 above
+ * zero (+1.9 V per voice at ±5 V), DC that a chord of unison voices piles up and a reverb then amplifies. */
+constexpr float kAnalogSawMean = 0.37981760f;
+
+/** The analogue saw of JX-OSC at x (0..1 within the ramp): Fundamental's exponential curve, centred on 0 V average.
+ * OscillatorCore computes the same with SIMD. */
+inline float analogSaw(float x) {
+	return -(3.f + x * (-13.f + 5.f * x)) / (3.f + 2.f * x) - kAnalogSawMean;
+}
+
 inline float morph(float sin, float tri, float saw, float sqr, float m) {
 	// NaN passes std::min/max unchanged and (int) NaN is a wild index: a NaN at MORPH crashed the app
 	m = m >= 0.f ? std::min(m, 3.f) : 0.f;
