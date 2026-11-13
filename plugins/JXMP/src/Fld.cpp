@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * JX-FLD: wavefolder. FOLD amplifies the input up to ten times and folds it back at ±5 V (more harmonics the
- * further you turn), SYMMETRY shifts it for uneven folds. CV for both. Polyphonic.
+ * further you turn), SYMMETRY shifts it for uneven folds. CV for both. Polyphonic. Runs 4× oversampled with
+ * anti-aliasing, so high notes fold cleanly instead of whistling.
  *
  */
 
@@ -13,6 +14,8 @@
 namespace {
 
 struct Fld : engine::Module {
+	/** Oversampled, anti-aliased folding per polyphony channel */
+	jxmp::shapers::Folder folders[16];
 	enum ParamIds { FOLD_PARAM, SYM_PARAM, FOLD_CV_PARAM, NUM_PARAMS };
 	enum InputIds { IN_INPUT, FOLD_CV_INPUT, SYM_CV_INPUT, NUM_INPUTS };
 	enum OutputIds { OUT_OUTPUT, NUM_OUTPUTS };
@@ -35,7 +38,7 @@ struct Fld : engine::Module {
 		for (int c = 0; c < channels; ++c) {
 			const float amount = params[FOLD_PARAM].getValue() + params[FOLD_CV_PARAM].getValue() * inputs[FOLD_CV_INPUT].getPolyVoltage(c) / 10.f;
 			const float sym = params[SYM_PARAM].getValue() + inputs[SYM_CV_INPUT].getPolyVoltage(c) / 5.f;
-			outputs[OUT_OUTPUT].setVoltage(jxmp::shapers::fold(inputs[IN_INPUT].getVoltage(c), amount, math::clamp(sym, -1.f, 1.f)), c);
+			outputs[OUT_OUTPUT].setVoltage(folders[c].process(inputs[IN_INPUT].getVoltage(c), amount, math::clamp(sym, -1.f, 1.f)), c);
 		}
 	}
 };

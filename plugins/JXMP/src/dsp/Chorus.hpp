@@ -46,6 +46,7 @@ struct Chorus {
 	DelayLine left, right;
 	float phase = 0.f, vibrato = 0.f;
 	float baseMs = -1.f;  // glides 7 <-> 10 ms when the mode changes (a jump would click)
+	float ensembleMix = -1.f;  // 0 chorus … 1 ensemble, fades in 50 ms: the two modes sound different, a switch clicked
 
 	void setSampleRate(float fs) {
 		if (fs == sampleRate)
@@ -68,22 +69,28 @@ struct Chorus {
 		const float twoPi = 2.f * float(M_PI);
 		const float target = ensemble ? 10.f : 7.f, swingMs = 5.f * depth;
 		baseMs = baseMs < 0.f ? target : baseMs + (target - baseMs) * std::min(1.f, dt / 0.05f);
-		const float vib = ensemble ? 0.15f * depth * std::sin(twoPi * vibrato) : 0.f;
+		const float mixTarget = ensemble ? 1.f : 0.f;
+		ensembleMix = ensembleMix < 0.f ? mixTarget
+		                                : ensembleMix + std::max(-dt / 0.05f, std::min(dt / 0.05f, mixTarget - ensembleMix));
+		const float vib = 0.15f * depth * std::sin(twoPi * vibrato) * ensembleMix;
 		auto delaySamples = [&](float ph) {
 			return (baseMs + swingMs * (0.5f + 0.5f * std::sin(twoPi * ph)) + vib) * 0.001f * sampleRate;
 		};
-		if (!ensemble) {
-			*outL = left.read(delaySamples(phase));
-			*outR = right.read(delaySamples(phase + 0.25f));
-			return;
+		float cl = 0.f, cr = 0.f, el = 0.f, er = 0.f;
+		if (ensembleMix < 1.f) {
+			cl = left.read(delaySamples(phase));
+			cr = right.read(delaySamples(phase + 0.25f));
 		}
-		float l = 0.f, r = 0.f;
-		for (int v = 0; v < 3; ++v) {
-			l += left.read(delaySamples(phase + v / 3.f));
-			r += right.read(delaySamples(phase + v / 3.f + 1.f / 6.f));
+		if (ensembleMix > 0.f) {
+			for (int v = 0; v < 3; ++v) {
+				el += left.read(delaySamples(phase + v / 3.f));
+				er += right.read(delaySamples(phase + v / 3.f + 1.f / 6.f));
+			}
+			el /= 3.f;
+			er /= 3.f;
 		}
-		*outL = l / 3.f;
-		*outR = r / 3.f;
+		*outL = cl + (el - cl) * ensembleMix;
+		*outR = cr + (er - cr) * ensembleMix;
 	}
 };
 

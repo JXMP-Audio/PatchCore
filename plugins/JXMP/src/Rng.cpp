@@ -12,6 +12,8 @@
 namespace {
 
 struct RingMod : engine::Module {
+	/** Oversampled ring modulation per polyphony channel */
+	jxmp::shapers::RingMod rings[16];
 	enum ParamIds { MIX_PARAM, NUM_PARAMS };
 	enum InputIds { A_INPUT, B_INPUT, MIX_CV_INPUT, NUM_INPUTS };
 	enum OutputIds { OUT_OUTPUT, NUM_OUTPUTS };
@@ -31,7 +33,7 @@ struct RingMod : engine::Module {
 		outputs[OUT_OUTPUT].setChannels(channels);
 		for (int c = 0; c < channels; ++c) {
 			const float mix = params[MIX_PARAM].getValue() + inputs[MIX_CV_INPUT].getPolyVoltage(c) / 10.f;
-			outputs[OUT_OUTPUT].setVoltage(jxmp::shapers::ring(inputs[A_INPUT].getPolyVoltage(c), inputs[B_INPUT].getPolyVoltage(c), mix), c);
+			outputs[OUT_OUTPUT].setVoltage(rings[c].process(inputs[A_INPUT].getPolyVoltage(c), inputs[B_INPUT].getPolyVoltage(c), mix), c);
 		}
 	}
 };

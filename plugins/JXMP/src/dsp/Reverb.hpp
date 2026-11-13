@@ -4,7 +4,9 @@
  *
  * JX-REV: an 8-line feedback delay network (Householder mixing) with input diffusion, damping in the loop and a
  * predelay. PLATE (dense, bright), HALL (large), ROOM (small) set the line lengths and the diffusion. Decay is a
- * real RT60. No Rack dependency, tested in tests/test_reverb.cpp.
+ * real RT60. Every line length moves slowly by up to 1.2 ms (each at its own rate): fixed lengths ring like
+ * metal, because the few resonances of the network keep their pitch. SIZE and PREDELAY glide and are read between
+ * samples, so turning them does not click. No Rack dependency, tested in tests/test_reverb.cpp.
  */
 
 #pragma once
@@ -27,6 +29,15 @@ struct Delay {
 		pos = 0;
 	}
 	/** Sample written `delay` samples ago (1 … size-1) */
+	/** Sample written `delay` samples ago, between samples (1 … size-2) */
+	float readFrac(float delay) const {
+		const int n = (int) buf.size();
+		delay = std::min(std::max(delay, 1.f), (float) (n - 2));
+		const int i = (int) delay;
+		const float f = delay - (float) i;
+		const float a = buf[(pos - i + n) % n], b = buf[(pos - i - 1 + n) % n];
+		return a + (b - a) * f;
+	}
 	float read(int delay) const {
 		const int n = (int) buf.size();
 		return buf[(pos - std::min(std::max(delay, 1), n - 1) + n) % n];
@@ -53,7 +64,14 @@ constexpr int kLines = 8;
 struct Fdn {
 	float sampleRate = 0.f;
 	Delay lines[kLines];
-	int lengths[kLines] = {};
+	float lengths[kLines] = {};
+	/** Phase of the slow length modulation of each line */
+	float modPhase[kLines] = {};
+	/** SIZE and PREDELAY after the glide (negative: not set yet) */
+	float sizeNow = -1.f, predelayNow = -1.f;
+	/** 20 Hz highpass at the input (state per side): the network has a large gain at the lowest frequencies, so DC or
+	 * subsonic rumble would come out many times louder, with opposite signs on the two sides */
+	float hpInL = 0.f, hpOutL = 0.f, hpInR = 0.f, hpOutR = 0.f;
 	float damp[kLines] = {};
 	/** Predelay and diffusion per input side: left feeds the even lines, right the odd ones */
 	Allpass diffusers[4], diffusersR[4];
@@ -77,7 +95,7 @@ struct Fdn {
 		if (fs == sampleRate)
 			return;
 		sampleRate = fs;
-		const int maxLine = (int) (fs * 0.0672f * 2.f) + 4;  // HALL (67.1 ms) at SIZE 2
+		const int maxLine = (int) (fs * (0.0672f * 2.f + 2.f * kModSeconds)) + 8;  // HALL (67.1 ms) at SIZE 2 + modulation
 		for (Delay& l : lines)
 			l.resize(maxLine);
 		static const float diffMs[4] = {4.7f, 3.6f, 12.7f, 9.3f};
@@ -91,6 +109,7 @@ struct Fdn {
 		preR.resize((int) (fs * 0.25f) + 4);
 		std::fill(damp, damp + kLines, 0.f);
 		lastSize = -1.f;  // recompute the lengths for the new rate
+		sizeNow = predelayNow = -1.f;
 	}
 
 	/**
@@ -108,22 +127,37 @@ struct Fdn {
 		std::fill(pre.buf.begin(), pre.buf.end(), 0.f);
 		std::fill(preR.buf.begin(), preR.buf.end(), 0.f);
 		std::fill(damp, damp + kLines, 0.f);
+		hpInL = hpOutL = hpInR = hpOutR = 0.f;
+	}
+
+	/** Depth of the line length modulation (the length moves between +0 and +2 × this) */
+	static constexpr float kModSeconds = 0.0006f;
+	/** Wet level: four lines per side summed; brings a signal out about as loud as it went in */
+	static float outputGain(Algo a) {
+		return a == PLATE ? 0.105f : a == HALL ? 0.16f : 0.23f;
 	}
 
 	void process(float inL, float inR, Algo algo, float size, float rt60, float predelay, float tone, float* outL, float* outR) {
 		const float fs = sampleRate;
+		// SIZE and PREDELAY glide (~30 ms), so a turned knob does not jump the read positions
+		const float glide = std::min(1.f, 1.f / (0.03f * fs));
+		if (std::isfinite(size))
+			sizeNow = sizeNow < 0.f ? size : sizeNow + (size - sizeNow) * glide;
+		if (std::isfinite(predelay))
+			predelayNow = predelayNow < 0.f ? predelay : predelayNow + (predelay - predelayNow) * glide;
+		size = sizeNow < 0.f ? 1.f : sizeNow;
+		predelay = std::min(std::max(predelayNow, 0.f), 0.2f);
 		// A NaN (from another module or a CV) would circulate in the lines for good
 		if (!std::isfinite(rt60))
 			rt60 = 1.f;
-		if (!std::isfinite(size))
-			size = 1.f;
-		if (size != lastSize || rt60 != lastRt60 || (int) algo != lastAlgo) {
+		// Recomputed when a setting moved noticeably (the glide moves SIZE a little on every sample)
+		if (std::fabs(size - lastSize) > 1e-4f || rt60 != lastRt60 || (int) algo != lastAlgo) {
 			lastSize = size;
 			lastRt60 = rt60;
 			lastAlgo = (int) algo;
 			const float* ms = baseMs(algo);
 			for (int i = 0; i < kLines; ++i) {
-				lengths[i] = std::max(8, (int) (fs * ms[i] * size / 1000.f));
+				lengths[i] = std::max(8.f, fs * ms[i] * size / 1000.f);
 				// −60 dB after rt60 seconds, whatever the line length
 				gains[i] = std::pow(10.f, -3.f * lengths[i] / fs / std::max(rt60, 0.05f));
 				inject[i] = std::sqrt(std::max(0.f, 1.f - gains[i] * gains[i]));
@@ -131,11 +165,19 @@ struct Fdn {
 		}
 
 		// Predelay, then diffusion (a plate diffuses most)
-		pre.write(std::isfinite(inL) ? inL : 0.f);
-		preR.write(std::isfinite(inR) ? inR : 0.f);
-		const int preSamples = std::max(1, (int) (predelay * fs));
-		float x = pre.read(preSamples), xr = preR.read(preSamples);
-		const float g = algo == PLATE ? 0.75f : algo == HALL ? 0.65f : 0.55f;
+		inL = std::isfinite(inL) ? inL : 0.f;
+		inR = std::isfinite(inR) ? inR : 0.f;
+		const float hp = 1.f - 2.f * float(M_PI) * 20.f / fs;
+		hpOutL = 0.5f * (1.f + hp) * (inL - hpInL) + hp * hpOutL;
+		hpInL = inL;
+		hpOutR = 0.5f * (1.f + hp) * (inR - hpInR) + hp * hpOutR;
+		hpInR = inR;
+		pre.write(hpOutL);
+		preR.write(hpOutR);
+		const float preSamples = std::max(1.f, predelay * fs);
+		float x = pre.readFrac(preSamples), xr = preR.readFrac(preSamples);
+		// Diffusion: stronger allpasses rang metallic themselves (0.75 / 0.65 / 0.55 before 2026-11-13)
+		const float g = algo == PLATE ? 0.6f : algo == HALL ? 0.5f : 0.45f;
 		for (Allpass& a : diffusers)
 			x = a.process(x, g);
 		for (Allpass& a : diffusersR)
@@ -147,7 +189,10 @@ struct Fdn {
 		const float cutoff = 1500.f + 10500.f * tone;
 		const float k = 1.f - std::exp(-2.f * float(M_PI) * cutoff / fs);
 		for (int i = 0; i < kLines; ++i) {
-			const float r = lines[i].read(lengths[i]);
+			modPhase[i] += (0.31f + 0.13f * i) / fs;
+			modPhase[i] -= std::floor(modPhase[i]);
+			const float wobble = kModSeconds * fs * (1.f + std::sin(2.f * float(M_PI) * modPhase[i]));
+			const float r = lines[i].readFrac(lengths[i] + wobble);
 			damp[i] += k * (r - damp[i]);
 			y[i] = damp[i];
 			sum += y[i];
@@ -162,8 +207,9 @@ struct Fdn {
 				l += y[i];
 		}
 		// Soft limit at ±10 V
-		*outL = 10.f * std::tanh(l * 0.35f / 10.f);
-		*outR = 10.f * std::tanh(rr * 0.35f / 10.f);
+		const float gain = outputGain(algo);
+		*outL = 10.f * std::tanh(l * gain / 10.f);
+		*outR = 10.f * std::tanh(rr * gain / 10.f);
 		if (!std::isfinite(*outL) || !std::isfinite(*outR)) {
 			clear();
 			*outL = *outR = 0.f;
