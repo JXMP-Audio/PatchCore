@@ -158,7 +158,7 @@ struct Navigator : widget::OpaqueWidget {
 		static const std::vector<std::pair<std::string, std::string>> keys = {
 			{"Tab", "flip rack"},
 			{"Enter", "find module"},
-			{"Space", "play/stop"},
+			{"Space", "pause · 2× stop"},
 			{"F1-F3", "rack · back · mixer"},
 			{"", "shift+click: select"},
 			{"", "ctrl+drag: select area"},

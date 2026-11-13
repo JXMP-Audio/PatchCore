@@ -222,6 +222,8 @@ bool tutorialRunning();
 /** True when the internal transport drives the engine (standalone without a timebase master). */
 bool transportIsInternal();
 void transportTogglePlay();
+/** Standalone transport: stop and go back to 1.1.1 (the stop button, a double Space) */
+void transportStop();
 /** Standalone transport: play from 1.1.1 (an opened patch plays at once) */
 void transportPlayFromStart();
 

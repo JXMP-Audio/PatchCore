@@ -31,7 +31,7 @@ It comes as a **standalone app** and as two **VST3 plugins**, **PatchCore** (ins
 | `F1` | the rack; with a selected module: its manual |
 | `F2` / `F3` | the back / the Mixer view |
 | `Enter`, right-click | find and add a module |
-| `Space` | play / pause (standalone): a pause freezes everything where it is; ■ stops and goes back to the start |
+| `Space` | play / pause (standalone): a pause freezes everything where it is; Space twice quickly (or ■) stops and goes back to the start |
 | Shift+click, Shift+drag | select / move a module; Shift+right-click opens its menu |
 | Ctrl+drag | select an area |
 | mouse wheel | turn knobs |

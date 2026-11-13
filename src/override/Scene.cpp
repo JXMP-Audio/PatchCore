@@ -35,6 +35,7 @@
 #include "../CardinalRemote.hpp"
 #include "../WindowParameters.hpp"
 #include "../patchcore/PatchCore.hpp"
+#include "../patchcore/SpaceTaps.hpp"
 #include <patchcore/Mixer.hpp>
 
 #include <algorithm>
@@ -612,10 +613,16 @@ void Scene::onHoverKey(const HoverKeyEvent& e) {
 				                                                                           : patchcore::VIEW_FRONT);
 				e.consume(this);
 			}
-			// Only a fresh press: a held Space would keep toggling with the key repeat
+			// One Space plays / pauses, a double Space stops and goes back to the start. Only fresh presses count:
+			// a held Space would keep toggling with the key repeat.
 			if (e.key == GLFW_KEY_SPACE) {
-				if (e.action == GLFW_PRESS)
-					patchcore::transportTogglePlay();
+				static ::patchcore::SpaceTaps taps;
+				if (e.action == GLFW_PRESS) {
+					if (taps.press(system::getTime()) == ::patchcore::SpaceTaps::STOP)
+						patchcore::transportStop();
+					else
+						patchcore::transportTogglePlay();
+				}
 				e.consume(this);
 			}
 			// F1 Rack (or the manual of the selected module), F2 Back, F3 Mixer, F4 kept for the Editor

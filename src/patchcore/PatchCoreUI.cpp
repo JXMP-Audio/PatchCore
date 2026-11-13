@@ -55,7 +55,7 @@ void transportPlayFromStart() {
 }
 
 
-static void transportStop() {
+void transportStop() {
 	CardinalPluginContext* const context = pluginContext();
 	if (!context->internalTransportActive)
 		return;
