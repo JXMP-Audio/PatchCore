@@ -222,6 +222,8 @@ bool tutorialRunning();
 /** True when the internal transport drives the engine (standalone without a timebase master). */
 bool transportIsInternal();
 void transportTogglePlay();
+/** Standalone transport: play from 1.1.1 (an opened patch plays at once) */
+void transportPlayFromStart();
 
 
 /** Development aid, called from Scene::step(). Reads PATCHCORE_DEV_* environment variables once:

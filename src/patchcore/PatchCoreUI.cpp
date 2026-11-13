@@ -36,8 +36,22 @@ bool transportIsInternal() {
 
 void transportTogglePlay() {
 	CardinalPluginContext* const context = pluginContext();
-	if (context->internalTransportActive)
-		context->internalTransportPlaying = !context->internalTransportPlaying;
+	if (!context->internalTransportActive)
+		return;
+	// Space pauses (the engine freezes, the modules see no stop) and resumes where it stood
+	const bool play = !context->internalTransportPlaying;
+	context->internalTransportHeld = !play;
+	context->internalTransportPlaying = play;
+}
+
+
+void transportPlayFromStart() {
+	CardinalPluginContext* const context = pluginContext();
+	if (!context)
+		return;
+	context->internalTransportHeld = false;
+	context->internalTransportPlaying = true;
+	context->internalTransportResetRequested = true;
 }
 
 
@@ -45,11 +59,10 @@ static void transportStop() {
 	CardinalPluginContext* const context = pluginContext();
 	if (!context->internalTransportActive)
 		return;
-	// Stop when rolling, rewind when already stopped
-	if (context->internalTransportPlaying)
-		context->internalTransportPlaying = false;
-	else
-		context->internalTransportResetRequested = true;
+	// Stop pauses and goes back to the start: the next Play begins at 1.1.1 (Space only pauses and resumes)
+	context->internalTransportHeld = false;
+	context->internalTransportPlaying = false;
+	context->internalTransportResetRequested = true;
 }
 
 
@@ -63,6 +76,12 @@ enum TransportIcon {
 
 
 struct TransportBar : widget::OpaqueWidget {
+	/** Rolling as the user sees it: a pause (Space) shows as stopped, although the modules see no stop */
+	static bool shownPlaying() {
+		CardinalPluginContext* const context = pluginContext();
+		return context->internalTransportActive ? (bool) context->internalTransportPlaying : context->playing;
+	}
+
 	math::Rect tempoRect, tempoUpRect, tempoDownRect, sigRect, buttonsRect, posRect, timeRect, dspRect, masterRect, playRect;
 	/** Standalone: full transport; plugin: thin read-only bar (the DAW owns transport and audio) */
 	const TransportLayout layout = transportLayout(rack::isStandalone());
@@ -355,7 +374,7 @@ struct TransportBar : widget::OpaqueWidget {
 		// Playing lamp: the host's transport state
 		nvgBeginPath(vg);
 		nvgCircle(vg, playRect.getCenter().x, playRect.getCenter().y, 5.f);
-		nvgFillColor(vg, context->playing ? nvgRGB(0x55, 0xe0, 0x7c) : nvgRGB(0x1d, 0x2a, 0x20));
+		nvgFillColor(vg, shownPlaying() ? nvgRGB(0x55, 0xe0, 0x7c) : nvgRGB(0x1d, 0x2a, 0x20));
 		nvgFill(vg);
 
 		if (showDsp) {
@@ -406,11 +425,15 @@ struct TransportBar : widget::OpaqueWidget {
 		draw::insetBox(vg, buttonsRect, 8.f, nvgRGB(0x12, 0x13, 0x15));
 		for (int i = 0; i < 5; ++i) {
 			const math::Rect& r = buttonRects[i];
-			const bool playOn = i == ICON_PLAY && context->playing;
+			const bool playOn = i == ICON_PLAY && shownPlaying();
+			// Paused (Space) or stopped: the engine waits, the stop button glows orange
+			const bool pauseOn = i == ICON_STOP && internal && !shownPlaying();
 			// Record, loop and click have no engine behind them yet
 			const bool available = internal && (i == ICON_STOP || i == ICON_PLAY);
 			if (playOn)
 				draw::bevelBox(vg, r, 5.f, nvgRGB(0x3e, 0x9f, 0x60), nvgRGB(0x25, 0x6b, 0x3e), nvgRGB(0, 0, 0));
+			else if (pauseOn)
+				draw::bevelBox(vg, r, 5.f, nvgRGB(0xe0, 0x8a, 0x2c), nvgRGB(0x9c, 0x5a, 0x16), nvgRGB(0, 0, 0));
 			else
 				draw::bevelBox(vg, r, 5.f, nvgRGB(0x4a, 0x4d, 0x54), nvgRGB(0x2f, 0x32, 0x37), nvgRGB(0, 0, 0));
 

@@ -39,6 +39,7 @@
 #endif
 
 #include "../CardinalRemote.hpp"
+#include "../patchcore/PatchCore.hpp"
 #include "DistrhoUtils.hpp"
 
 
@@ -1324,6 +1325,9 @@ void Engine::fromJson(json_t* rootJ) {
 			continue;
 		}
 	}
+
+	// PatchCore: an opened patch plays at once, from the start (the standalone transport; a DAW keeps its own)
+	patchcore::transportPlayFromStart();
 }
 
 

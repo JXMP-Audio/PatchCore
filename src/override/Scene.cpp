@@ -612,8 +612,10 @@ void Scene::onHoverKey(const HoverKeyEvent& e) {
 				                                                                           : patchcore::VIEW_FRONT);
 				e.consume(this);
 			}
+			// Only a fresh press: a held Space would keep toggling with the key repeat
 			if (e.key == GLFW_KEY_SPACE) {
-				patchcore::transportTogglePlay();
+				if (e.action == GLFW_PRESS)
+					patchcore::transportTogglePlay();
 				e.consume(this);
 			}
 			// F1 Rack (or the manual of the selected module), F2 Back, F3 Mixer, F4 kept for the Editor

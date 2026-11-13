@@ -36,6 +36,7 @@
 #include "extra/Base64.hpp"
 #include "extra/ScopedDenormalDisable.hpp"
 #include "extra/ScopedSafeLocale.hpp"
+#include "patchcore/PauseFade.hpp"
 
 #ifdef DISTRHO_OS_WASM
 # include <emscripten/emscripten.h>
@@ -186,6 +187,9 @@ class CardinalPlugin : public CardinalBasePlugin
 
     // bypass handling
     bool fWasBypassed;
+    // PatchCore: a real pause of the standalone transport
+    patchcore::PauseFade fPauseFade;
+    bool fEngineRuns = true;
     MidiEvent bypassMidiEvents[16];
 
    #if CARDINAL_VARIANT_MINI || !defined(HEADLESS)
@@ -1179,6 +1183,8 @@ protected:
 
             // PatchCore: standalone without a timebase master gets an internal transport
             context->internalTransportActive = rack::isStandalone() && !timePos.bbt.valid;
+            // PatchCore: a real pause; the engine stops after a 10 ms fade (see below)
+            fEngineRuns = !fPauseFade.frozen(!context->internalTransportActive || context->internalTransportPlaying);
             if (context->internalTransportActive)
             {
                 if (context->internalTransportResetRequested)
@@ -1193,7 +1199,9 @@ protected:
                 const double beats = context->internalTransportFrame / getSampleRate() * bpm / 60.0;
                 const int64_t wholeBeats = static_cast<int64_t>(beats);
 
-                timePos.playing = context->internalTransportPlaying;
+                // A pause (Space) is not a stop for the modules: they keep seeing a rolling transport while the
+                // engine fades out and then is frozen, so nothing reacts to it (no clock reset, no stray notes)
+                timePos.playing = context->internalTransportPlaying || context->internalTransportHeld;
                 timePos.frame = context->internalTransportFrame;
                 timePos.bbt.valid = true;
                 timePos.bbt.bar = static_cast<int32_t>(wholeBeats / beatsPerBar) + 1;
@@ -1205,7 +1213,7 @@ protected:
                 timePos.bbt.ticksPerBeat = ticksPerBeat;
                 timePos.bbt.beatsPerMinute = bpm;
 
-                if (timePos.playing)
+                if (timePos.playing && fEngineRuns)
                     context->internalTransportFrame += frames;
             }
 
@@ -1318,7 +1326,25 @@ protected:
         }
 
         ++context->processCounter;
-        context->engine->stepBlock(frames);
+
+        // PatchCore: pausing the standalone transport fades the output out over 10 ms, then the engine does not run
+        // at all (everything waits where it is); Play runs it again and fades back in. A DAW keeps its own transport.
+        const bool transportRuns = !context->internalTransportActive || context->internalTransportPlaying;
+        if (fEngineRuns)
+        {
+            context->engine->stepBlock(frames);
+            if (!transportRuns || fPauseFade.gain < 1.f)
+            {
+                const float sampleRate = static_cast<float>(getSampleRate());
+                for (uint32_t j=0; j<frames; ++j)
+                {
+                    const float g = fPauseFade.next(transportRuns, sampleRate);
+                    for (int i=0; i<fNumActiveOutputs; ++i)
+                        if (outputs[i] != nullptr)
+                            outputs[i][j] *= g;
+                }
+            }
+        }
 
         // PatchCore: Audio Settings test tone, 440 Hz at -12 dBFS on the first two outputs
         if (context->testToneFrames > 0)

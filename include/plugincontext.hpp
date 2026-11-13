@@ -94,8 +94,10 @@ struct CardinalPluginContext : rack::Context {
     CardinalDGL::NanoTopLevelWidget* tlw;
     CardinalDISTRHO::UI* ui;
     // PatchCore: internal transport, used in standalone when the host provides no musical time
-    volatile bool internalTransportPlaying = false;
+    volatile bool internalTransportPlaying = true;  // PatchCore: plays at launch; Space pauses
     volatile bool internalTransportResetRequested = false;
+    // PatchCore: paused with Space: the engine is frozen and the modules never see a stop (they go on seamlessly)
+    volatile bool internalTransportHeld = false;
     volatile double internalTransportBeatsPerMinute = 120.0;
     volatile int32_t internalTransportBeatsPerBar = 4;
     volatile int32_t internalTransportBeatType = 4;
