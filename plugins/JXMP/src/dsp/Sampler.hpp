@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "SampleEnvelope.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -37,6 +38,8 @@ struct SlotSettings {
 	float pan = 0.f;    // -1..1
 	Mode mode = ONE_SHOT;
 	Loop loop = LOOP_OFF;
+	Envelope volEnv = defaultVolEnv(), panEnv = defaultPanEnv();  // off until switched on
+	float fadeout = 0.f;  // seconds from the gate end to silence; 0 = off (GATE mode: the 10 ms release)
 };
 
 /** MIDI note as FastTracker 2 writes it: "C-4" (60), "C#4"; root notes go from C-0 (12) to B-8 (119) */
@@ -183,8 +186,12 @@ struct Voice {
 		int dir = 1;
 		float gain = 0.f, fadeStep = 0.f;
 		bool on = false, fading = false;
+		bool released = false;  // the gate ended (GATE mode)
+		float fade = 1.f;       // FADEOUT after the gate end
+		EnvRun vol, pan;
 	};
 	Head cur, tails[kTails];
+	float panValue = 0.5f;  // the main head's pan envelope (0.5 = the PAN knob), for the mix
 	bool pendingTrigger = false, pendingRelease = false, pendingFade = false;
 
 	void trigger() {
@@ -207,6 +214,9 @@ struct Voice {
 	}
 	/** Where the main head plays (frames), for the display; negative when silent */
 	double position() const { return cur.on ? cur.pos : -1.0; }
+	/** Where the main head's volume / pan envelope is (seconds); negative when silent */
+	float volTime() const { return cur.on ? cur.vol.t : -1.f; }
+	float panTime() const { return cur.on ? cur.pan.t : -1.f; }
 
 	void process(const SampleData& d, const SlotSettings& set, float ratio, float sampleTime, float& outL, float& outR) {
 		outL = outR = 0.f;
@@ -253,9 +263,13 @@ struct Voice {
 			pendingTrigger = false;
 		}
 		if (pendingRelease) {
-			if (set.mode == GATE && cur.on && !cur.fading) {
-				cur.fading = true;
-				cur.fadeStep = 1.f / (kRelease * sr);
+			if (set.mode == GATE && cur.on && !cur.released) {
+				cur.released = true;
+				// FADEOUT takes over the release; with a volume envelope the envelope runs to its end first
+				if (set.fadeout <= 0.f && !set.volEnv.on && !cur.fading) {
+					cur.fading = true;
+					cur.fadeStep = 1.f / (kRelease * sr);
+				}
 			}
 			pendingRelease = false;
 		}
@@ -272,7 +286,10 @@ struct Voice {
 		for (Head* h = &cur; h != tails + kTails; h = h == &cur ? tails : h + 1) {
 			if (!h->on)
 				continue;
-			h->pos = std::min(std::max(h->pos, 0.0), (double) (frames - 1));
+			// Inside this sample (the settings may be a longer one's for a moment). Up to `frames`, not the last frame:
+			// pulled back there, a voice slower than the file (ratio < 1) would never reach END and would hold forever.
+			// hermite() keeps its reads inside on its own.
+			h->pos = std::min(std::max(h->pos, 0.0), (double) frames);
 			// Inside a playing loop the read folds around its ends
 			LoopFold lf;
 			if (looping && (h->pos >= ls || h->dir < 0)) {
@@ -280,8 +297,21 @@ struct Voice {
 				lf.ls = (long) ls;
 				lf.le = (long) le;
 			}
-			const float l = hermite(d.l, h->pos, lf) * h->gain;
-			const float r = d.stereo && d.r.size() == frames ? hermite(d.r, h->pos, lf) * h->gain : l;
+			// Envelopes: sustain only while the gate is high in GATE mode; after the gate the loop only runs on with a
+			// FADEOUT (otherwise a looping envelope would never end)
+			const bool held = set.mode == GATE && !h->released;
+			const bool loopOn = !h->released || set.fadeout > 0.f;
+			float g = h->gain * h->fade;
+			if (set.volEnv.on) {
+				g *= envValue(set.volEnv, h->vol.t);
+				h->vol.step(set.volEnv, sampleTime, held, loopOn);
+			}
+			if (h == &cur)
+				panValue = set.panEnv.on ? envValue(set.panEnv, h->pan.t) : 0.5f;
+			if (set.panEnv.on)
+				h->pan.step(set.panEnv, sampleTime, held, loopOn);
+			const float l = hermite(d.l, h->pos, lf) * g;
+			const float r = d.stereo && d.r.size() == frames ? hermite(d.r, h->pos, lf) * g : l;
 			outL += l;
 			outR += r;
 			h->pos += h->dir * ratio;
@@ -312,6 +342,20 @@ struct Voice {
 				h->gain -= h->fadeStep;
 				if (h->gain <= 0.f)
 					h->on = false;
+			}
+			if (h->released && set.fadeout > 0.f) {
+				h->fade -= sampleTime / set.fadeout;
+				if (h->fade <= 0.f)
+					h->on = false;
+			}
+			// A volume envelope that ended: silent → done; still sounding after the gate, no fadeout → the release
+			if (set.volEnv.on && h->vol.pastEnd(set.volEnv)) {
+				if (set.volEnv.v[set.volEnv.n - 1] <= 1e-4f)
+					h->on = false;
+				else if (h->released && set.fadeout <= 0.f && !h->fading) {
+					h->fading = true;
+					h->fadeStep = 1.f / (kRelease * sr);
+				}
 			}
 		}
 	}

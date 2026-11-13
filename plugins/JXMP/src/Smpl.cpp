@@ -2,7 +2,8 @@
  * JXMP Audio modules for PatchCore
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * JX-SMPL: 16 sample slots in the spirit of the FastTracker 2 sample editor. Every slot holds one WAV; GATE n plays
+ * JX-SMPL: 16 sample slots in the spirit of the FastTracker 2 sample editor. Every slot holds one sound (WAV, FLAC, MP3
+ * or OGG, chosen in the display's browser, the file dialog or dropped on the module); GATE n plays
  * slot n, V/OCT n its note (without a cable the slot plays at its original pitch). The front edits the slot chosen
  * with CH: start / end, loop off / forward / ping-pong, root note, fine tune, level, pan. Samples are saved inside
  * the patch (the module's patch storage folder, which Cardinal packs into the .vcv and into the DAW project).
@@ -16,14 +17,51 @@
 #include "dsp/SampleEdit.hpp"
 #include "dsp/SampleMenu.hpp"
 #include "dsp/PitchDetect.hpp"
+#include "dsp/SampleRecord.hpp"
+#include "dsp/SampleDecode.hpp"
+#include "dsp/SampleBrowser.hpp"
+#include "dsp/SamplePreview.hpp"
 
 #include <atomic>
 #include <memory>
 #include <mutex>
 
+namespace rack {
+std::string homeDir();  // CardinalCommon.cpp
+}
+
 namespace {
 
 namespace sm = jxmp::sampler;
+
+/** The folder SAMPLE > BROWSE opens: the one used last (by any JX-SMPL, kept across restarts in the user folder),
+ * else the home folder */
+std::string browserFolderFile() { return asset::user("JXMP-smpl-browser.txt"); }
+
+std::string browserFolder() {
+	try {
+		const std::string f = browserFolderFile();
+		if (system::isFile(f)) {
+			const std::vector<uint8_t> b = system::readFile(f);
+			const std::string p(b.begin(), b.end());
+			if (!p.empty() && system::isDirectory(p))
+				return p;
+		}
+	}
+	catch (std::exception&) {
+	}
+	const std::string home = rack::homeDir();
+	return home.empty() ? std::string("/") : home;
+}
+
+void setBrowserFolder(const std::string& dir) {
+	try {
+		system::writeFile(browserFolderFile(), std::vector<uint8_t>(dir.begin(), dir.end()));
+	}
+	catch (std::exception& e) {
+		WARN("JX-SMPL: cannot remember the folder: %s", e.what());
+	}
+}
 
 constexpr int kSlots = 16;
 const NVGcolor kColour = nvgRGB(0xff, 0x5c, 0x8a);
@@ -56,7 +94,7 @@ struct Smpl : engine::Module {
 		OK_PARAM,
 		NUM_PARAMS
 	};
-	enum InputIds { ENUMS(GATE_INPUT, kSlots), ENUMS(VOCT_INPUT, kSlots), NUM_INPUTS };
+	enum InputIds { ENUMS(GATE_INPUT, kSlots), ENUMS(VOCT_INPUT, kSlots), REC_L_INPUT, REC_R_INPUT, REC_GATE_INPUT, NUM_INPUTS };
 	enum OutputIds { ENUMS(OUT_OUTPUT, kSlots), MIX_L_OUTPUT, MIX_R_OUTPUT, NUM_OUTPUTS };
 	enum LightIds { ENUMS(SLOT_LIGHT, kSlots), NUM_LIGHTS };
 
@@ -73,6 +111,7 @@ struct Smpl : engine::Module {
 		// For the display (read on the UI thread)
 		std::atomic<double> shownPos{-1.0};
 		std::atomic<bool> shownActive{false};
+		std::atomic<float> shownVolT{-1.f}, shownPanT{-1.f};  // where the envelopes are (seconds), -1 = silent
 	};
 	AudioSlot audio[kSlots];
 
@@ -104,8 +143,27 @@ struct Smpl : engine::Module {
 	bool hasSaved[kSlots] = {};
 	bool added = false;
 
+	/** The browser's preview: the highlighted file plays through slot `previewSlot` (its level, pan, OUT / MIX).
+	 * Handed over under pendingMutex; the UI keeps the sample alive (its retired list), never the audio thread. */
+	struct PendingPreview {
+		bool has = false;
+		std::shared_ptr<const sm::SampleData> data;
+		int slot = 0;
+	};
+	PendingPreview pendingPreview;
+	sm::PreviewPlayer preview;  // audio thread
+	int previewSlot = 0;        // audio thread
+	std::atomic<double> previewPos{-1.0};
+
 	/** The menu in the display (UI thread) */
 	sm::Menu menu;
+	// Recording into a slot (SAMPLE > RECORD): the slot it goes to
+	sm::Recorder rec;
+	int recSlot = 0;
+	bool recording() const {
+		const int s = rec.state;
+		return s == sm::Recorder::ARMED || s == sm::Recorder::RECORDING;
+	}
 
 	// Edit knobs ↔ selected slot (UI thread)
 	int lastSel = -1;
@@ -115,7 +173,7 @@ struct Smpl : engine::Module {
 	Smpl() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(CH_PARAM, 0.f, kSlots - 1, 0.f, "Slot", "", 0.f, 1.f, 1.f)->snapEnabled = true;
-		configButton(LOAD_PARAM, "Load a WAV into the selected slot");
+		configButton(LOAD_PARAM, "Load a sound (WAV, FLAC, MP3, OGG) into the selected slot");
 		configButton(MENU_PARAM, "Menu (open, back, close)");
 		configButton(UP_PARAM, "Menu up");
 		configButton(DOWN_PARAM, "Menu down");
@@ -142,6 +200,11 @@ struct Smpl : engine::Module {
 		}
 		configOutput(MIX_L_OUTPUT, "Mix left")->description = "Every slot whose own OUT is not patched, panned.";
 		configOutput(MIX_R_OUTPUT, "Mix right")->description = "Every slot whose own OUT is not patched, panned.";
+		configInput(REC_L_INPUT, "Record left")->description = "Menu > SAMPLE > RECORD records this into the selected slot; "
+		                                                       "±5 V is full scale. Only one side patched: mono.";
+		configInput(REC_R_INPUT, "Record right")->description = "With L also patched the recording is stereo.";
+		configInput(REC_GATE_INPUT, "Record gate")->description =
+		    "After RECORD (armed): records while the gate is high. Without RECORD it does nothing.";
 	}
 
 	int selected() { return math::clamp((int) std::round(params[CH_PARAM].getValue()), 0, kSlots - 1); }
@@ -175,6 +238,12 @@ struct Smpl : engine::Module {
 			a.set = p.set;
 			p.has = false;
 			p.data.reset();  // the UI still holds it: never freed here
+		}
+		if (pendingPreview.has) {
+			previewSlot = pendingPreview.slot;
+			preview.request(pendingPreview.data);
+			pendingPreview.has = false;
+			pendingPreview.data.reset();  // the UI still holds it
 		}
 		anyPending.store(false, std::memory_order_release);
 	}
@@ -275,6 +344,8 @@ struct Smpl : engine::Module {
 	}
 
 	void process(const ProcessArgs& args) override {
+		rec.process(inputs[REC_L_INPUT].getVoltage(), inputs[REC_R_INPUT].getVoltage(), inputs[REC_L_INPUT].isConnected(),
+		            inputs[REC_R_INPUT].isConnected(), inputs[REC_GATE_INPUT].isConnected(), inputs[REC_GATE_INPUT].getVoltage());
 		ticks.fetch_add(1, std::memory_order_relaxed);
 		if (anyPending.load(std::memory_order_acquire))
 			takePending();
@@ -299,7 +370,7 @@ struct Smpl : engine::Module {
 				a.fadeVoice.process(*a.fading, a.fadeSet, a.fadeRatio, args.sampleTime, fl, fr);
 				const bool st = a.fading->stereo;
 				out += (st ? 0.5f * (fl + fr) : fl) * 5.f * a.fadeSet.level;
-				mix.add(fl * 5.f, fr * 5.f, st, a.fadeSet.level, a.fadeSet.pan, ownOut);
+				mix.add(fl * 5.f, fr * 5.f, st, a.fadeSet.level, sm::envPan(a.fadeSet.pan, a.fadeVoice.panValue), ownOut);
 				if (!a.fadeVoice.active())
 					a.fading.reset();  // the UI's retired list still holds it: never freed here
 			}
@@ -310,16 +381,33 @@ struct Smpl : engine::Module {
 				a.voice.process(*a.live, a.set, a.ratio, args.sampleTime, vl, vr);
 				const bool st = a.live->stereo;
 				out += (st ? 0.5f * (vl + vr) : vl) * 5.f * a.set.level;
-				mix.add(vl * 5.f, vr * 5.f, st, a.set.level, a.set.pan, ownOut);
+				mix.add(vl * 5.f, vr * 5.f, st, a.set.level, sm::envPan(a.set.pan, a.voice.panValue), ownOut);
 				a.shownPos.store(a.voice.position(), std::memory_order_relaxed);
+				a.shownVolT.store(a.voice.volTime(), std::memory_order_relaxed);
+				a.shownPanT.store(a.voice.panTime(), std::memory_order_relaxed);
 			}
 			else {
 				a.shownPos.store(-1.0, std::memory_order_relaxed);
+				a.shownVolT.store(-1.f, std::memory_order_relaxed);
+				a.shownPanT.store(-1.f, std::memory_order_relaxed);
 			}
 			const bool active = a.voice.active() || (a.fading && a.fadeVoice.active());
 			a.shownActive.store(active, std::memory_order_relaxed);
+			// The browser's preview through this slot
+			bool previewing = false;
+			if (i == previewSlot) {
+				float pl, pr;
+				preview.process(args.sampleRate, pl, pr);
+				if (preview.live) {
+					const bool st = preview.stereo();
+					out += (st ? 0.5f * (pl + pr) : pl) * 5.f * a.set.level;
+					mix.add(pl * 5.f, pr * 5.f, st, a.set.level, a.set.pan, ownOut);
+					previewing = preview.playing();
+				}
+				previewPos.store(preview.position(), std::memory_order_relaxed);
+			}
 			outputs[OUT_OUTPUT + i].setVoltage(out);
-			lights[SLOT_LIGHT + i].setBrightness(active ? 1.f : 0.f);
+			lights[SLOT_LIGHT + i].setBrightness(active || previewing ? 1.f : 0.f);
 		}
 		outputs[MIX_L_OUTPUT].setVoltage(sm::softLimit10(mix.L));
 		outputs[MIX_R_OUTPUT].setVoltage(sm::softLimit10(mix.R));
@@ -346,6 +434,15 @@ struct Smpl : engine::Module {
 			pending[i].settingsOnly = true;  // else a new sample is waiting: it takes these settings along
 		pending[i].has = true;
 		pending[i].set = set;
+		anyPending.store(true, std::memory_order_release);
+	}
+
+	/** The browser's preview: `data` through slot i (none = stop). The caller keeps `data` (and retires it). */
+	void postPreview(int i, std::shared_ptr<const sm::SampleData> data) {
+		std::lock_guard<std::mutex> lock(pendingMutex);
+		pendingPreview.has = true;
+		pendingPreview.data = data;
+		pendingPreview.slot = i;
 		anyPending.store(true, std::memory_order_release);
 	}
 
@@ -392,10 +489,11 @@ struct Smpl : engine::Module {
 		auto data = std::make_shared<sm::SampleData>();
 		std::string error;
 		bool cut = false;
-		if (!sm::decodeWav(bytes.data(), bytes.size(), *data, error, cut)) {
+		if (!sm::decodeAudio(bytes.data(), bytes.size(), *data, error, cut)) {
 			message(i, error);
 			return false;
 		}
+		const bool had = (bool) ui[i].data;
 		if (ui[i].data)
 			retired.push_back(ui[i].data);
 		ui[i].data = data;
@@ -406,6 +504,13 @@ struct Smpl : engine::Module {
 			s = *set;
 			sm::constrain(s, data->frames(), sm::P_START);
 		}
+		else if (had) {
+			// A new file in a slot keeps the slot's envelopes and fadeout (as an FT2 instrument does)
+			const sm::SlotSettings old = currentSettings(i);
+			s.volEnv = old.volEnv;
+			s.panEnv = old.panEnv;
+			s.fadeout = old.fadeout;
+		}
 		post(i, data, s);
 		refreshEdit = true;
 		message(i, cut ? "CUT TO 60 S" : "");
@@ -414,26 +519,27 @@ struct Smpl : engine::Module {
 		return true;
 	}
 
-	/** Loads a file from the computer into slot i and keeps a copy in the patch */
-	void loadFile(int i, const std::string& path) {
+	/** Loads a file from the computer into slot i and keeps a copy in the patch (the file's own bytes: the format is
+	 * told by its content when the patch is opened). False when nothing changed. */
+	bool loadFile(int i, const std::string& path) {
 		std::vector<uint8_t> bytes;
 		if (!system::isFile(path)) {
 			message(i, "NOT A FILE");
-			return;
+			return false;
 		}
 		try {
 			bytes = system::readFile(path);
 		}
 		catch (std::exception& e) {
 			message(i, "CANNOT READ FILE");
-			return;
+			return false;
 		}
 		std::string name = string::uppercase(system::getStem(path));
 		if (name.size() > 24)
 			name = name.substr(0, 24);
 		bool cut = false;
 		if (!install(i, bytes, name, nullptr, &cut))
-			return;
+			return false;
 		try {
 			// A file cut to 60 s: the patch keeps only what plays
 			if (cut)
@@ -444,6 +550,7 @@ struct Smpl : engine::Module {
 		catch (std::exception& e) {
 			WARN("JX-SMPL: cannot save slot %d into the patch: %s", i + 1, e.what());
 		}
+		return true;
 	}
 
 	void clearSlot(int i) {
@@ -530,6 +637,48 @@ struct Smpl : engine::Module {
 		return ui[i].set;
 	}
 
+	static json_t* envToJson(const sm::Envelope& e) {
+		json_t* o = json_object();
+		json_object_set_new(o, "on", json_boolean(e.on));
+		json_t* pts = json_array();
+		for (int k = 0; k < e.n; ++k) {
+			json_t* p = json_array();
+			json_array_append_new(p, json_real(e.t[k]));
+			json_array_append_new(p, json_real(e.v[k]));
+			json_array_append_new(pts, p);
+		}
+		json_object_set_new(o, "points", pts);
+		json_object_set_new(o, "sustain", json_integer(e.sus));
+		json_object_set_new(o, "loopStart", json_integer(e.ls));
+		json_object_set_new(o, "loopEnd", json_integer(e.le));
+		return o;
+	}
+	static sm::Envelope envFromJson(json_t* o, const sm::Envelope& def) {
+		if (!json_is_object(o))
+			return def;
+		sm::Envelope e;
+		e.on = json_is_true(json_object_get(o, "on"));
+		json_t* pts = json_object_get(o, "points");
+		e.n = 0;
+		for (size_t k = 0; k < json_array_size(pts) && e.n < sm::Envelope::kMax; ++k) {
+			json_t* p = json_array_get(pts, k);
+			e.t[e.n] = (float) json_number_value(json_array_get(p, 0));
+			e.v[e.n] = (float) json_number_value(json_array_get(p, 1));
+			++e.n;
+		}
+		if (e.n < 2)
+			return def;
+		auto index = [&](const char* key) {
+			json_t* v = json_object_get(o, key);
+			return v ? (int) json_integer_value(v) : -1;
+		};
+		e.sus = index("sustain");
+		e.ls = index("loopStart");
+		e.le = index("loopEnd");
+		sm::envSanitize(e);
+		return e;
+	}
+
 	json_t* dataToJson() override {
 		json_t* root = json_object();
 		json_t* slots = json_array();
@@ -548,6 +697,9 @@ struct Smpl : engine::Module {
 				json_object_set_new(s, "pan", json_real(set.pan));
 				json_object_set_new(s, "mode", json_integer(set.mode));
 				json_object_set_new(s, "loop", json_integer(set.loop));
+				json_object_set_new(s, "volEnv", envToJson(set.volEnv));
+				json_object_set_new(s, "panEnv", envToJson(set.panEnv));
+				json_object_set_new(s, "fadeout", json_real(set.fadeout));
 			}
 			json_array_append_new(slots, s);
 		}
@@ -586,6 +738,10 @@ struct Smpl : engine::Module {
 			t.pan = math::clamp((float) real("pan", 0.0), -1.f, 1.f);
 			t.mode = integer("mode", 0) ? sm::GATE : sm::ONE_SHOT;
 			t.loop = (sm::Loop) math::clamp((int) integer("loop", 0), 0, 2);
+			// Envelopes (patches from before them: the defaults, off)
+			t.volEnv = envFromJson(json_object_get(s, "volEnv"), sm::defaultVolEnv());
+			t.panEnv = envFromJson(json_object_get(s, "panEnv"), sm::defaultPanEnv());
+			t.fadeout = math::clamp((float) real("fadeout", 0.0), 0.f, 10.f);
 			hasSaved[i] = true;
 			// A preset or undo on a module that is already running: apply the settings at once; a slot emptied by
 			// Initialize or Clear (file still in the storage until a save) gets its sample back
@@ -620,6 +776,24 @@ struct SlotChange : history::ModuleAction {
 
 inline double dclamp(double v, double lo, double hi) { return std::min(std::max(v, lo), hi); }
 
+/** Applies new settings to slot i with an undo step (envelope edits, snap, detect root) */
+inline void changeSlot(Smpl* m, int i, const sm::SlotSettings& before, const sm::SlotSettings& after, const char* name) {
+	SlotChange* const h = new SlotChange;
+	h->name = name;
+	h->moduleId = m->id;
+	h->slot = i;
+	h->before = before;
+	h->after = after;
+	APP->history->push(h);
+	m->postSettings(i, after);
+	m->refreshEdit = true;
+}
+
+inline std::string panName(float v) {
+	return v > 0.52f ? string::f("L%d", (int) std::round((v - 0.5f) * 200.f))
+	                 : v < 0.48f ? string::f("R%d", (int) std::round((0.5f - v) * 200.f)) : std::string("C");
+}
+
 /** Undo / redo of an edit that changed a slot's sample (crop, normalize, reverse, crossfade, clear): puts the sample,
  * its settings and name back, and the file in the patch with them */
 struct SampleSwap : history::ModuleAction {
@@ -641,12 +815,28 @@ struct SampleSwap : history::ModuleAction {
 	void redo() override { apply(after); }
 };
 
+/** Loads a file into slot i with an undo step (browser, dialog, drop); its folder is where BROWSE opens next */
+inline bool loadWithUndo(Smpl* m, int i, const std::string& path) {
+	const SampleSwap::State before = {m->ui[i].data, m->currentSettings(i), m->ui[i].name};
+	if (!m->loadFile(i, path))
+		return false;
+	SampleSwap* const h = new SampleSwap;
+	h->name = "JX-SMPL load";
+	h->moduleId = m->id;
+	h->slot = i;
+	h->before = before;
+	h->after = {m->ui[i].data, m->currentSettings(i), m->ui[i].name};
+	APP->history->push(h);
+	setBrowserFolder(system::getDirectory(path));
+	return true;
+}
+
 /** The VFD of JX-SMPL: the selected slot's name, root note, mode and loop; its waveform with START / END handles below
  * and the loop flags above (drag them); a strip of the 16 slots (click one to select it). The wheel zooms around the
  * pointer, dragging the wave pans, a double click shows the whole sample. The menu (MENU button) fills the window. */
 struct SmplDisplay : widget::OpaqueWidget {
 	Smpl* module = nullptr;
-	enum Handle { H_NONE = -1, H_START, H_END, H_LOOP_START, H_LOOP_END, H_PAN };
+	enum Handle { H_NONE = -1, H_START, H_END, H_LOOP_START, H_LOOP_END, H_PAN, H_ENV };
 	int dragging = H_NONE;
 	uint32_t lastTicks = 0;
 	double lastTickTime = 0.0;
@@ -655,6 +845,132 @@ struct SmplDisplay : widget::OpaqueWidget {
 	// sample's length changes
 	double view0 = 0.0, view1 = 1.0, panView0 = 0.0;
 	bool seam = false;
+	// The envelope view: 0 = the wave, 1 = volume, 2 = pan; the selected point; the time span shown (fixed while a
+	// point is dragged)
+	int envView = 0, selPt = -1;
+	float envSpan = 1.f, dragY = 0.f;
+	sm::SlotSettings envBefore;
+	math::Vec lastPress;
+	// Recording: the loudest value of every 1/500 s recorded so far, the frames read into it, the meters
+	std::vector<float> recOver;
+	size_t recSeen = 0;
+	float meter[2] = {}, hold[2] = {};
+	bool clip = false;
+	// The browser (SAMPLE > BROWSE): one folder's list; the highlighted file, once the selection has rested 0.15 s,
+	// is decoded for its picture and plays through the selected slot
+	enum { kBrRows = 4 };
+	bool browsing = false;
+	sm::Browser br;
+	double brChanged = 0.0;
+	std::string brTried, brInfo;
+	std::shared_ptr<const sm::SampleData> brData;
+	std::vector<float> brMin, brMax;
+
+	void brList(const std::string& path, const std::string& select = std::string()) {
+		std::vector<sm::BrowserEntry> raw;
+		try {
+			for (const std::string& e : system::getEntries(path))
+				raw.push_back(sm::BrowserEntry(system::getFilename(e), system::isDirectory(e)));
+		}
+		catch (std::exception&) {
+		}
+		br.open(path, raw, select);
+		br.follow(kBrRows);
+		brMoved();
+	}
+	void openBrowser() {
+		browsing = true;
+		brList(browserFolder());
+	}
+	void closeBrowser() {
+		browsing = false;
+		brStop();
+		setBrowserFolder(br.path);
+	}
+	/** The selection moved: the preview stops, the new file is read after a rest */
+	void brMoved() {
+		brChanged = system::getTime();
+		brStop();
+	}
+	void brStop() {
+		if (!module)
+			return;
+		module->postPreview(module->selected(), nullptr);
+		if (brData)
+			module->retired.push_back(brData);  // the audio thread may still hold it
+		brData.reset();
+		brTried.clear();
+		brInfo.clear();
+		brMin.clear();
+		brMax.clear();
+	}
+	/** The highlighted file, decoded once the selection has rested, and its preview */
+	void brStep() {
+		const sm::BrowserEntry* e = br.selected();
+		if (!browsing || !module || !e || e->dir || system::getTime() - brChanged < 0.15)
+			return;
+		const std::string path = sm::joinPath(br.path, e->name);
+		if (path == brTried)
+			return;
+		brTried = path;
+		std::vector<uint8_t> bytes;
+		try {
+			if (system::getFileSize(path) > (uint64_t) 200 << 20) {
+				brInfo = "TOO BIG";
+				return;
+			}
+			bytes = system::readFile(path);
+		}
+		catch (std::exception&) {
+			brInfo = "CANNOT READ FILE";
+			return;
+		}
+		auto d = std::make_shared<sm::SampleData>();
+		std::string error;
+		bool cut = false;
+		if (!sm::decodeAudio(bytes.data(), bytes.size(), *d, error, cut)) {
+			brInfo = error;
+			return;
+		}
+		static const char* const kinds[] = {"", "WAV", "FLAC", "MP3", "OGG"};
+		brInfo = std::string(kinds[sm::audioKind(bytes.data(), bytes.size())]) + (d->stereo ? "  ST" : "  MONO");
+		Smpl::overview(*d, brMin, brMax);
+		brData = d;
+		module->postPreview(module->selected(), d);
+	}
+	/** OK: into a folder, one folder up, or the file into the selected slot */
+	void brOk() {
+		const sm::BrowserEntry* e = br.selected();
+		if (!e || !module)
+			return;
+		if (e->name == "..")
+			brList(sm::parentDir(br.path), sm::lastPart(br.path));
+		else if (e->dir)
+			brList(sm::joinPath(br.path, e->name));
+		else {
+			const std::string path = sm::joinPath(br.path, e->name);
+			const int i = module->selected();
+			closeBrowser();
+			if (loadWithUndo(module, i, path) && module->ui[i].message.empty())
+				module->message(i, "LOADED " + module->ui[i].name);
+		}
+	}
+	void brMove(int d) {
+		br.move(d, kBrRows);
+		brMoved();
+	}
+
+	void step() override {
+		brStep();
+		OpaqueWidget::step();
+	}
+
+	void recReset() {
+		recOver.clear();
+		recSeen = 0;
+		meter[0] = meter[1] = hold[0] = hold[1] = 0.f;
+		clip = false;
+	}
 	int viewSel = -1;
 	size_t viewFrames = 0;
 	int menuTop = 0;
@@ -672,6 +988,8 @@ struct SmplDisplay : widget::OpaqueWidget {
 			return;
 		const int sel = module->selected();
 		if (sel != viewSel || frames() != viewFrames) {
+			if (sel != viewSel)
+				selPt = -1;
 			viewSel = sel;
 			viewFrames = frames();
 			whole();
@@ -698,12 +1016,49 @@ struct SmplDisplay : widget::OpaqueWidget {
 	}
 	double zoom() const { return frames() ? frames() / (view1 - view0) : 1.0; }
 
+	const sm::Envelope& envOf(const sm::SlotSettings& s) const { return envView == 2 ? s.panEnv : s.volEnv; }
+	sm::Envelope& envOf(sm::SlotSettings& s) const { return envView == 2 ? s.panEnv : s.volEnv; }
+	static float spanOf(const sm::Envelope& e) { return std::max(1.f, e.t[e.n - 1] * 1.15f); }
+	float xT(float t) const {
+		const math::Rect wr = waveRect();
+		return wr.pos.x + t / envSpan * wr.size.x;
+	}
+	float tX(float x) const {
+		const math::Rect wr = waveRect();
+		return (x - wr.pos.x) / wr.size.x * envSpan;
+	}
+	float yV(float v) const {
+		const math::Rect wr = waveRect();
+		return wr.pos.y + wr.size.y * (1.f - v);
+	}
+	float vY(float y) const {
+		const math::Rect wr = waveRect();
+		return math::clamp(1.f - (y - wr.pos.y) / wr.size.y, 0.f, 1.f);
+	}
+	int envPointAt(const sm::Envelope& e, math::Vec p) const {
+		int best = -1;
+		float bd = mm2px(2.2f);
+		for (int k = 0; k < e.n; ++k) {
+			const float d = p.minus(math::Vec(xT(e.t[k]), yV(e.v[k]))).norm();
+			if (d < bd) {
+				bd = d;
+				best = k;
+			}
+		}
+		return best;
+	}
+	void showEnv(int which) {
+		envView = which;
+		selPt = -1;
+		seam = false;
+	}
+
 	math::Rect waveRect() const {
 		return math::Rect(mm2px(math::Vec(3.f, 10.5f)), math::Vec(box.size.x - mm2px(6.f), box.size.y - mm2px(19.5f)));
 	}
 	math::Rect stripBox(int i) const {
 		const float x0 = mm2px(4.f), w = (box.size.x - 2 * x0) / kSlots;
-		return math::Rect(math::Vec(x0 + i * w + 1.f, box.size.y - mm2px(4.2f)), math::Vec(w - 2.f, mm2px(2.4f)));
+		return math::Rect(math::Vec(x0 + i * w + 1.f, box.size.y - mm2px(5.2f)), math::Vec(w - 2.f, mm2px(2.4f)));
 	}
 	float xOf(double f) const {
 		const math::Rect wr = waveRect();
@@ -796,8 +1151,284 @@ struct SmplDisplay : widget::OpaqueWidget {
 		st::vfdWindow(vg, box.size, lit);
 		if (module && module->menu.open)
 			drawMenu(vg, lit);
+		else if (module && browsing)
+			drawBrowser(vg, lit);
+		else if (module && module->recording())
+			drawRec(vg, lit);
 		else
 			drawSlot(vg, lit);
+	}
+
+	/** Recording: ARMED / REC with the time, the wave as it grows, meters L / R (−48..0 dB, peak hold, CLIP) */
+	void drawRec(NVGcontext* vg, NVGcolor lit) {
+		namespace st = jxmp::style;
+		auto dim = [&](float a) { return nvgRGBAf(lit.r, lit.g, lit.b, a); };
+		sm::Recorder& r = module->rec;
+		const bool stereo = module->inputs[Smpl::REC_L_INPUT].isConnected() && module->inputs[Smpl::REC_R_INPUT].isConnected();
+		const bool gate = module->inputs[Smpl::REC_GATE_INPUT].isConnected();
+		const bool armed = r.state == sm::Recorder::ARMED;
+		const size_t n = r.frames.load(std::memory_order_acquire);
+		const float secs = n / r.rate;
+		// The wave so far
+		const size_t per = std::max<size_t>(1, (size_t) (r.rate / 500.f));
+		while (recSeen + per <= n) {
+			float m = 0.f;
+			for (size_t k = recSeen; k < recSeen + per; ++k)
+				m = std::max(m, std::max(std::fabs(r.l[k]), std::fabs(r.r[k])));
+			recOver.push_back(m);
+			recSeen += per;
+		}
+		// Meters, falling back slowly
+		const float pk[2] = {r.takePeakL(), r.takePeakR()};
+		for (int c = 0; c < 2; ++c) {
+			meter[c] = std::max(pk[c], meter[c] * 0.85f);
+			hold[c] = std::max(pk[c], hold[c] - 0.01f);
+			if (pk[c] > 1.f)
+				clip = true;
+		}
+		const float line1 = mm2px(4.f), line2 = mm2px(8.f), left = mm2px(3.f), right = box.size.x - mm2px(3.f);
+		st::vfdText(vg, math::Vec(left, line1), string::f("%02d", module->recSlot + 1), 13.f, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, lit);
+		st::vfdText(vg, math::Vec(mm2px(11.f), line1), "RECORD", 10.f, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, lit);
+		st::vfdText(vg, math::Vec(right, line1), string::f("%s  %g kHz", stereo ? "STEREO" : "MONO", std::round(r.rate / 100.f) / 10.f),
+		            10.f, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, lit);
+		const bool blink = std::fmod(system::getTime(), 0.8) < 0.4;
+		std::string l2;
+		if (armed)
+			l2 = gate ? "ARMED  WAITING FOR REC GATE" : "ARMED  OK = START";
+		else
+			l2 = std::string(blink ? "* " : "  ") + string::f("REC %.1f S", secs) + (gate ? "" : "  OK = STOP");
+		if (armed)
+			st::vfdText(vg, math::Vec(left, line2), l2, 7.5f, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, lit);
+		else
+			st::text(vg, math::Vec(left, line2), l2, 7.5f, nvgRGBf(1.f, 1.f, 1.f), st::FONT_LABEL, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, 0.8f);
+		st::vfdLegend(vg, math::Vec(right, line2), "MENU = CANCEL", 6.5f, true, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, dim(0.6f));
+
+		const math::Rect wr = waveRect();
+		const float wh = wr.size.y - mm2px(5.f), mid = wr.pos.y + wh / 2, amp = wh * 0.48f;
+		// The zero line; a note on it breaks it, a little air on both sides of the text
+		const char* const note = recOver.empty() && armed ? "NOTHING RECORDED YET   60 S MAX" : nullptr;
+		const float cx = wr.pos.x + wr.size.x / 2;
+		float gapL = cx, gapR = cx;
+		if (note) {
+			float half = 0.f;
+			if (std::shared_ptr<window::Font> f = st::font(st::FONT_LABEL)) {
+				nvgFontFaceId(vg, f->handle);
+				nvgFontSize(vg, 6.f);
+				nvgTextLetterSpacing(vg, 0.6f);
+				float bounds[4];
+				half = nvgTextBounds(vg, 0.f, 0.f, note, nullptr, bounds) / 2.f;
+			}
+			gapL = cx - half - mm2px(1.2f);
+			gapR = cx + half + mm2px(1.2f);
+		}
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, wr.pos.x, mid);
+		nvgLineTo(vg, gapL, mid);
+		nvgMoveTo(vg, gapR, mid);
+		nvgLineTo(vg, wr.pos.x + wr.size.x, mid);
+		nvgStrokeWidth(vg, 0.6f);
+		nvgStrokeColor(vg, dim(0.18f));
+		nvgStroke(vg);
+		if (recOver.empty()) {
+			if (note)
+				st::vfdLegend(vg, math::Vec(cx, mid), note, 6.f, true, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, dim(0.45f));
+		}
+		else {
+			const float span = std::max(5.f, secs * 1.1f), perSec = 500.f;
+			const int cols = (int) (wr.size.x * secs / span);
+			nvgBeginPath(vg);
+			for (int c = 0; c < cols; ++c) {
+				const size_t a = (size_t) (c / wr.size.x * span * perSec), b = (size_t) ((c + 1) / wr.size.x * span * perSec);
+				float m = 0.f;
+				for (size_t k = a; k < std::min(b + 1, recOver.size()); ++k)
+					m = std::max(m, recOver[k]);
+				m = std::min(m, 1.f);
+				nvgMoveTo(vg, wr.pos.x + c + 0.5f, mid - m * amp);
+				nvgLineTo(vg, wr.pos.x + c + 0.5f, mid + std::max(m * amp, 0.4f));
+			}
+			nvgStrokeWidth(vg, 1.f);
+			nvgStrokeColor(vg, lit);
+			nvgStroke(vg);
+			const float x = wr.pos.x + wr.size.x * secs / span;
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, x, wr.pos.y);
+			nvgLineTo(vg, x, wr.pos.y + wh);
+			nvgStrokeColor(vg, nvgRGBf(1.f, 1.f, 1.f));
+			nvgStroke(vg);
+		}
+		// Meters
+		const float my = wr.pos.y + wr.size.y - mm2px(3.6f), mw = wr.size.x - mm2px(14.f), mx = wr.pos.x + mm2px(3.f);
+		auto db = [](float v) { return math::clamp(1.f + 20.f * std::log10(std::max(v, 1e-5f)) / 48.f, 0.f, 1.f); };
+		for (int c = 0; c < (stereo ? 2 : 1); ++c) {
+			const float y = my + c * mm2px(2.2f), h = mm2px(1.4f);
+			st::vfdLegend(vg, math::Vec(wr.pos.x, y + h / 2), c ? "R" : "L", 5.f, true, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, dim(0.6f));
+			nvgBeginPath(vg);
+			nvgRect(vg, mx, y, mw, h);
+			nvgFillColor(vg, dim(0.12f));
+			nvgFill(vg);
+			nvgBeginPath(vg);
+			nvgRect(vg, mx, y, mw * db(meter[c]), h);
+			nvgFillColor(vg, dim(0.95f));
+			nvgFill(vg);
+			nvgBeginPath(vg);
+			nvgRect(vg, mx + mw * db(hold[c]) - 1.f, y, 2.f, h);
+			nvgFillColor(vg, nvgRGBf(1.f, 1.f, 1.f));
+			nvgFill(vg);
+		}
+		for (float d : {-24.f, -12.f, -6.f}) {
+			const float x = mx + mw * (1.f + d / 48.f);
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, x, my - 1.f);
+			nvgLineTo(vg, x, my + mm2px(3.8f));
+			nvgStrokeWidth(vg, 0.6f);
+			nvgStrokeColor(vg, dim(0.3f));
+			nvgStroke(vg);
+		}
+		if (clip)
+			st::text(vg, math::Vec(right, my + mm2px(1.6f)), "CLIP", 6.f, nvgRGBf(1.f, 1.f, 1.f), st::FONT_LABEL,
+			         NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, 0.8f);
+		else
+			st::vfdLegend(vg, math::Vec(right, my + mm2px(1.6f)), "0 DB", 5.5f, true, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, dim(0.5f));
+	}
+
+	/** Text cut in the middle until it fits `maxW` */
+	std::string fit(NVGcontext* vg, const std::string& s, float size, float spacing, float maxW) {
+		namespace st = jxmp::style;
+		std::shared_ptr<window::Font> f = st::font(st::FONT_LABEL);
+		if (!f)
+			return s;
+		nvgFontFaceId(vg, f->handle);
+		nvgFontSize(vg, size);
+		nvgTextLetterSpacing(vg, spacing);
+		float bounds[4];
+		std::string t = s;
+		for (size_t n = s.size(); n >= 5 && nvgTextBounds(vg, 0.f, 0.f, t.c_str(), nullptr, bounds) > maxW; --n)
+			t = sm::shortenMiddle(s, n);
+		return t;
+	}
+
+	/** The browser: the folder, its folders and sound files (the highlighted one inverted), below the highlighted
+	 * file's wave, length and format with the preview's cursor */
+	void drawBrowser(NVGcontext* vg, NVGcolor lit) {
+		namespace st = jxmp::style;
+		auto dim = [&](float a) { return nvgRGBAf(lit.r, lit.g, lit.b, a); };
+		const float line1 = mm2px(4.f), left = mm2px(3.f), right = box.size.x - mm2px(3.f);
+		const int count = (int) br.items.size();
+		const std::string pos = count ? string::f("%d/%d", br.sel + 1, count) : std::string("0/0");
+		st::vfdLegend(vg, math::Vec(right, line1), pos, 6.5f, true, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, dim(0.6f));
+		st::vfdText(vg, math::Vec(left, line1), fit(vg, string::uppercase(br.path), 10.f, 0.6f, right - left - mm2px(12.f)), 10.f,
+		            NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, lit);
+		auto hline = [&](float y, float a) {
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, left, y);
+			nvgLineTo(vg, right, y);
+			nvgStrokeWidth(vg, 0.7f);
+			nvgStrokeColor(vg, dim(a));
+			nvgStroke(vg);
+		};
+		hline(mm2px(6.6f), 0.35f);
+		const float rowH = mm2px(3.9f), y0 = mm2px(7.4f), barR = right - mm2px(2.f);
+		br.follow(kBrRows);
+		if (!count)
+			st::vfdLegend(vg, math::Vec(box.size.x / 2, y0 + 2 * rowH), "NO FOLDERS OR SOUNDS HERE", 7.f, true,
+			              NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, dim(0.5f));
+		for (int r = 0; r < kBrRows; ++r) {
+			const int i = br.top + r;
+			if (i >= count)
+				break;
+			const sm::BrowserEntry& e = br.items[i];
+			const float y = y0 + r * rowH + rowH / 2;
+			const bool on = i == br.sel;
+			const NVGcolor textC = on ? nvgRGB(0x14, 0x08, 0x0c) : e.dir ? dim(0.75f) : lit;
+			if (on) {
+				nvgBeginPath(vg);
+				nvgRect(vg, left, y - rowH / 2 + 0.8f, barR - left, rowH - 1.6f);
+				nvgFillColor(vg, dim(0.95f));
+				nvgFill(vg);
+			}
+			const std::string shown = e.name == ".." ? std::string("..  (UP)")
+			                                         : string::uppercase(e.dir ? e.name : sm::stripExtension(e.name));
+			const std::string ext = e.dir ? std::string() : string::uppercase(e.name.substr(e.name.find_last_of('.') + 1));
+			const std::string name = fit(vg, shown, 8.f, 0.8f, barR - left - mm2px(12.f));
+			if (on)
+				st::text(vg, math::Vec(left + mm2px(2.f), y), name, 8.f, textC, st::FONT_LABEL, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, 0.8f);
+			else if (e.dir)
+				st::vfdLegend(vg, math::Vec(left + mm2px(2.f), y), name, 8.f, true, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, textC);
+			else
+				st::vfdText(vg, math::Vec(left + mm2px(2.f), y), name, 8.f, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, lit);
+			const float ax = barR - mm2px(2.f);
+			if (e.dir) {
+				nvgBeginPath(vg);
+				nvgMoveTo(vg, ax - 3.f, y - 3.f);
+				nvgLineTo(vg, ax + 1.5f, y);
+				nvgLineTo(vg, ax - 3.f, y + 3.f);
+				nvgClosePath(vg);
+				nvgFillColor(vg, textC);
+				nvgFill(vg);
+			}
+			else if (on)
+				st::text(vg, math::Vec(ax + 1.5f, y), ext, 6.f, textC, st::FONT_LABEL, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, 0.6f);
+			else
+				st::vfdLegend(vg, math::Vec(ax + 1.5f, y), ext, 6.f, true, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, dim(0.7f));
+		}
+		if (count > kBrRows) {
+			const float bh = kBrRows * rowH, bx = right - mm2px(0.6f);
+			nvgBeginPath(vg);
+			nvgRect(vg, bx, y0, 1.5f, bh);
+			nvgFillColor(vg, dim(0.15f));
+			nvgFill(vg);
+			nvgBeginPath(vg);
+			nvgRect(vg, bx - 0.5f, y0 + bh * br.top / count, 2.5f, bh * kBrRows / count);
+			nvgFillColor(vg, dim(0.8f));
+			nvgFill(vg);
+		}
+		// The highlighted entry below the list
+		const float sy = y0 + kBrRows * rowH + mm2px(0.8f), sh = box.size.y - sy - mm2px(1.2f), mid = sy + sh / 2;
+		hline(sy - mm2px(0.4f), 0.2f);
+		const sm::BrowserEntry* e = br.selected();
+		if (!e)
+			return;
+		if (e->dir) {
+			st::vfdLegend(vg, math::Vec(left, mid), e->name == ".." ? "OK = ONE FOLDER UP" : "OK = OPEN FOLDER", 6.5f, true,
+			              NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, dim(0.5f));
+			return;
+		}
+		if (!brData) {
+			// Not read yet (the selection is moving), or it could not be read
+			st::vfdLegend(vg, math::Vec(left, mid), brInfo.empty() ? "..." : brInfo, 6.5f, true, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE,
+			              dim(brInfo.empty() ? 0.4f : 0.7f));
+			return;
+		}
+		const float ww = right - left - mm2px(22.f);
+		const int cols = std::max(1, (int) ww);
+		const size_t parts = brMin.size();
+		nvgBeginPath(vg);
+		for (int c = 0; c < cols && parts; ++c) {
+			const size_t a = (size_t) c * parts / cols, b = std::max(a + 1, (size_t) (c + 1) * parts / cols);
+			float lo = 0.f, hi = 0.f;
+			for (size_t k = a; k < b && k < parts; ++k) {
+				lo = std::min(lo, brMin[k]);
+				hi = std::max(hi, brMax[k]);
+			}
+			nvgMoveTo(vg, left + c + 0.5f, mid - std::min(hi, 1.f) * sh * 0.48f);
+			nvgLineTo(vg, left + c + 0.5f, mid - std::max(lo, -1.f) * sh * 0.48f + 0.4f);
+		}
+		nvgStrokeWidth(vg, 1.f);
+		nvgStrokeColor(vg, dim(0.8f));
+		nvgStroke(vg);
+		const double p = module->previewPos.load(std::memory_order_relaxed);
+		if (p >= 0.0 && brData->frames()) {
+			const float x = left + ww * (float) (p / brData->frames());
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, x, sy);
+			nvgLineTo(vg, x, sy + sh);
+			nvgStrokeWidth(vg, 1.f);
+			nvgStrokeColor(vg, nvgRGBf(1.f, 1.f, 1.f));
+			nvgStroke(vg);
+		}
+		st::vfdText(vg, math::Vec(right, sy + sh * 0.28f), string::f("%.2f S", brData->frames() / brData->rate), 7.f,
+		            NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, lit);
+		st::vfdLegend(vg, math::Vec(right, sy + sh * 0.78f), brInfo, 5.5f, true, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, dim(0.6f));
 	}
 
 	void drawMenu(NVGcontext* vg, NVGcolor lit) {
@@ -824,13 +1455,15 @@ struct SmplDisplay : widget::OpaqueWidget {
 			              NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, dim(0.75f));
 			return;
 		}
-		const int rows = 5, count = m.count(), cur = m.selected();
+		// Four rows; the same gap of 3 VFD dots (the grid's pitch) below the title line and above the glass's lower edge
+		const int rows = 4, count = m.count(), cur = m.selected();
 		if (cur < menuTop)
 			menuTop = cur;
 		if (cur >= menuTop + rows)
 			menuTop = cur - rows + 1;
 		menuTop = math::clamp(menuTop, 0, std::max(0, count - rows));
-		const float rowH = mm2px(4.1f), y0 = mm2px(7.8f), barR = right - mm2px(2.f);
+		const float gap = 3.f * mm2px(0.55f), y0 = mm2px(6.6f) + gap;
+		const float listEnd = box.size.y - st::vfdBezel(box.size) - gap, rowH = (listEnd - y0) / rows, barR = right - mm2px(2.f);
 		for (int r = 0; r < rows; ++r) {
 			const int i = menuTop + r;
 			if (i >= count)
@@ -838,16 +1471,23 @@ struct SmplDisplay : widget::OpaqueWidget {
 			const sm::MenuItem& it = m.current()[i];
 			const float y = y0 + r * rowH + rowH / 2;
 			const bool on = i == cur;
+			// ON / OFF says what it is now and what OK does
+			std::string name = it.name;
+			if (it.action == sm::A_ENV_ONOFF) {
+				const sm::SlotSettings ss = module->currentSettings(sel);
+				const bool envOn = it.value > 0.5f ? ss.panEnv.on : ss.volEnv.on;
+				name = envOn ? "ON  (OK = OFF)" : "OFF  (OK = ON)";
+			}
 			const NVGcolor textC = on ? nvgRGB(0x14, 0x08, 0x0c) : lit;
 			if (on) {
 				nvgBeginPath(vg);
-				nvgRect(vg, left, y - rowH / 2 + 1.f, barR - left, rowH - 2.f);
+				nvgRect(vg, left, y - rowH / 2 + 0.8f, barR - left, rowH - 1.6f);
 				nvgFillColor(vg, dim(0.95f));
 				nvgFill(vg);
-				st::text(vg, math::Vec(left + mm2px(2.f), y), it.name, 8.5f, textC, st::FONT_LABEL, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, 0.8f);
+				st::text(vg, math::Vec(left + mm2px(2.f), y), name, 8.5f, textC, st::FONT_LABEL, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, 0.8f);
 			}
 			else
-				st::vfdText(vg, math::Vec(left + mm2px(2.f), y), it.name, 8.5f, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, lit);
+				st::vfdText(vg, math::Vec(left + mm2px(2.f), y), name, 8.5f, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, lit);
 			const float ax = barR - mm2px(2.f);
 			if (it.sub) {
 				// A folder: a small arrow on the right
@@ -859,8 +1499,8 @@ struct SmplDisplay : widget::OpaqueWidget {
 				nvgFillColor(vg, textC);
 				nvgFill(vg);
 			}
-			if (it.action == sm::A_XFADE && it.value == m.lastXfade) {
-				// The crossfade length used last
+			if ((it.action == sm::A_XFADE && it.value == m.lastXfade) || (it.action == sm::A_FADE && it.value == m.fadeNow)) {
+				// The crossfade length used last, the slot's fadeout
 				nvgBeginPath(vg);
 				nvgCircle(vg, ax, y, 2.f);
 				nvgFillColor(vg, textC);
@@ -868,7 +1508,7 @@ struct SmplDisplay : widget::OpaqueWidget {
 			}
 		}
 		if (count > rows) {
-			const float bh = rows * rowH, bx = right - mm2px(0.6f);
+			const float bh = listEnd - y0, bx = right - mm2px(0.6f);
 			nvgBeginPath(vg);
 			nvgRect(vg, bx, y0, 1.5f, bh);
 			nvgFillColor(vg, dim(0.15f));
@@ -893,7 +1533,11 @@ struct SmplDisplay : widget::OpaqueWidget {
 		st::vfdText(vg, math::Vec(mm2px(3.f), line1), string::f("%02d", sel + 1), 13.f, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, lit);
 		const std::string name = u ? (has ? u->name : (u->name.empty() ? "EMPTY" : u->name)) : "GUITAR E2";
 		st::vfdText(vg, math::Vec(mm2px(11.f), line1), name, 10.f, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, lit);
-		if (has || !module)
+		const bool env = has && envView != 0;
+		if (env)
+			st::vfdText(vg, math::Vec(box.size.x - mm2px(3.f), line1), envView == 1 ? "VOLUME ENV" : "PAN ENV", 10.f,
+			            NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, lit);
+		else if (has || !module)
 			st::vfdText(vg, math::Vec(box.size.x - mm2px(3.f), line1),
 			            sm::noteName(module ? set.root : 40) + string::f("  %+03d", module ? (int) std::round(set.fine) : 0), 10.f,
 			            NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, lit);
@@ -904,7 +1548,9 @@ struct SmplDisplay : widget::OpaqueWidget {
 			st::vfdText(vg, math::Vec(mm2px(3.f), line2), u->message, 7.5f, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, lit);
 		else if (has) {
 			std::string mode;
-			if (seam)
+			if (env)
+				mode = envLine(set, sel);
+			else if (seam)
 				mode = "LOOP SEAM   END | START";
 			else if (z > 1.05)
 				mode = z < 10.0 ? string::f("ZOOM %.1fX", z) : string::f("ZOOM %dX", (int) std::round(z));
@@ -912,27 +1558,36 @@ struct SmplDisplay : widget::OpaqueWidget {
 				mode = set.mode == sm::ONE_SHOT ? "ONE-SHOT" : "GATE";
 				if (set.mode == sm::GATE)
 					mode += set.loop == sm::LOOP_OFF ? "  LOOP OFF" : set.loop == sm::LOOP_FWD ? "  LOOP FWD" : "  LOOP PING";
+				if (set.volEnv.on || set.panEnv.on)
+					mode += std::string("  ENV") + (set.volEnv.on ? " V" : "") + (set.panEnv.on ? " P" : "");
 			}
 			st::vfdLegend(vg, math::Vec(mm2px(3.f), line2), mode, 7.5f, true, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, dim(0.75f));
 		}
-		if (has)
+		if (env)
+			st::vfdLegend(vg, math::Vec(box.size.x - mm2px(3.f), line2), pointLine(set), 7.5f, true,
+			              NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, dim(0.75f));
+		else if (has)
 			st::vfdLegend(vg, math::Vec(box.size.x - mm2px(3.f), line2),
 			              string::f("%.1f kHz  %.2f s", u->data->rate / 1000.f, u->data->frames() / u->data->rate), 7.5f, true,
 			              NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, dim(0.75f));
 		else if (module && !fresh)
-			st::vfdLegend(vg, math::Vec(mm2px(3.f), line2), "MENU > SAMPLE > LOAD, OR DROP A WAV", 7.5f, true,
+			st::vfdLegend(vg, math::Vec(mm2px(3.f), line2), "MENU > SAMPLE > BROWSE, OR DROP A FILE", 7.5f, true,
 			              NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, dim(0.75f));
 
 		const math::Rect wr = waveRect();
 		const float mid = wr.pos.y + wr.size.y / 2;
-		nvgBeginPath(vg);
-		nvgMoveTo(vg, wr.pos.x, mid);
-		nvgLineTo(vg, wr.pos.x + wr.size.x, mid);
-		nvgStrokeWidth(vg, 0.6f);
-		nvgStrokeColor(vg, dim(0.18f));
-		nvgStroke(vg);
+		if (envView != 2 || !has) {
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, wr.pos.x, mid);
+			nvgLineTo(vg, wr.pos.x + wr.size.x, mid);
+			nvgStrokeWidth(vg, 0.6f);
+			nvgStrokeColor(vg, dim(0.18f));
+			nvgStroke(vg);
+		}
 		if (has) {
-			if (seam)
+			if (env)
+				drawEnv(vg, lit, *u, set, sel);
+			else if (seam)
 				drawSeam(vg, lit, *u, set);
 			else
 				drawWave(vg, lit, *u, set, sel, z);
@@ -955,6 +1610,156 @@ struct SmplDisplay : widget::OpaqueWidget {
 			st::vfdLegend(vg, math::Vec(b.pos.x + b.size.x / 2, b.pos.y - mm2px(1.1f)), string::f("%d", i + 1), 5.f, true,
 			              NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, i == sel ? nvgRGBf(1.f, 1.f, 1.f) : dim(0.5f));
 		}
+	}
+
+	/** Where the selected slot's envelope plays (seconds), or -1 */
+	float playTime(int sel) const {
+		if (!module || !module->audio[sel].shownActive.load(std::memory_order_relaxed))
+			return -1.f;
+		return (envView == 2 ? module->audio[sel].shownPanT : module->audio[sel].shownVolT).load(std::memory_order_relaxed);
+	}
+
+	/** Line 2 in the envelope view: ON/OFF, sustain, loop, fadeout; while playing the value it gives */
+	std::string envLine(const sm::SlotSettings& set, int sel) const {
+		const sm::Envelope& e = envOf(set);
+		const float t = playTime(sel);
+		if (t >= 0.f && e.on) {
+			const float v = sm::envValue(e, t);
+			return envView == 1 ? string::f("PLAYING  VOL %d %%", (int) std::round(v * 100.f)) : "PLAYING  PAN " + panName(v);
+		}
+		std::string l = e.on ? "ON" : "OFF";
+		if (e.sus >= 0)
+			l += string::f("  SUS %d", e.sus + 1);
+		if (e.ls >= 0)
+			l += string::f("  LOOP %d-%d", e.ls + 1, e.le + 1);
+		if (envView == 1 && set.fadeout > 0.f)
+			l += string::f("  FADE %g S", set.fadeout);
+		return l;
+	}
+
+	/** Right of line 2: the selected point, or how many there are */
+	std::string pointLine(const sm::SlotSettings& set) const {
+		const sm::Envelope& e = envOf(set);
+		if (selPt < 0 || selPt >= e.n)
+			return string::f("%d POINTS", e.n);
+		const float t = e.t[selPt], v = e.v[selPt];
+		const std::string ts = t < 1.f ? string::f("%d MS", (int) std::round(t * 1000.f)) : string::f("%.2f S", t);
+		return string::f("P%d  ", selPt + 1) + ts + "  " + (envView == 1 ? string::f("%d %%", (int) std::round(v * 100.f)) : panName(v));
+	}
+
+	/** The envelope as FT2 shows it: lines between square points, the sustain as a dashed line, the loop shaded; the
+	 * wave faintly behind (from START, at the original pitch); a cursor where it plays */
+	void drawEnv(NVGcontext* vg, NVGcolor lit, const Smpl::UiSlot& u, const sm::SlotSettings& set, int sel) {
+		namespace st = jxmp::style;
+		auto dim = [&](float a) { return nvgRGBAf(lit.r, lit.g, lit.b, a); };
+		const sm::Envelope& e = envOf(set);
+		if (dragging != H_ENV)
+			envSpan = spanOf(e);
+		const math::Rect wr = waveRect();
+		const float A = e.on ? 1.f : 0.4f;
+		nvgSave(vg);
+		nvgIntersectScissor(vg, wr.pos.x, wr.pos.y - 2.f, wr.size.x, wr.size.y + 4.f);
+		// The wave behind
+		const sm::SampleData& d = *u.data;
+		const float mid = yV(0.5f);
+		nvgBeginPath(vg);
+		for (int c = 0; c < (int) wr.size.x; c += 2) {
+			const double f0 = set.start + tX(wr.pos.x + c) * d.rate, f1 = set.start + tX(wr.pos.x + c + 2) * d.rate;
+			if (f0 >= set.end)
+				break;
+			float m = 0.f;
+			const long a = (long) f0, b = std::min((long) set.end, (long) std::ceil(f1));
+			const long step = std::max(1L, (b - a) / 32);
+			for (long k = a; k < b; k += step)
+				m = std::max(m, std::fabs(sm::monoAt(d, (size_t) k)));
+			nvgRect(vg, wr.pos.x + c, mid - m * wr.size.y * 0.5f, 1.4f, std::max(0.5f, m * wr.size.y));
+		}
+		nvgFillColor(vg, dim(0.13f));
+		nvgFill(vg);
+		// Time grid
+		const float stepT = envSpan > 3.f ? 1.f : envSpan > 1.2f ? 0.5f : 0.25f;
+		for (float t = stepT; t < envSpan; t += stepT) {
+			const float x = xT(t);
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, x, wr.pos.y);
+			nvgLineTo(vg, x, wr.pos.y + wr.size.y);
+			nvgStrokeWidth(vg, 0.6f);
+			nvgStrokeColor(vg, dim(0.1f));
+			nvgStroke(vg);
+			st::vfdLegend(vg, math::Vec(x + 2.f, wr.pos.y + mm2px(0.9f)),
+			              t < 1.f ? string::f("%d MS", (int) std::round(t * 1000.f)) : string::f("%g S", t), 4.5f, true,
+			              NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, dim(0.45f));
+		}
+		if (envView == 2) {
+			st::vfdLegend(vg, math::Vec(wr.pos.x + 2.f, wr.pos.y + mm2px(2.5f)), "L", 5.f, true, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, dim(0.5f));
+			st::vfdLegend(vg, math::Vec(wr.pos.x + 2.f, wr.pos.y + wr.size.y - mm2px(1.f)), "R", 5.f, true,
+			              NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, dim(0.5f));
+		}
+		auto vline = [&](float x, NVGcolor c) {
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, x, wr.pos.y);
+			nvgLineTo(vg, x, wr.pos.y + wr.size.y);
+			nvgStrokeWidth(vg, 0.8f);
+			nvgStrokeColor(vg, c);
+			nvgStroke(vg);
+		};
+		// Loop and sustain
+		if (e.ls >= 0 && e.le >= 0) {
+			const float a = xT(e.t[e.ls]), b = xT(e.t[e.le]);
+			nvgBeginPath(vg);
+			nvgRect(vg, a, wr.pos.y, b - a, wr.size.y);
+			nvgFillColor(vg, dim(e.on ? 0.1f : 0.05f));
+			nvgFill(vg);
+			vline(a, dim(0.6f * A));
+			vline(b, dim(0.6f * A));
+			st::vfdLegend(vg, math::Vec((a + b) / 2, wr.pos.y + mm2px(2.5f)), "LOOP", 4.5f, true,
+			              NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, dim(0.8f * A));
+		}
+		const NVGcolor pale = nvgRGBf(lit.r * 0.4f + 0.6f, lit.g * 0.4f + 0.6f, lit.b * 0.4f + 0.6f);
+		if (e.sus >= 0) {
+			const float x = xT(e.t[e.sus]);
+			for (float y = wr.pos.y; y < wr.pos.y + wr.size.y; y += 6.f) {
+				nvgBeginPath(vg);
+				nvgMoveTo(vg, x, y);
+				nvgLineTo(vg, x, std::min(y + 3.f, wr.pos.y + wr.size.y));
+				nvgStrokeWidth(vg, 0.9f);
+				nvgStrokeColor(vg, pale);
+				nvgStroke(vg);
+			}
+			st::vfdLegend(vg, math::Vec(x + 2.f, wr.pos.y + wr.size.y - mm2px(1.f)), "SUS", 4.5f, true,
+			              NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, pale);
+		}
+		// The curve, on to the right edge after the last point
+		nvgBeginPath(vg);
+		for (int k = 0; k < e.n; ++k) {
+			if (k)
+				nvgLineTo(vg, xT(e.t[k]), yV(e.v[k]));
+			else
+				nvgMoveTo(vg, xT(e.t[k]), yV(e.v[k]));
+		}
+		nvgLineTo(vg, wr.pos.x + wr.size.x, yV(e.v[e.n - 1]));
+		nvgStrokeWidth(vg, 1.3f);
+		nvgLineJoin(vg, NVG_ROUND);
+		nvgStrokeColor(vg, dim(A));
+		nvgStroke(vg);
+		for (int k = 0; k < e.n; ++k) {
+			const float sz = k == selPt ? 5.f : 3.6f;
+			nvgBeginPath(vg);
+			nvgRect(vg, xT(e.t[k]) - sz / 2, yV(e.v[k]) - sz / 2, sz, sz);
+			nvgFillColor(vg, k == selPt ? nvgRGBf(1.f, 1.f, 1.f) : e.on ? pale : dim(0.45f));
+			nvgFill(vg);
+		}
+		// Where it plays
+		const float t = playTime(sel);
+		if (t >= 0.f && e.on) {
+			const float x = xT(std::min(t, envSpan));
+			vline(x, nvgRGBf(1.f, 1.f, 1.f));
+			nvgBeginPath(vg);
+			nvgCircle(vg, x, yV(sm::envValue(e, t)), 2.2f);
+			nvgFillColor(vg, nvgRGBf(1.f, 1.f, 1.f));
+			nvgFill(vg);
+		}
+		nvgRestore(vg);
 	}
 
 	void drawWave(NVGcontext* vg, NVGcolor lit, const Smpl::UiSlot& u, const sm::SlotSettings& set, int sel, double z) {
@@ -1145,8 +1950,30 @@ struct SmplDisplay : widget::OpaqueWidget {
 		return wr.grow(math::Vec(0.f, mm2px(1.5f))).contains(p);
 	}
 
+	/** The browser row under `p`, or -1 */
+	int brRowAt(math::Vec p) const {
+		const float rowH = mm2px(3.9f), y0 = mm2px(7.4f);
+		if (p.y < y0 || p.y >= y0 + kBrRows * rowH)
+			return -1;
+		const int i = br.top + (int) ((p.y - y0) / rowH);
+		return i < (int) br.items.size() ? i : -1;
+	}
+
 	void onButton(const ButtonEvent& e) override {
-		if (e.button != GLFW_MOUSE_BUTTON_LEFT || e.action != GLFW_PRESS || !module || module->menu.open)
+		if (browsing && module && !module->menu.open) {
+			// A click selects (and so previews) a row, a double click (onDoubleClick) opens or loads it
+			if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
+				lastPress = e.pos;
+				const int i = brRowAt(e.pos);
+				if (i >= 0 && i != br.sel) {
+					br.select(i, kBrRows);
+					brMoved();
+				}
+				e.consume(this);
+			}
+			return;
+		}
+		if (e.button != GLFW_MOUSE_BUTTON_LEFT || e.action != GLFW_PRESS || !module || module->menu.open || module->recording())
 			return OpaqueWidget::onButton(e);
 		for (int i = 0; i < kSlots; ++i) {
 			math::Rect b = stripBox(i);
@@ -1165,6 +1992,20 @@ struct SmplDisplay : widget::OpaqueWidget {
 				e.consume(this);
 				return;
 			}
+		}
+		lastPress = e.pos;
+		if (envView != 0 && data()) {
+			// The envelope view: a click selects a point (and starts dragging it), elsewhere none
+			const sm::SlotSettings set = module->currentSettings(module->selected());
+			selPt = envPointAt(envOf(set), e.pos);
+			if (selPt >= 0) {
+				dragging = H_ENV;
+				envBefore = set;
+				dragX = e.pos.x;
+				dragY = e.pos.y;
+			}
+			e.consume(this);
+			return;
 		}
 		dragging = handleAt(e.pos);
 		if (dragging != H_NONE) {
@@ -1188,6 +2029,14 @@ struct SmplDisplay : widget::OpaqueWidget {
 		if (dragging == H_NONE || !module)
 			return;
 		dragX += e.mouseDelta.x / getAbsoluteZoom();
+		dragY += e.mouseDelta.y / getAbsoluteZoom();
+		if (dragging == H_ENV) {
+			const int i = module->selected();
+			sm::SlotSettings s = module->currentSettings(i);
+			sm::envMove(envOf(s), selPt, tX(dragX), vY(dragY));
+			module->postSettings(i, s);
+			return;
+		}
 		if (dragging == H_PAN) {
 			const math::Rect wr = waveRect();
 			const double w = view1 - view0;
@@ -1204,6 +2053,13 @@ struct SmplDisplay : widget::OpaqueWidget {
 	}
 
 	void onDragEnd(const DragEndEvent& e) override {
+		if (dragging == H_ENV && module) {
+			const int i = module->selected();
+			const sm::SlotSettings now = module->currentSettings(i);
+			const sm::Envelope &a = envOf(envBefore), &b = envOf(now);
+			if (!std::equal(a.t, a.t + a.n, b.t) || !std::equal(a.v, a.v + a.n, b.v))
+				changeSlot(module, i, envBefore, now, "move JX-SMPL envelope point");
+		}
 		if (dragging >= H_START && dragging <= H_LOOP_END && module) {
 			history::ParamChange* const h = new history::ParamChange;
 			h->name = "move JX-SMPL point";
@@ -1217,7 +2073,16 @@ struct SmplDisplay : widget::OpaqueWidget {
 	}
 
 	void onHoverScroll(const HoverScrollEvent& e) override {
-		if (!module || module->menu.open || !data() || !overWave(e.pos))
+		// Only the bare wheel belongs to the display: with Shift / Ctrl it moves or zooms the rack as anywhere else
+		if (APP->window->getMods() & RACK_MOD_MASK)
+			return OpaqueWidget::onHoverScroll(e);
+		if (browsing && module && !module->menu.open) {
+			if (e.scrollDelta.y != 0.f)
+				brMove(e.scrollDelta.y > 0.f ? -1 : 1);
+			e.consume(this);
+			return;
+		}
+		if (!module || module->menu.open || !data() || !overWave(e.pos) || envView != 0)
 			return OpaqueWidget::onHoverScroll(e);
 		// The wheel zooms around the frame under the pointer
 		const double f = fOf(e.pos.x), k = e.scrollDelta.y > 0.f ? 1.0 / 1.3 : 1.3;
@@ -1229,6 +2094,43 @@ struct SmplDisplay : widget::OpaqueWidget {
 	}
 
 	void onDoubleClick(const DoubleClickEvent& e) override {
+		if (browsing && module && !module->menu.open) {
+			if (brRowAt(lastPress) == br.sel)
+				brOk();
+			e.consume(this);
+			return;
+		}
+		if (module && !module->menu.open && data() && envView != 0) {
+			// On a point: removes it; elsewhere on the graph: adds one there
+			const int i = module->selected();
+			const sm::SlotSettings set = module->currentSettings(i);
+			sm::SlotSettings s = set;
+			sm::Envelope& en = envOf(s);
+			const int k = envPointAt(en, lastPress);
+			if (k == 0)
+				module->message(i, "THE FIRST POINT STAYS");
+			else if (k > 0) {
+				if (sm::envRemove(en, k)) {
+					selPt = -1;
+					changeSlot(module, i, set, s, "remove JX-SMPL envelope point");
+					module->message(i, string::f("POINT %d REMOVED", k + 1));
+				}
+				else
+					module->message(i, "AT LEAST 2 POINTS");
+			}
+			else if (overWave(lastPress)) {
+				const int n = sm::envInsert(en, tX(lastPress.x), vY(lastPress.y));
+				if (n < 0)
+					module->message(i, "12 POINTS AT MOST");
+				else {
+					selPt = n;
+					changeSlot(module, i, set, s, "add JX-SMPL envelope point");
+					module->message(i, string::f("POINT %d ADDED", n + 1));
+				}
+			}
+			e.consume(this);
+			return;
+		}
 		if (module && !module->menu.open && data()) {
 			whole();
 			e.consume(this);
@@ -1340,7 +2242,7 @@ struct MenuFrame : widget::TransparentWidget {
 const float kMenuDx = 4.4f, kMenuDy = 4.1f, kModeLegendSpan = 18.5f;
 
 // Back layout (mm): two blocks of eight slots, MIX on the right
-const float kBlockA = 27.f, kBlockB = 71.f, kGateY = 10.f, kVoctY = 20.5f, kOutY = 32.f, kMixX = 109.f;
+const float kBlockA = 27.f, kBlockB = 71.f, kGateY = 10.f, kVoctY = 20.5f, kOutY = 32.f, kMixX = 109.f, kRecX = 112.f;
 inline float colX(int i) { return 17.f + i * 10.4f; }
 
 struct SmplWidget : JXMPModuleWidget {
@@ -1483,8 +2385,12 @@ struct SmplWidget : JXMPModuleWidget {
 			addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(x, y0 + kVoctY)), module, Smpl::VOCT_INPUT + i));
 			addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(x, y0 + kOutY)), module, Smpl::OUT_OUTPUT + i));
 		}
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(kMixX, 50.f)), module, Smpl::MIX_L_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(kMixX, 66.f)), module, Smpl::MIX_R_OUTPUT));
+		// MIX on the rows of slots 1-8, REC (IN L, IN R, GATE) on the rows of slots 9-16
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(kMixX, kBlockA + kVoctY)), module, Smpl::MIX_L_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(math::Vec(kMixX, kBlockA + kOutY)), module, Smpl::MIX_R_OUTPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(kRecX, kBlockB + kGateY)), module, Smpl::REC_L_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(kRecX, kBlockB + kVoctY)), module, Smpl::REC_R_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(math::Vec(kRecX, kBlockB + kOutY)), module, Smpl::REC_GATE_INPUT));
 	}
 
 
@@ -1520,17 +2426,19 @@ struct SmplWidget : JXMPModuleWidget {
 				         NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, 0.3f);
 		}
 		heading(99.f, kBlockA, 19.f, "MIX");
-		const math::Rect field(mm2px(math::Vec(kMixX - 6.f, 40.f)), mm2px(math::Vec(12.f, 32.f)));
+		const math::Rect field(mm2px(math::Vec(kMixX - 6.f, 39.3f)), mm2px(math::Vec(12.f, 25.4f)));
 		nvgBeginPath(vg);
 		nvgRoundedRect(vg, RECT_ARGS(field), 2.f);
 		nvgFillColor(vg, nvgRGB(0xc9, 0xcb, 0xcf));
 		nvgFill(vg);
-		st::text(vg, mm2px(math::Vec(kMixX, 44.f)), "L", 7.f, nvgRGB(0x22, 0x23, 0x26), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.3f);
-		st::text(vg, mm2px(math::Vec(kMixX, 60.f)), "R", 7.f, nvgRGB(0x22, 0x23, 0x26), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.3f);
-		const char* const note[4] = {"SLOTS", "WITHOUT", "THEIR", "OWN OUT"};
-		for (int k = 0; k < 4; ++k)
-			st::text(vg, mm2px(math::Vec(kMixX, 77.f + k * 3.f)), note[k], 6.f, st::legendDim(), st::FONT_LABEL,
-			         NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.6f);
+		st::text(vg, mm2px(math::Vec(kMixX, 41.6f)), "L", 7.f, nvgRGB(0x22, 0x23, 0x26), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.3f);
+		st::text(vg, mm2px(math::Vec(kMixX, 53.25f)), "R", 7.f, nvgRGB(0x22, 0x23, 0x26), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.3f);
+		heading(99.f, kBlockB, 19.f, "REC");
+		const char* const rec[3] = {"IN L", "IN R", "GATE"};
+		const float recY[3] = {kGateY, kVoctY, kOutY};
+		for (int k = 0; k < 3; ++k)
+			st::text(vg, mm2px(math::Vec(99.f, kBlockB + recY[k])), rec[k], 6.5f, st::legend(), st::FONT_LABEL,
+			         NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, 0.3f);
 	}
 
 	Smpl* smpl() const { return dynamic_cast<Smpl*>(module); }
@@ -1541,7 +2449,7 @@ struct SmplWidget : JXMPModuleWidget {
 			return;
 		const int slot = m->selected();
 		const int64_t moduleId = m->id;
-		async_dialog_filebrowser(false, nullptr, nullptr, "Load a sample (WAV)", [slot, moduleId](char* path) {
+		async_dialog_filebrowser(false, nullptr, nullptr, "Load a sample (WAV, FLAC, MP3, OGG)", [slot, moduleId](char* path) {
 			if (!path)
 				return;
 			const std::string p = path;
@@ -1549,7 +2457,7 @@ struct SmplWidget : JXMPModuleWidget {
 			// The module may be gone by now
 			Smpl* const mm = dynamic_cast<Smpl*>(APP->engine->getModule(moduleId));
 			if (mm)
-				mm->loadFile(slot, p);
+				loadWithUndo(mm, slot, p);
 		});
 	}
 
@@ -1560,6 +2468,9 @@ struct SmplWidget : JXMPModuleWidget {
 			return;
 		m->syncEdit();
 		slotUndo(m);
+		m->menu.fadeNow = m->currentSettings(m->selected()).fadeout;
+		if (m->rec.state == sm::Recorder::DONE)
+			finishRecording(m);
 		const bool held = m->params[Smpl::LOAD_PARAM].getValue() > 0.5f;
 		if (held && !loadHeld)
 			openDialog();
@@ -1598,6 +2509,30 @@ struct SmplWidget : JXMPModuleWidget {
 		Smpl* const m = smpl();
 		if (!m)
 			return;
+		if (display && display->browsing && !m->menu.open) {
+			// The browser: ▲ ▼ move (each file plays), OK opens / loads, MENU closes
+			switch (which) {
+			case Smpl::MENU_PARAM: display->closeBrowser(); break;
+			case Smpl::UP_PARAM: display->brMove(-1); break;
+			case Smpl::DOWN_PARAM: display->brMove(1); break;
+			case Smpl::OK_PARAM: display->brOk(); break;
+			}
+			return;
+		}
+		if (m->recording() && !m->menu.open) {
+			// While recording: OK starts / stops (unless REC GATE does it), MENU throws it away
+			if (which == Smpl::MENU_PARAM) {
+				m->rec.cancel();
+				m->message(m->recSlot, "RECORDING CANCELLED");
+			}
+			else if (which == Smpl::OK_PARAM && !m->inputs[Smpl::REC_GATE_INPUT].isConnected()) {
+				if (!m->rec.start()) {
+					m->rec.stop();
+					finishRecording(m);
+				}
+			}
+			return;
+		}
 		sm::MenuResult r;
 		switch (which) {
 		case Smpl::MENU_PARAM: m->menu.pressMenu(); break;
@@ -1609,17 +2544,98 @@ struct SmplWidget : JXMPModuleWidget {
 			run(m, r);
 	}
 
-	/** Pushes an undo step for an edit of slot i's sample and installs the result */
+	/** The finished recording into its slot (with an undo step); the slot keeps its envelopes and fadeout */
+	void finishRecording(Smpl* m) {
+		auto d = std::make_shared<sm::SampleData>();
+		const int i = m->recSlot;
+		if (!m->rec.take(*d)) {
+			m->message(i, "NOTHING RECORDED");
+			return;
+		}
+		const sm::SlotSettings old = m->currentSettings(i);
+		sm::SlotSettings s = sm::defaults(d->frames());
+		s.volEnv = old.volEnv;
+		s.panEnv = old.panEnv;
+		s.fadeout = old.fadeout;
+		m->params[Smpl::CH_PARAM].setValue((float) i);
+		editSample(m, i, d, s, "record", string::f("REC %02d", i + 1));
+		m->message(i, string::f("RECORDED %.2f S", d->frames() / d->rate));
+		if (display)
+			display->envView = 0;
+	}
+
+	/** Pushes an undo step for an edit of slot i's sample and installs the result (`name`: a new name, else the old) */
 	void editSample(Smpl* m, int i, std::shared_ptr<const sm::SampleData> data, const sm::SlotSettings& set,
-	                const char* what) {
+	                const char* what, const std::string& name = std::string()) {
 		SampleSwap* const h = new SampleSwap;
 		h->name = std::string("JX-SMPL ") + what;
 		h->moduleId = m->id;
 		h->slot = i;
 		h->before = {m->ui[i].data, m->currentSettings(i), m->ui[i].name};
-		h->after = {data, set, data ? m->ui[i].name : std::string()};
+		h->after = {data, set, data ? (name.empty() ? m->ui[i].name : name) : std::string()};
 		APP->history->push(h);
 		m->replaceSample(i, data, set, h->after.name);
+	}
+
+	/** The envelope items: show, on / off, sustain and loop on the selected point, reset */
+	void envAction(Smpl* m, int i, const sm::SlotSettings& set, const sm::MenuResult& r) {
+		const int which = r.value > 0.5f ? 2 : 1;
+		const char* const label = which == 2 ? "PAN ENV" : "VOLUME ENV";
+		if (!display)
+			return;
+		if (display->envView != which)
+			display->showEnv(which);
+		sm::SlotSettings s = set;
+		sm::Envelope& e = which == 2 ? s.panEnv : s.volEnv;
+		const int p = display->selPt;
+		const bool pointItem = r.action == sm::A_ENV_SUS || r.action == sm::A_ENV_LOOP_START || r.action == sm::A_ENV_LOOP_END;
+		if (pointItem && (p < 0 || p >= e.n)) {
+			m->message(i, "CLICK A POINT FIRST");
+			return;
+		}
+		std::string msg;
+		switch (r.action) {
+		case sm::A_ENV_SHOW: return;
+		case sm::A_ENV_ONOFF:
+			e.on = !e.on;
+			msg = std::string(label) + (e.on ? " ON" : " OFF");
+			break;
+		case sm::A_ENV_SUS:
+			e.sus = p;
+			msg = string::f("SUSTAIN AT POINT %d", p + 1);
+			break;
+		case sm::A_ENV_LOOP_START:
+			e.ls = p;
+			if (e.le < e.ls)
+				e.le = e.ls;
+			msg = string::f("LOOP START AT POINT %d", p + 1);
+			break;
+		case sm::A_ENV_LOOP_END:
+			e.le = p;
+			if (e.ls < 0 || e.ls > e.le)
+				e.ls = e.le;
+			msg = string::f("LOOP END AT POINT %d", p + 1);
+			break;
+		case sm::A_ENV_SUS_OFF:
+			e.sus = -1;
+			msg = "SUSTAIN OFF";
+			break;
+		case sm::A_ENV_LOOP_OFF:
+			e.ls = e.le = -1;
+			msg = "LOOP OFF";
+			break;
+		case sm::A_ENV_RESET: {
+			const bool on = e.on;
+			e = which == 2 ? sm::defaultPanEnv() : sm::defaultVolEnv();
+			e.on = on;
+			display->selPt = -1;
+			msg = std::string(label) + " RESET";
+			break;
+		}
+		default: return;
+		}
+		changeSlot(m, i, set, s, "JX-SMPL envelope");
+		m->message(i, msg);
 	}
 
 	/** Runs a menu item on the selected slot */
@@ -1627,7 +2643,7 @@ struct SmplWidget : JXMPModuleWidget {
 		const int i = m->selected();
 		const std::shared_ptr<const sm::SampleData> d = m->ui[i].data;
 		const sm::SlotSettings set = m->currentSettings(i);
-		const bool needsSample = r.action != sm::A_LOAD;
+		const bool needsSample = r.action != sm::A_LOAD && r.action != sm::A_RECORD && r.action != sm::A_BROWSE;
 		if (needsSample && !d) {
 			m->message(i, "SLOT IS EMPTY");
 			return;
@@ -1685,18 +2701,63 @@ struct SmplWidget : JXMPModuleWidget {
 			break;
 		}
 		case sm::A_SEAM:
-			if (display)
+			if (display) {
+				display->envView = 0;
 				display->seam = true;
+			}
 			break;
 		case sm::A_ZOOM_LOOP:
-			if (display)
+			if (display) {
+				display->envView = 0;
 				display->zoomToLoop(set);
+			}
 			break;
 		case sm::A_WHOLE:
-			if (display)
+			if (display) {
+				display->envView = 0;
 				display->whole();
+			}
 			break;
+		case sm::A_SHOW_WAVE:
+			if (display)
+				display->envView = 0;
+			break;
+		case sm::A_ENV_SHOW:
+		case sm::A_ENV_ONOFF:
+		case sm::A_ENV_SUS:
+		case sm::A_ENV_LOOP_START:
+		case sm::A_ENV_LOOP_END:
+		case sm::A_ENV_SUS_OFF:
+		case sm::A_ENV_LOOP_OFF:
+		case sm::A_ENV_RESET:
+			envAction(m, i, set, r);
+			break;
+		case sm::A_FADE: {
+			sm::SlotSettings s = set;
+			s.fadeout = r.value;
+			changeSlot(m, i, set, s, "JX-SMPL fadeout");
+			m->message(i, r.value > 0.f ? string::f("FADEOUT %g S", r.value) : "FADEOUT OFF");
+			break;
+		}
 		case sm::A_LOAD: openDialog(); break;
+		case sm::A_BROWSE:
+			if (display) {
+				display->envView = 0;
+				display->openBrowser();
+			}
+			break;
+		case sm::A_RECORD:
+			if (!m->inputs[Smpl::REC_L_INPUT].isConnected() && !m->inputs[Smpl::REC_R_INPUT].isConnected()) {
+				m->message(i, "PATCH REC IN L ON THE BACK");
+				break;
+			}
+			m->recSlot = i;
+			if (display) {
+				display->recReset();
+				display->envView = 0;
+			}
+			m->rec.arm(APP->engine->getSampleRate(), 60.f);
+			break;
 		case sm::A_DETECT: {
 			// The note START..END sounds at goes into ROOT, the rest into FINE; no clear pitch: nothing changes
 			const sm::PitchResult p = sm::detectRoot(*d, set.start, set.end);
@@ -1731,7 +2792,7 @@ struct SmplWidget : JXMPModuleWidget {
 		Smpl* const m = smpl();
 		if (!m || e.paths.empty())
 			return JXMPModuleWidget::onPathDrop(e);
-		m->loadFile(m->selected(), e.paths[0]);
+		loadWithUndo(m, m->selected(), e.paths[0]);
 		e.consume(this);
 	}
 
