@@ -2146,6 +2146,7 @@ $(BUILD_DIR)/JXMP/%.cpp.o: JXMP/%.cpp
 	-@mkdir -p "$(shell dirname $(BUILD_DIR)/$<)"
 	@echo "Compiling $<"
 	$(SILENT)$(CXX) $< $(BUILD_CXX_FLAGS) -c -o $@ \
+		$(foreach m,$(DRWAV),$(call custom_module_names,$(m),Fundamental)) \
 		-DpluginInstance=pluginInstance__JXMP
 
 $(BUILD_DIR)/Cardinal/src/AIDA-X.cpp.o: Cardinal/src/AIDA-X.cpp

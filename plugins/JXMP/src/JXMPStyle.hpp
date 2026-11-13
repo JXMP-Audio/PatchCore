@@ -160,23 +160,31 @@ inline void drawPatina(NVGcontext* vg, math::Vec size, const patina::Layout& l) 
 
 /** Wear for a panel of `size` and a unit `seed` (its serial). `screws`: keep the four screw places clear. The layout
 is made once per unit and size (UI thread only) and then only drawn. */
-inline void patina(NVGcontext* vg, math::Vec size, uint32_t seed, bool screws = true) {
+/** `keep`: more places the wear stays off (the panel's printed names), besides the screws */
+inline void patina(NVGcontext* vg, math::Vec size, uint32_t seed, bool screws = true,
+                   const std::vector<patina::Keepout>& keep = std::vector<patina::Keepout>()) {
 	struct Key {
 		uint32_t seed;
 		float w, h;
 		bool screws;
+		uint32_t keep;
 		bool operator<(const Key& o) const {
-			return std::tie(seed, w, h, screws) < std::tie(o.seed, o.w, o.h, o.screws);
+			return std::tie(seed, w, h, screws, keep) < std::tie(o.seed, o.w, o.h, o.screws, o.keep);
 		}
 	};
+	uint32_t keepHash = 2166136261u;
+	for (const patina::Keepout& k : keep)
+		for (float v : {k.c.x, k.c.y, k.r})
+			keepHash = (keepHash ^ (uint32_t) std::lround(v * 8.f)) * 16777619u;
 	static std::map<Key, patina::Layout> cache;
-	const Key key{seed, size.x, size.y, screws};
+	const Key key{seed, size.x, size.y, screws, keepHash};
 	auto it = cache.find(key);
 	if (it == cache.end()) {
 		if (cache.size() > 512)
 			cache.clear();
-		const std::vector<patina::Keepout> keep = screws ? patina::screwKeepouts(size.x, size.y) : std::vector<patina::Keepout>();
-		it = cache.emplace(key, patina::make(size.x, size.y, seed, keep)).first;
+		std::vector<patina::Keepout> all = screws ? patina::screwKeepouts(size.x, size.y) : std::vector<patina::Keepout>();
+		all.insert(all.end(), keep.begin(), keep.end());
+		it = cache.emplace(key, patina::make(size.x, size.y, seed, all)).first;
 	}
 	drawPatina(vg, size, it->second);
 }

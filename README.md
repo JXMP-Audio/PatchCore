@@ -14,7 +14,7 @@ It comes as a **standalone app** and as two **VST3 plugins**, **PatchCore** (ins
 ## Features
 
 - A rack with a back side for the cables of the JXMP modules (`Tab`), Patchbay 4 / 8 / 16 between front and back
-- 25+ JXMP modules: oscillator, filter, envelopes, LFO, sequencers, quantizer, clock, Euclidean rhythms, drums,
+- 25+ JXMP modules: oscillator, filter, envelopes, LFO, sequencers, quantizer, clock, Euclidean rhythms, drums, a 16-slot sampler,
   scope, delay, chorus, reverb, wavefolder, ring modulator, logic, switch, poly tools and a mixing console with a
   Mixer view
 - **Learn**: six interactive lessons that walk a beginner from the first sound to a song with drums and effects
@@ -31,7 +31,7 @@ It comes as a **standalone app** and as two **VST3 plugins**, **PatchCore** (ins
 | `F1` | the rack; with a selected module: its manual |
 | `F2` / `F3` | the back / the Mixer view |
 | `Enter`, right-click | find and add a module |
-| `Space` | play / stop (standalone) |
+| `Space` | play / pause (standalone): a pause freezes everything where it is; ■ stops and goes back to the start |
 | Shift+click, Shift+drag | select / move a module; Shift+right-click opens its menu |
 | Ctrl+drag | select an area |
 | mouse wheel | turn knobs |
@@ -61,6 +61,7 @@ A manual page per module ([docs/manual/](docs/manual/)); in PatchCore select a m
 | JX-SCP | Scope | [jx-scp](docs/manual/jx-scp.md) |
 | JX-CLK | Clock | [jx-clk](docs/manual/jx-clk.md) |
 | JX-EUC | Euclid | [jx-euc](docs/manual/jx-euc.md) |
+| JX-SMPL | Sampler | [jx-smpl](docs/manual/jx-smpl.md) |
 | JX-DRM | Drums | [jx-drm](docs/manual/jx-drm.md) |
 | JX-REV | Reverb | [jx-rev](docs/manual/jx-rev.md) |
 | JX-CHR | Chorus | [jx-chr](docs/manual/jx-chr.md) |

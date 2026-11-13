@@ -22,6 +22,7 @@ struct JXMPPanelDecor : widget::TransparentWidget {
 		math::Vec pos;
 		std::string text;
 		float size;
+		bool left;  // starts at pos (legend beside a toggle's LED) instead of centred on it
 	};
 
 	std::string title;
@@ -92,7 +93,7 @@ struct JXMPPanelDecor : widget::TransparentWidget {
 		nvgFillColor(vg, stripe);
 		nvgFill(vg);
 
-		st::patina(vg, box.size, seedOf ? seedOf() : seed);
+		st::patina(vg, box.size, seedOf ? seedOf() : seed, true, labelKeepouts());
 		st::text(vg, math::Vec(w / 2, mm2px(6.6f)), title, titleSize(vg, w), st::legend(), st::FONT_TITLE, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.8f);
 		st::text(vg, math::Vec(w / 2, h - mm2px(4.5f)), w < mm2px(32.f) ? "JXMP" : "JXMP AUDIO", 8.5f, st::legendDim(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 2.f);
 
@@ -148,7 +149,22 @@ struct JXMPPanelDecor : widget::TransparentWidget {
 			st::icon(vg, ic.type, ic.pos, ic.width, st::legend());
 
 		for (const Label& l : labels)
-			st::text(vg, l.pos, l.text, l.size + 0.5f, st::legend(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.5f);
+			st::text(vg, l.pos, l.text, l.size + 0.5f, st::legend(), st::FONT_LABEL,
+			         (l.left ? NVG_ALIGN_LEFT : NVG_ALIGN_CENTER) | NVG_ALIGN_MIDDLE, 0.5f);
+	}
+
+	/** The printed names as a row of circles, so the wear never lands on a word */
+	std::vector<jxmp::patina::Keepout> labelKeepouts() const {
+		std::vector<jxmp::patina::Keepout> out;
+		for (const Label& l : labels) {
+			const float size = l.size + 0.5f;
+			const float wText = l.text.size() * (size * 0.62f + 0.5f);
+			const float r = size * 0.8f;
+			const float x0 = l.left ? l.pos.x : l.pos.x - wText / 2.f;
+			for (float x = x0; x <= x0 + wText + 0.01f; x += r)
+				out.push_back({{x, l.pos.y}, r});
+		}
+		return out;
 	}
 
 	void draw(const DrawArgs& args) override {
@@ -300,7 +316,14 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 		st::text(vg, plate.getCenter(), serial, pw < mm2px(20.f) ? 6.8f : 8.f, nvgRGB(0x26, 0x28, 0x2c), st::FONT_LABEL,
 		         NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, pw < mm2px(20.f) ? 0.1f : 0.6f);
 
-		// Jack legends; outputs on a light field like on hardware
+		drawBackLegends(vg);
+		st::text(vg, math::Vec(w / 2, h - mm2px(4.5f)), w < mm2px(32.f) ? "JXMP" : "JXMP AUDIO", 8.5f, st::legendDim(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 2.f);
+		return true;
+	}
+
+	/** Jack legends of the back; outputs on a light field like on hardware. A module with many jacks draws its own. */
+	virtual void drawBackLegends(NVGcontext* const vg) {
+		namespace st = jxmp::style;
 		for (app::PortWidget* const port : getPorts()) {
 			// Only sockets of the back, and only the active half of a Patchbay smart jack
 			if (portSide(port->type, port->portId) != patchcore::SIDE_BACK || port->box.size.x <= 0.f)
@@ -322,8 +345,6 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 			st::text(vg, c.plus(mm2px(math::Vec(0.f, 6.3f))), name, 7.f, out ? nvgRGB(0x22, 0x23, 0x26) : st::legend(), st::FONT_LABEL,
 			         NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 0.3f);
 		}
-		st::text(vg, math::Vec(w / 2, h - mm2px(4.5f)), w < mm2px(32.f) ? "JXMP" : "JXMP AUDIO", 8.5f, st::legendDim(), st::FONT_LABEL, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, 2.f);
-		return true;
 	}
 
 	void icon(jxmp::style::Icon type, math::Vec mm, float widthMm = 4.f) {
@@ -332,7 +353,16 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 
 	/** Adds a label centred at a position in mm. */
 	void label(const math::Vec mm, const char* const text, const float size = 7.f) {
-		decor->labels.push_back({mm2px(mm), text, size});
+		decor->labels.push_back({mm2px(mm), text, size, false});
+	}
+
+	/** Legends beside a toggle's LEDs (right of the lever), from the top position down: each one on its LED's
+	height, starting a little after it, so no text touches its LED */
+	void ledLegends(math::Vec toggleMm, int positions, const std::vector<std::string>& legends, float size = 5.5f) {
+		for (size_t i = 0; i < legends.size() && (int) i < positions; ++i) {
+			const float dy = positions == 3 ? (i == 0 ? -4.2f : i == 1 ? 0.f : 4.2f) : (i == 0 ? -4.2f : 4.2f);
+			decor->labels.push_back({mm2px(toggleMm.plus(math::Vec(5.2f + 2.f, dy))), legends[i], size, true});
+		}
 	}
 
 	std::string serialLabel() const override {

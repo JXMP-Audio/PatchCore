@@ -231,6 +231,16 @@
       "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-euc.md"
     },
     {
+      "slug": "Sampler",
+      "name": "Sampler",
+      "description": "JX-SMPL: 16-slot sample player with root note, loop and one-shot",
+      "tags": [
+        "Sampler",
+        "Drum"
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-smpl.md"
+    },
+    {
       "slug": "Drums",
       "name": "Drums",
       "description": "JX-DRM: kick, snare, hi-hat (closed/open) and clap with tune, decay, tone, accent, outputs and mix",
