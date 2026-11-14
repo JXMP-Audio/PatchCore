@@ -9,6 +9,7 @@
 #ifdef BUILDING_PLUGIN_MODULES
 #include "rack.hpp"
 #endif
+#include <patchcore/Song.hpp>
 
 namespace rack {
 namespace midi {
@@ -103,6 +104,23 @@ struct CardinalPluginContext : rack::Context {
     volatile int32_t internalTransportBeatType = 4;
     uint64_t internalTransportFrame = 0;
     bool internalTransportActive = false;
+    // PatchCore: the Editor's loop (LOOP button): playback runs between START and STOP, in beats from the song start
+    volatile bool internalTransportLoop = false;
+    volatile double internalTransportLoopStart = 0.0;
+    volatile double internalTransportLoopEnd = 16.0;
+    // PatchCore: the metronome (CLICK button) and REC (the Editor records the MIDI keyboard)
+    volatile bool internalTransportMetronome = false;
+    volatile bool internalTransportRecord = false;
+    // PatchCore: the Editor moves the song position (a click on its ruler): the frame to go to, -1 = none
+    volatile int64_t internalTransportSeekFrame = -1;
+    // PatchCore: the Editor's song (JX-EDIT): played into the MIDI that the Host MIDI modules read, track N on channel N
+    ::pcsong::SongStore editorSong;
+    // The MIDI keyboard plays this Editor track (moved to its MIDI channel, 0..15) while the Editor is open or REC is
+    // on; -1 = the keyboard as it sends (a Host MIDI on its channel plays it directly)
+    volatile int editorKeyboardTrack = -1;
+    volatile int editorKeyboardChannel = 0;
+    // Keyboard notes recorded while REC is on (audio thread → the Editor)
+    ::pcsong::RecordRing editorRecord;
     // PatchCore: peak level of the first two plugin outputs over the last block, for the transport meters
     volatile float outputPeaks[2] = {};
     // PatchCore: Audio Settings "Test tone": frames of a 440 Hz beep still to play on the first two outputs

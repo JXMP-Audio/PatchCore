@@ -174,6 +174,8 @@ bool panelColorAt(app::ModuleWidget* mw, math::Vec point, float minArea, NVGcolo
 
 /** Mixer view over the rack area (MixerView.cpp); visible while patchcore::mixerShown(). */
 widget::Widget* createMixerView();
+/** Editor view over the rack area (EditorView.cpp); visible while patchcore::editorShown(). */
+widget::Widget* createEditorView();
 
 /** Compact module finder opened at the mouse (QuickSearch.cpp). */
 widget::Widget* createQuickSearch();
@@ -226,6 +228,9 @@ void transportTogglePlay();
 void transportStop();
 /** Standalone transport: play from 1.1.1 (an opened patch plays at once) */
 void transportPlayFromStart();
+/** Standalone transport: the loop between `start` and `end` (beats from the song start) on or off */
+void transportSetLoop(double start, double end, bool on);
+void transportSetMetronome(bool on);
 
 
 /** Development aid, called from Scene::step(). Reads PATCHCORE_DEV_* environment variables once:

@@ -5,6 +5,7 @@
 
 #include "PatchCore.hpp"
 #include <patchcore/Mixer.hpp>
+#include <patchcore/Editor.hpp>
 
 #include <app/RackWidget.hpp>
 #include <app/Scene.hpp>
@@ -131,22 +132,25 @@ struct ViewSegment : widget::OpaqueWidget {
 		{"Back", "F2", 0.f, 0.f},
 		{"Search", "Enter", 0.f, 0.f},
 		{"Mixer", "F3", 0.f, 0.f},
+		{"Editor", "F4", 0.f, 0.f},
 		{"Learn", "", 0.f, 0.f},
 	};
 
 	bool isOn(size_t i) const {
 		switch (i) {
-			case 0: return !mixerShown() && targetViewSide() == VIEW_FRONT;
-			case 1: return !mixerShown() && targetViewSide() == VIEW_BACK;
+			case 0: return !mixerShown() && !editorShown() && targetViewSide() == VIEW_FRONT;
+			case 1: return !mixerShown() && !editorShown() && targetViewSide() == VIEW_BACK;
 			case 2: return APP->scene->browser->isVisible();
 			case 3: return mixerShown();
+			case 4: return editorShown();
 			default: return tutorialRunning();
 		}
 	}
 
 	bool isDisabled(size_t i) const {
 		// The Mixer view needs a console (JX-CONSOLE) in the rack
-		return i == 3 && !mixerAvailable();
+		// ... and the Editor view an editor module (JX-EDIT)
+		return (i == 3 && !mixerAvailable()) || (i == 4 && !editorAvailable());
 	}
 
 	void step() override {
@@ -178,14 +182,15 @@ struct ViewSegment : widget::OpaqueWidget {
 		if (i < 0 || isDisabled(i))
 			return;
 		switch (i) {
-			case 0: showMixer(false); setViewSide(VIEW_FRONT); break;
-			case 1: showMixer(false); setViewSide(VIEW_BACK); break;
+			case 0: showMixer(false); showEditor(false); setViewSide(VIEW_FRONT); break;
+			case 1: showMixer(false); showEditor(false); setViewSide(VIEW_BACK); break;
 			case 2: APP->scene->browser->show(); break;
 			case 3: showMixer(!mixerShown()); break;
-			case 4: {
+			case 4: showEditor(!editorShown()); break;
+			case 5: {
 				// The lesson list, under the button
 				ui::Menu* const menu = createMenu();
-				menu->box.pos = getAbsoluteOffset(math::Vec(items[4].x, box.size.y));
+				menu->box.pos = getAbsoluteOffset(math::Vec(items[5].x, box.size.y));
 				menu->addChild(createMenuLabel("Tutorials"));
 				appendTutorialItems(menu);
 				break;

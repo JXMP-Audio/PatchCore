@@ -190,6 +190,17 @@ class CardinalPlugin : public CardinalBasePlugin
     // PatchCore: a real pause of the standalone transport
     patchcore::PauseFade fPauseFade;
     bool fEngineRuns = true;
+    // PatchCore: the loop splits a block in two parts; the second gets these offset pointers and its MIDI events
+    const float* fPartIns[DISTRHO_PLUGIN_NUM_INPUTS + 1] = {};
+    float* fPartOuts[DISTRHO_PLUGIN_NUM_OUTPUTS + 1] = {};
+    MidiEvent fPartMidi[512];
+    // PatchCore: the Editor's song played into the part's MIDI (merged with the incoming events)
+    ::pcsong::SongPlayer fSongPlayer;
+    MidiEvent fSongMidi[::pcsong::SongPlayer::kMaxEvents];
+    MidiEvent fMergedMidi[512 + ::pcsong::SongPlayer::kMaxEvents];
+    // PatchCore: metronome click
+    uint32_t fClickLeft = 0;
+    float fClickPhase = 0.f, fClickFreq = 1000.f;
     MidiEvent bypassMidiEvents[16];
 
    #if CARDINAL_VARIANT_MINI || !defined(HEADLESS)
@@ -1169,6 +1180,66 @@ protected:
        #endif
     }
 
+    // PatchCore: plays the Editor's song (JX-EDIT) into this part's MIDI, track N on channel N, so the Host MIDI modules
+    // turn it into cables with their own channel / polyphony settings. The keyboard plays the selected track.
+    void mixEditorMidi(const uint64_t songFrame, const uint32_t partFrames)
+    {
+        CardinalPluginContext* const ctx = context;
+        const ::pcsong::Song* const song = ctx->editorSong.current();
+        if (song == nullptr && fSongPlayer.heldCount == 0)
+            return;
+
+        const double framesPerTick = getSampleRate() * 60.0
+                                   / std::max(1.0, (double)ctx->internalTransportBeatsPerMinute)
+                                   / ::pcsong::kPpq;
+        const bool rolls = ctx->internalTransportActive && ctx->internalTransportPlaying && fEngineRuns;
+        uint32_t generated = 0;
+        fSongPlayer.render(song, songFrame / framesPerTick, partFrames, framesPerTick, rolls,
+                           [&](const uint32_t frame, const uint8_t status, const uint8_t d1, const uint8_t d2) {
+            MidiEvent& e(fSongMidi[generated++]);
+            e.frame = frame;
+            e.size = 3;
+            e.data[0] = status;
+            e.data[1] = d1;
+            e.data[2] = d2;
+            e.data[3] = 0;
+            e.dataExt = nullptr;
+        });
+
+        const int keyboardTrack = song != nullptr ? ctx->editorKeyboardTrack : -1;
+        if (generated == 0 && keyboardTrack < 0)
+            return;
+
+        const bool record = rolls && ctx->internalTransportRecord;
+        // Merge by frame; the incoming events go first on the same frame
+        const MidiEvent* const in = ctx->midiEvents;
+        const uint32_t inCount = ctx->midiEventCount;
+        uint32_t a = 0, b = 0, n = 0;
+        const uint32_t cap = sizeof(fMergedMidi) / sizeof(fMergedMidi[0]);
+        while ((a < inCount || b < generated) && n < cap)
+        {
+            if (a < inCount && (b >= generated || in[a].frame <= fSongMidi[b].frame))
+            {
+                MidiEvent e(in[a++]);
+                if (keyboardTrack >= 0 && e.size <= MidiEvent::kDataSize && e.data[0] >= 0x80 && e.data[0] < 0xF0)
+                {
+                    e.data[0] = static_cast<uint8_t>((e.data[0] & 0xF0) | (ctx->editorKeyboardChannel & 0x0F));
+                    const uint8_t type = e.data[0] & 0xF0;
+                    if (record && (type == 0x80 || type == 0x90))
+                        ctx->editorRecord.push({(songFrame + e.frame) / framesPerTick, static_cast<uint8_t>(keyboardTrack),
+                                                e.data[0], e.data[1], e.data[2]});
+                }
+                fMergedMidi[n++] = e;
+            }
+            else
+            {
+                fMergedMidi[n++] = fSongMidi[b++];
+            }
+        }
+        ctx->midiEvents = fMergedMidi;
+        ctx->midiEventCount = n;
+    }
+
     void run(const float** const inputs, float** const outputs, const uint32_t frames,
              const MidiEvent* const midiEvents, const uint32_t midiEventCount) override
     {
@@ -1177,97 +1248,6 @@ protected:
         rack::contextSet(context);
 
         const bool bypassed = context->bypassed;
-
-        {
-            TimePosition timePos(getTimePosition());
-
-            // PatchCore: standalone without a timebase master gets an internal transport
-            context->internalTransportActive = rack::isStandalone() && !timePos.bbt.valid;
-            // PatchCore: a real pause; the engine stops after a 10 ms fade (see below)
-            fEngineRuns = !fPauseFade.frozen(!context->internalTransportActive || context->internalTransportPlaying);
-            if (context->internalTransportActive)
-            {
-                if (context->internalTransportResetRequested)
-                {
-                    context->internalTransportResetRequested = false;
-                    context->internalTransportFrame = 0;
-                }
-
-                constexpr const double ticksPerBeat = 1920.0;
-                const double bpm = std::max(1.0, (double)context->internalTransportBeatsPerMinute);
-                const int32_t beatsPerBar = std::max(1, (int32_t)context->internalTransportBeatsPerBar);
-                const double beats = context->internalTransportFrame / getSampleRate() * bpm / 60.0;
-                const int64_t wholeBeats = static_cast<int64_t>(beats);
-
-                // A pause (Space) is not a stop for the modules: they keep seeing a rolling transport while the
-                // engine fades out and then is frozen, so nothing reacts to it (no clock reset, no stray notes)
-                timePos.playing = context->internalTransportPlaying || context->internalTransportHeld;
-                timePos.frame = context->internalTransportFrame;
-                timePos.bbt.valid = true;
-                timePos.bbt.bar = static_cast<int32_t>(wholeBeats / beatsPerBar) + 1;
-                timePos.bbt.beat = static_cast<int32_t>(wholeBeats % beatsPerBar) + 1;
-                timePos.bbt.tick = (beats - wholeBeats) * ticksPerBeat;
-                timePos.bbt.barStartTick = (timePos.bbt.bar - 1) * beatsPerBar * ticksPerBeat;
-                timePos.bbt.beatsPerBar = beatsPerBar;
-                timePos.bbt.beatType = context->internalTransportBeatType;
-                timePos.bbt.ticksPerBeat = ticksPerBeat;
-                timePos.bbt.beatsPerMinute = bpm;
-
-                if (timePos.playing && fEngineRuns)
-                    context->internalTransportFrame += frames;
-            }
-
-            bool reset = timePos.playing && (timePos.frame == 0 || d_isDiffHigherThanLimit(fNextExpectedFrame, timePos.frame, (uint64_t)2));
-
-            // ignore hosts which cannot supply time frame position
-            if (context->playing == timePos.playing && timePos.frame == 0 && context->frame == 0)
-                reset = false;
-
-            context->playing = timePos.playing;
-            context->bbtValid = timePos.bbt.valid;
-            context->frame = timePos.frame;
-
-            if (timePos.bbt.valid)
-            {
-                const double samplesPerTick = 60.0 * getSampleRate()
-                                            / timePos.bbt.beatsPerMinute
-                                            / timePos.bbt.ticksPerBeat;
-                context->bar = timePos.bbt.bar;
-                context->beat = timePos.bbt.beat;
-                context->beatsPerBar = timePos.bbt.beatsPerBar;
-                context->beatType = timePos.bbt.beatType;
-                context->barStartTick = timePos.bbt.barStartTick;
-                context->beatsPerMinute = timePos.bbt.beatsPerMinute;
-                context->tick = timePos.bbt.tick;
-                context->ticksPerBeat = timePos.bbt.ticksPerBeat;
-                context->ticksPerClock = timePos.bbt.ticksPerBeat / timePos.bbt.beatType;
-                context->ticksPerFrame = 1.0 / samplesPerTick;
-                context->tickClock = std::fmod(timePos.bbt.tick, context->ticksPerClock);
-               #if CARDINAL_VARIANT_MINI && ! DISTRHO_PLUGIN_WANT_DIRECT_ACCESS
-                fMiniReportValues[kCardinalParameterMiniTimeBar - kCardinalParameterStartMini] = timePos.bbt.bar;
-                fMiniReportValues[kCardinalParameterMiniTimeBeat - kCardinalParameterStartMini] = timePos.bbt.beat;
-                fMiniReportValues[kCardinalParameterMiniTimeBeatsPerBar - kCardinalParameterStartMini] = timePos.bbt.beatsPerBar;
-                fMiniReportValues[kCardinalParameterMiniTimeBeatType - kCardinalParameterStartMini] = timePos.bbt.beatType;
-                fMiniReportValues[kCardinalParameterMiniTimeBarStartTick - kCardinalParameterStartMini] = timePos.bbt.barStartTick;
-                fMiniReportValues[kCardinalParameterMiniTimeBeatsPerMinute - kCardinalParameterStartMini] = timePos.bbt.beatsPerMinute;
-                fMiniReportValues[kCardinalParameterMiniTimeTick - kCardinalParameterStartMini] = timePos.bbt.tick;
-                fMiniReportValues[kCardinalParameterMiniTimeTicksPerBeat - kCardinalParameterStartMini] = timePos.bbt.ticksPerBeat;
-               #endif
-            }
-
-            context->reset = reset;
-            // PatchCore: a paused (frozen) engine does not move the transport, so the next block is expected at the
-            // same frame; otherwise resuming after a pause looked like a jump and reset every clock (JX-CLK RESET)
-            fNextExpectedFrame = timePos.playing ? timePos.frame + (fEngineRuns ? frames : 0) : 0;
-
-           #if CARDINAL_VARIANT_MINI && ! DISTRHO_PLUGIN_WANT_DIRECT_ACCESS
-            const int flags = (timePos.playing ? 0x1 : 0x0)
-                            | (timePos.bbt.valid ? 0x2 : 0x0)
-                            | (reset ? 0x4 : 0x0);
-            fMiniReportValues[kCardinalParameterMiniTimeFlags - kCardinalParameterStartMini] = flags;
-            fMiniReportValues[kCardinalParameterMiniTimeFrame - kCardinalParameterStartMini] = timePos.frame / getSampleRate();
-           #endif
-        }
 
         // separate buffers, use them
         if (inputs != outputs && (inputs == nullptr || inputs[0] != outputs[0]))
@@ -1308,45 +1288,238 @@ protected:
             fMiniReportValues[i] = context->dataIns[i][0];
        #endif
 
-        if (bypassed)
+        // PatchCore: the loop between the START and STOP markers: when its end falls inside this block, the engine runs
+        // in two parts and jumps back in between, so every module sees the jump on the exact sample (a clock resets
+        // at the loop start, not a block late)
+        const uint32_t blockFrames = frames;
+        const float* const* const blockIns = context->dataIns;
+        float** const blockOuts = context->dataOuts;
+        for (uint32_t offset = 0; offset < blockFrames;)
         {
-            if (fWasBypassed != bypassed)
+            uint32_t partFrames = blockFrames - offset;
+            bool loopWrap = false;
+            uint64_t loopStartFrame = 0;
+            if (context->internalTransportActive && context->internalTransportLoop && context->internalTransportPlaying
+                && !context->internalTransportResetRequested && fEngineRuns)
             {
-                context->midiEvents = bypassMidiEvents;
-                context->midiEventCount = 16;
+                const double framesPerBeat = getSampleRate() * 60.0
+                                           / std::max(1.0, (double)context->internalTransportBeatsPerMinute);
+                const uint64_t startFrame = static_cast<uint64_t>(std::llround(std::max(0.0, (double)context->internalTransportLoopStart) * framesPerBeat));
+                const uint64_t endFrame = static_cast<uint64_t>(std::llround(std::max(0.0, (double)context->internalTransportLoopEnd) * framesPerBeat));
+                const uint64_t cur = context->internalTransportFrame;
+                if (endFrame > startFrame && cur < endFrame && cur + partFrames >= endFrame)
+                {
+                    partFrames = static_cast<uint32_t>(endFrame - cur);
+                    loopWrap = true;
+                    loopStartFrame = startFrame;
+                }
+            }
+
+            uint64_t songFrame = 0;
+            {
+                TimePosition timePos(getTimePosition());
+
+                // PatchCore: standalone without a timebase master gets an internal transport
+                context->internalTransportActive = rack::isStandalone() && !timePos.bbt.valid;
+                // PatchCore: a real pause; the engine stops after a 10 ms fade (see below)
+                fEngineRuns = !fPauseFade.frozen(!context->internalTransportActive || context->internalTransportPlaying);
+                if (context->internalTransportActive)
+                {
+                    if (context->internalTransportResetRequested)
+                    {
+                        context->internalTransportResetRequested = false;
+                        context->internalTransportFrame = 0;
+                    }
+                    if (context->internalTransportSeekFrame >= 0)
+                    {
+                        context->internalTransportFrame = static_cast<uint64_t>(context->internalTransportSeekFrame);
+                        context->internalTransportSeekFrame = -1;
+                    }
+
+                    constexpr const double ticksPerBeat = 1920.0;
+                    const double bpm = std::max(1.0, (double)context->internalTransportBeatsPerMinute);
+                    const int32_t beatsPerBar = std::max(1, (int32_t)context->internalTransportBeatsPerBar);
+                    const double beats = context->internalTransportFrame / getSampleRate() * bpm / 60.0;
+                    const int64_t wholeBeats = static_cast<int64_t>(beats);
+
+                    // A pause (Space) is not a stop for the modules: they keep seeing a rolling transport while the
+                    // engine fades out and then is frozen, so nothing reacts to it (no clock reset, no stray notes)
+                    timePos.playing = context->internalTransportPlaying || context->internalTransportHeld;
+                    timePos.frame = context->internalTransportFrame;
+                    timePos.bbt.valid = true;
+                    timePos.bbt.bar = static_cast<int32_t>(wholeBeats / beatsPerBar) + 1;
+                    timePos.bbt.beat = static_cast<int32_t>(wholeBeats % beatsPerBar) + 1;
+                    timePos.bbt.tick = (beats - wholeBeats) * ticksPerBeat;
+                    timePos.bbt.barStartTick = (timePos.bbt.bar - 1) * beatsPerBar * ticksPerBeat;
+                    timePos.bbt.beatsPerBar = beatsPerBar;
+                    timePos.bbt.beatType = context->internalTransportBeatType;
+                    timePos.bbt.ticksPerBeat = ticksPerBeat;
+                    timePos.bbt.beatsPerMinute = bpm;
+
+                    songFrame = context->internalTransportFrame;
+                    if (timePos.playing && fEngineRuns)
+                        context->internalTransportFrame += partFrames;
+                }
+
+                bool reset = timePos.playing && (timePos.frame == 0 || d_isDiffHigherThanLimit(fNextExpectedFrame, timePos.frame, (uint64_t)2));
+
+                // ignore hosts which cannot supply time frame position
+                if (context->playing == timePos.playing && timePos.frame == 0 && context->frame == 0)
+                    reset = false;
+
+                context->playing = timePos.playing;
+                context->bbtValid = timePos.bbt.valid;
+                context->frame = timePos.frame;
+
+                if (timePos.bbt.valid)
+                {
+                    const double samplesPerTick = 60.0 * getSampleRate()
+                                                / timePos.bbt.beatsPerMinute
+                                                / timePos.bbt.ticksPerBeat;
+                    context->bar = timePos.bbt.bar;
+                    context->beat = timePos.bbt.beat;
+                    context->beatsPerBar = timePos.bbt.beatsPerBar;
+                    context->beatType = timePos.bbt.beatType;
+                    context->barStartTick = timePos.bbt.barStartTick;
+                    context->beatsPerMinute = timePos.bbt.beatsPerMinute;
+                    context->tick = timePos.bbt.tick;
+                    context->ticksPerBeat = timePos.bbt.ticksPerBeat;
+                    context->ticksPerClock = timePos.bbt.ticksPerBeat / timePos.bbt.beatType;
+                    context->ticksPerFrame = 1.0 / samplesPerTick;
+                    context->tickClock = std::fmod(timePos.bbt.tick, context->ticksPerClock);
+                   #if CARDINAL_VARIANT_MINI && ! DISTRHO_PLUGIN_WANT_DIRECT_ACCESS
+                    fMiniReportValues[kCardinalParameterMiniTimeBar - kCardinalParameterStartMini] = timePos.bbt.bar;
+                    fMiniReportValues[kCardinalParameterMiniTimeBeat - kCardinalParameterStartMini] = timePos.bbt.beat;
+                    fMiniReportValues[kCardinalParameterMiniTimeBeatsPerBar - kCardinalParameterStartMini] = timePos.bbt.beatsPerBar;
+                    fMiniReportValues[kCardinalParameterMiniTimeBeatType - kCardinalParameterStartMini] = timePos.bbt.beatType;
+                    fMiniReportValues[kCardinalParameterMiniTimeBarStartTick - kCardinalParameterStartMini] = timePos.bbt.barStartTick;
+                    fMiniReportValues[kCardinalParameterMiniTimeBeatsPerMinute - kCardinalParameterStartMini] = timePos.bbt.beatsPerMinute;
+                    fMiniReportValues[kCardinalParameterMiniTimeTick - kCardinalParameterStartMini] = timePos.bbt.tick;
+                    fMiniReportValues[kCardinalParameterMiniTimeTicksPerBeat - kCardinalParameterStartMini] = timePos.bbt.ticksPerBeat;
+                   #endif
+                }
+
+                context->reset = reset;
+                // PatchCore: a paused (frozen) engine does not move the transport, so the next block is expected at the
+                // same frame; otherwise resuming after a pause looked like a jump and reset every clock (JX-CLK RESET)
+                fNextExpectedFrame = timePos.playing ? timePos.frame + (fEngineRuns ? partFrames : 0) : 0;
+
+               #if CARDINAL_VARIANT_MINI && ! DISTRHO_PLUGIN_WANT_DIRECT_ACCESS
+                const int flags = (timePos.playing ? 0x1 : 0x0)
+                                | (timePos.bbt.valid ? 0x2 : 0x0)
+                                | (reset ? 0x4 : 0x0);
+                fMiniReportValues[kCardinalParameterMiniTimeFlags - kCardinalParameterStartMini] = flags;
+                fMiniReportValues[kCardinalParameterMiniTimeFrame - kCardinalParameterStartMini] = timePos.frame / getSampleRate();
+               #endif
+            }
+
+
+            // The part's audio and MIDI
+            if (offset != 0)
+            {
+                for (int i=0; i<DISTRHO_PLUGIN_NUM_INPUTS; ++i)
+                    fPartIns[i] = blockIns != nullptr && blockIns[i] != nullptr ? blockIns[i] + offset : nullptr;
+                for (int i=0; i<DISTRHO_PLUGIN_NUM_OUTPUTS; ++i)
+                    fPartOuts[i] = blockOuts[i] != nullptr ? blockOuts[i] + offset : nullptr;
+                context->dataIns = blockIns != nullptr ? fPartIns : nullptr;
+                context->dataOuts = fPartOuts;
+            }
+
+            if (bypassed)
+            {
+                if (fWasBypassed != bypassed && offset == 0)
+                {
+                    context->midiEvents = bypassMidiEvents;
+                    context->midiEventCount = 16;
+                }
+                else
+                {
+                    context->midiEvents = nullptr;
+                    context->midiEventCount = 0;
+                }
+            }
+            else if (partFrames == blockFrames)
+            {
+                context->midiEvents = midiEvents;
+                context->midiEventCount = midiEventCount;
             }
             else
             {
-                context->midiEvents = nullptr;
-                context->midiEventCount = 0;
-            }
-        }
-        else
-        {
-            context->midiEvents = midiEvents;
-            context->midiEventCount = midiEventCount;
-        }
-
-        ++context->processCounter;
-
-        // PatchCore: pausing the standalone transport fades the output out over 10 ms, then the engine does not run
-        // at all (everything waits where it is); Play runs it again and fades back in. A DAW keeps its own transport.
-        const bool transportRuns = !context->internalTransportActive || context->internalTransportPlaying;
-        if (fEngineRuns)
-        {
-            context->engine->stepBlock(frames);
-            if (!transportRuns || fPauseFade.gain < 1.f)
-            {
-                const float sampleRate = static_cast<float>(getSampleRate());
-                for (uint32_t j=0; j<frames; ++j)
+                uint32_t count = 0;
+                for (uint32_t k=0; k<midiEventCount && count<512; ++k)
                 {
-                    const float g = fPauseFade.next(transportRuns, sampleRate);
-                    for (int i=0; i<fNumActiveOutputs; ++i)
-                        if (outputs[i] != nullptr)
-                            outputs[i][j] *= g;
+                    if (midiEvents[k].frame < offset || midiEvents[k].frame >= offset + partFrames)
+                        continue;
+                    fPartMidi[count] = midiEvents[k];
+                    fPartMidi[count].frame -= offset;
+                    ++count;
+                }
+                context->midiEvents = fPartMidi;
+                context->midiEventCount = count;
+            }
+
+            // PatchCore: the Editor's song and the keyboard on the selected track's channel
+            if (!bypassed)
+                mixEditorMidi(songFrame, partFrames);
+
+            ++context->processCounter;
+
+            // PatchCore: pausing the standalone transport fades the output out over 10 ms, then the engine does not
+            // run at all (everything waits where it is); Play runs it again and fades back in. A DAW keeps its own.
+            const bool transportRuns = !context->internalTransportActive || context->internalTransportPlaying;
+            if (fEngineRuns)
+            {
+                context->engine->stepBlock(partFrames);
+                if (!transportRuns || fPauseFade.gain < 1.f)
+                {
+                    const float sampleRate = static_cast<float>(getSampleRate());
+                    for (uint32_t j=offset; j<offset+partFrames; ++j)
+                    {
+                        const float g = fPauseFade.next(transportRuns, sampleRate);
+                        for (int i=0; i<fNumActiveOutputs; ++i)
+                            if (blockOuts[i] != nullptr)
+                                blockOuts[i][j] *= g;
+                    }
                 }
             }
+
+            // PatchCore: metronome, a short beep on every beat (higher on the bar) on the first two outputs
+            if (context->internalTransportMetronome && context->internalTransportActive && transportRuns && fEngineRuns)
+            {
+                const double framesPerBeat = getSampleRate() * 60.0
+                                           / std::max(1.0, (double)context->internalTransportBeatsPerMinute);
+                const int32_t beatsPerBar = std::max(1, (int32_t)context->internalTransportBeatsPerBar);
+                const float sampleRate = static_cast<float>(getSampleRate());
+                for (uint32_t j=0; j<partFrames; ++j)
+                {
+                    const uint64_t f = context->frame + j;
+                    const uint64_t beat = static_cast<uint64_t>(f / framesPerBeat);
+                    if (f == 0 || beat != static_cast<uint64_t>((f - 1) / framesPerBeat))
+                    {
+                        fClickLeft = static_cast<uint32_t>(sampleRate * 0.03f);
+                        fClickPhase = 0.f;
+                        fClickFreq = beat % beatsPerBar == 0 ? 1600.f : 1000.f;
+                    }
+                    if (fClickLeft == 0)
+                        continue;
+                    const float env = static_cast<float>(fClickLeft) / (sampleRate * 0.03f);
+                    const float v = 0.3f * env * env * std::sin(2.f * static_cast<float>(M_PI) * fClickPhase);
+                    fClickPhase += fClickFreq / sampleRate;
+                    if (fClickPhase >= 1.f)
+                        fClickPhase -= 1.f;
+                    --fClickLeft;
+                    for (int i=0; i<2 && i<fNumActiveOutputs; ++i)
+                        if (blockOuts[i] != nullptr)
+                            blockOuts[i][offset + j] += v;
+                }
+            }
+
+            if (loopWrap)
+                context->internalTransportFrame = loopStartFrame;
+            offset += partFrames;
         }
+        context->dataIns = blockIns;
+        context->dataOuts = blockOuts;
 
         // PatchCore: Audio Settings test tone, 440 Hz at -12 dBFS on the first two outputs
         if (context->testToneFrames > 0)

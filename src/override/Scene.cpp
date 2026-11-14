@@ -37,6 +37,7 @@
 #include "../patchcore/PatchCore.hpp"
 #include "../patchcore/SpaceTaps.hpp"
 #include <patchcore/Mixer.hpp>
+#include <patchcore/Editor.hpp>
 
 #include <algorithm>
 
@@ -117,6 +118,7 @@ struct Scene::Internal {
 	widget::Widget* navigator = nullptr;
 	widget::Widget* transportBar = nullptr;
 	widget::Widget* mixerView = nullptr;
+	widget::Widget* editorView = nullptr;
 
 	bool heldArrowKeys[4] = {};
 
@@ -157,6 +159,8 @@ Scene::Scene() {
 		addChild(internal->transportBar);
 		internal->mixerView = patchcore::createMixerView();
 		addChild(internal->mixerView);
+		internal->editorView = patchcore::createEditorView();
+		addChild(internal->editorView);
 		// Audio start-up notices, under the top bar (empty in plugins)
 		addChild(patchcore::createNoticeStrip());
 		// Tutorials: step panel, highlight, first-start offer (above the rack, below the quick search)
@@ -244,7 +248,8 @@ void Scene::step() {
 	}
 
 	if (internal->navigator != nullptr) {
-		const bool visible = patchcoreChrome && patchcore::settings.navigatorVisible;
+		// Not with the Editor: it shows the rack, which the Editor covers
+		const bool visible = patchcoreChrome && patchcore::settings.navigatorVisible && !patchcore::editorShown();
 		internal->navigator->setVisible(visible);
 		if (visible) {
 			const float w = 132.f;
@@ -270,8 +275,16 @@ void Scene::step() {
 			internal->mixerView->show();
 		internal->mixerView->box = rackRect;  // already without the navigator
 	}
+	if (internal->editorView != nullptr) {
+		if (patchcore::editorShown())
+			internal->editorView->show();
+		internal->editorView->box = rackRect;
+	}
 
-	// Scroll RackScrollWidget with arrow keys
+	// Scroll RackScrollWidget with arrow keys (not while the Editor covers the rack)
+	if (patchcore::editorShown())
+		for (bool& held : internal->heldArrowKeys)
+			held = false;
 	math::Vec arrowDelta;
 	if (internal->heldArrowKeys[0]) {
 		arrowDelta.x -= 1;
@@ -405,6 +418,19 @@ void Scene::onDragHover(const DragHoverEvent& e) {
 
 
 void Scene::onHoverKey(const HoverKeyEvent& e) {
+	// PatchCore: the open Editor gets the keys first (its Ctrl+Z / C / V / A, Delete and the arrows are for the notes,
+	// not for the hidden rack); what it leaves goes on as usual, except the arrows (they would scroll the rack)
+	const bool editor = patchcore::editorShown();
+	if (editor) {
+		OpaqueWidget::onHoverKey(e);
+		if (e.isConsumed())
+			return;
+		if (e.key == GLFW_KEY_LEFT || e.key == GLFW_KEY_RIGHT || e.key == GLFW_KEY_UP || e.key == GLFW_KEY_DOWN) {
+			e.consume(this);
+			return;
+		}
+	}
+
 	// Key commands that override children
 	if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
 		// DEBUG("key '%d '%c' scancode %d '%c' keyName '%s'", e.key, e.key, e.scancode, e.scancode, e.keyName.c_str());
@@ -587,7 +613,8 @@ void Scene::onHoverKey(const HoverKeyEvent& e) {
 
 	if (e.isConsumed())
 		return;
-	OpaqueWidget::onHoverKey(e);
+	if (!editor)  // the Editor had them already
+		OpaqueWidget::onHoverKey(e);
 	if (e.isConsumed())
 		return;
 
@@ -604,8 +631,9 @@ void Scene::onHoverKey(const HoverKeyEvent& e) {
 
 		// PatchCore shortcuts
 		if (patchcore::enabled() && (e.mods & RACK_MOD_MASK) == 0) {
-			if (e.key == GLFW_KEY_TAB && patchcore::mixerShown()) {
+			if (e.key == GLFW_KEY_TAB && (patchcore::mixerShown() || patchcore::editorShown())) {
 				patchcore::showMixer(false);
+				patchcore::showEditor(false);
 				e.consume(this);
 			}
 			else if (e.key == GLFW_KEY_TAB) {
@@ -625,20 +653,24 @@ void Scene::onHoverKey(const HoverKeyEvent& e) {
 				}
 				e.consume(this);
 			}
-			// F1 Rack (or the manual of the selected module), F2 Back, F3 Mixer, F4 kept for the Editor
+			// F1 Rack, F2 Back, F3 Mixer, F4 Editor. F1 opens a module's manual only while that module is selected
+			// on the rack (shown, not under the Mixer or Editor); never a general page.
 			if (e.key == GLFW_KEY_F1) {
 				const std::set<app::ModuleWidget*>& selected = rack->getSelected();
-				const std::string url = selected.empty() ? "" : (*selected.begin())->model->getManualUrl();
+				const bool onRack = !patchcore::mixerShown() && !patchcore::editorShown();
+				const std::string url = selected.size() == 1 && onRack ? (*selected.begin())->model->getManualUrl() : "";
 				if (!url.empty())
 					patchUtils::openBrowser(url);
 				else {
 					patchcore::showMixer(false);
+					patchcore::showEditor(false);
 					patchcore::setViewSide(patchcore::VIEW_FRONT);
 				}
 				e.consume(this);
 			}
 			if (e.key == GLFW_KEY_F2) {
 				patchcore::showMixer(false);
+				patchcore::showEditor(false);
 				patchcore::setViewSide(patchcore::VIEW_BACK);
 				e.consume(this);
 			}
@@ -647,8 +679,11 @@ void Scene::onHoverKey(const HoverKeyEvent& e) {
 					patchcore::showMixer(!patchcore::mixerShown());
 				e.consume(this);
 			}
-			if (e.key == GLFW_KEY_F4)
-				e.consume(this);  // the Editor, not built yet
+			if (e.key == GLFW_KEY_F4) {
+				if (patchcore::editorAvailable())
+					patchcore::showEditor(!patchcore::editorShown());
+				e.consume(this);
+			}
 		}
 	}
 }

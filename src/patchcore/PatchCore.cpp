@@ -19,6 +19,7 @@
 #include <app/Scene.hpp>
 #include <patch.hpp>
 #include <patchcore/Mixer.hpp>
+#include <patchcore/Editor.hpp>
 #include <widget/FramebufferWidget.hpp>
 
 #include <cstdlib>
@@ -298,6 +299,16 @@ void devStep() {
 			devCheck();  // closes the app
 		if (std::getenv("PATCHCORE_DEV_MIXER") != nullptr)
 			showMixer(true);
+		if (std::getenv("PATCHCORE_DEV_EDITOR") != nullptr)
+			showEditor(true);
+		// "start,end" in beats: the loop on (a test of the Editor's loop without the mouse)
+		if (const char* const loop = std::getenv("PATCHCORE_DEV_LOOP")) {
+			double a = 0.0, b = 0.0;
+			if (std::sscanf(loop, "%lf,%lf", &a, &b) == 2)
+				transportSetLoop(a, b, true);
+		}
+		if (std::getenv("PATCHCORE_DEV_CLICK") != nullptr)
+			transportSetMetronome(true);
 		if (std::getenv("PATCHCORE_DEV_AUDIO_DIALOG") != nullptr)
 			showAudioSettings();
 		if (const char* const select = std::getenv("PATCHCORE_DEV_SELECT")) {

@@ -37,6 +37,7 @@
 #include "../CardinalCommon.hpp"
 #include "../patchcore/PatchCore.hpp"
 #include <patchcore/Mixer.hpp>
+#include <patchcore/Editor.hpp>
 
 #include "TutorialLogic.hpp"
 

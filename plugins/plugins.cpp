@@ -1256,6 +1256,7 @@ static void initStatic__JXMP()
        #else
         spl.removeModule("Nest");
        #endif
+        p->addModel(modelJXMPEditor);
         p->addModel(modelJXMPDrums);
         p->addModel(modelJXMPReverb);
         p->addModel(modelJXMPChorus);

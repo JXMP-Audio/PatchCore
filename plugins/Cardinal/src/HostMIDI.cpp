@@ -829,7 +829,27 @@ struct HostMIDIWidget : ModuleWidgetWith9HP {
     void appendContextMenu(Menu* const menu) override
     {
         menu->addChild(new MenuSeparator);
-        menu->addChild(createMenuLabel("MIDI Input"));
+        // PatchCore: the two halves named by what they do, the channel that plays first
+        menu->addChild(createMenuLabel("IN: MIDI -> cables (this plays your modules)"));
+        struct InputChannelItem : MenuItem {
+            HostMIDI* module;
+            Menu* createChildMenu() override {
+                Menu* menu = new Menu;
+                for (int c = 0; c <= 16; c++) {
+                    menu->addChild(createCheckMenuItem((c == 0) ? "All (every track)" : string::f("%d", c), "",
+                        [=]() {return module->midiInput.channel == c;},
+                        [=]() {module->midiInput.channel = c;}
+                    ));
+                }
+                return menu;
+            }
+        };
+        InputChannelItem* const inputChannelItem = new InputChannelItem;
+        inputChannelItem->text = "PLAYS MIDI channel";
+        inputChannelItem->rightText = (module->midiInput.channel ? string::f("%d", module->midiInput.channel) : "All (every track)")
+                                    + "  " + RIGHT_ARROW;
+        inputChannelItem->module = module;
+        menu->addChild(inputChannelItem);
 
         menu->addChild(createBoolPtrMenuItem("Force gate gaps between notes", "", &module->midiInput.gateForceGaps));
 
@@ -845,25 +865,6 @@ struct HostMIDIWidget : ModuleWidgetWith9HP {
             }
         }));
 
-        struct InputChannelItem : MenuItem {
-            HostMIDI* module;
-            Menu* createChildMenu() override {
-                Menu* menu = new Menu;
-                for (int c = 0; c <= 16; c++) {
-                    menu->addChild(createCheckMenuItem((c == 0) ? "All" : string::f("%d", c), "",
-                        [=]() {return module->midiInput.channel == c;},
-                        [=]() {module->midiInput.channel = c;}
-                    ));
-                }
-                return menu;
-            }
-        };
-        InputChannelItem* const inputChannelItem = new InputChannelItem;
-        inputChannelItem->text = "MIDI channel";
-        inputChannelItem->rightText = (module->midiInput.channel ? string::f("%d", module->midiInput.channel) : "All")
-                                    + "  " + RIGHT_ARROW;
-        inputChannelItem->module = module;
-        menu->addChild(inputChannelItem);
 
         menu->addChild(createSubmenuItem("Polyphony channels", string::f("%d", module->midiInput.channels), [=](Menu* menu) {
             for (int c = 1; c <= 16; c++) {
@@ -882,7 +883,7 @@ struct HostMIDIWidget : ModuleWidgetWith9HP {
         }, &module->midiInput.polyMode));
 
         menu->addChild(new MenuSeparator);
-        menu->addChild(createMenuLabel("MIDI Output"));
+        menu->addChild(createMenuLabel("OUT: cables -> MIDI (sends out, plays nothing here)"));
 
         struct OutputChannelItem : MenuItem {
             HostMIDI* module;
@@ -898,7 +899,7 @@ struct HostMIDIWidget : ModuleWidgetWith9HP {
             }
         };
         OutputChannelItem* const outputChannelItem = new OutputChannelItem;
-        outputChannelItem->text = "MIDI channel";
+        outputChannelItem->text = "Sends on MIDI channel";
         outputChannelItem->rightText = string::f("%d", module->midiOutput.channel+1) + "  " + RIGHT_ARROW;
         outputChannelItem->module = module;
         menu->addChild(outputChannelItem);

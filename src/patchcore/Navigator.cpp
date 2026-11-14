@@ -159,7 +159,7 @@ struct Navigator : widget::OpaqueWidget {
 			{"Tab", "flip rack"},
 			{"Enter", "find module"},
 			{"Space", "pause · 2× stop"},
-			{"F1-F3", "rack · back · mixer"},
+			{"F1-F4", "rack · back · mixer · editor"},
 			{"", "shift+click: select"},
 			{"", "ctrl+drag: select area"},
 			{"", "shift+drag: move module"},

@@ -252,6 +252,15 @@
       "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-nest.md"
     },
     {
+      "slug": "Editor",
+      "name": "Editor",
+      "description": "JX-EDIT: enables the Editor (F4), a piano roll for whole songs; each track plays on its own MIDI channel into Host MIDI. Standalone only",
+      "tags": [
+        "Sequencer",
+        "MIDI"
+      ]
+    },
+    {
       "slug": "Drums",
       "name": "Drums",
       "description": "JX-DRM: kick, snare, hi-hat (closed/open) and clap with tune, decay, tone, accent, outputs and mix",

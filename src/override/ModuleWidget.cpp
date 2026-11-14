@@ -28,6 +28,7 @@
 #include "../../CardinalCommon.hpp"
 #include "../patchcore/PatchCore.hpp"
 #include <patchcore/Mixer.hpp>
+#include <patchcore/Editor.hpp>
 
 #include <algorithm>
 #include <thread>
@@ -605,7 +606,8 @@ void ModuleWidget::onHoverKey(const HoverKeyEvent& e) {
 			e.consume(NULL);
 			return;
 		}
-		if (e.key == GLFW_KEY_F1 && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
+		// PatchCore: a manual opens only from F1 with the module selected (Scene), not from hovering
+		if (e.key == GLFW_KEY_F1 && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL && !patchcore::enabled()) {
 			std::string manualUrl = model->getManualUrl();
 			if (!manualUrl.empty())
 				system::openBrowser(manualUrl);
@@ -629,8 +631,10 @@ void ModuleWidget::onButton(const ButtonEvent& e) {
 		if ((e.mods & RACK_MOD_MASK) != GLFW_MOD_SHIFT) {
 			Widget::onButton(e);
 			e.stopPropagating();
-			// A console keeps plain clicks on its panel, so a double-click opens the Mixer view
-			if (!e.isConsumed() && e.button == GLFW_MOUSE_BUTTON_LEFT && dynamic_cast<patchcore::MixerProvider*>(this)) {
+			// A console (JX-EDIT) keeps plain clicks on its panel, so a double-click opens the Mixer (Editor) view.
+			// Not with Ctrl: Ctrl+drag starts the rack's selection box here too.
+			if (!e.isConsumed() && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == 0
+			    && (dynamic_cast<patchcore::MixerProvider*>(this) || dynamic_cast<patchcore::EditorProvider*>(this))) {
 				if (e.action == GLFW_PRESS)
 					internal->patchcoreDrag = false;
 				e.consume(this);

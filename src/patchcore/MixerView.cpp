@@ -7,6 +7,7 @@
 
 #include "PatchCore.hpp"
 #include <patchcore/Mixer.hpp>
+#include <patchcore/Editor.hpp>
 #include <app/ModuleWidget.hpp>
 #include <app/RackWidget.hpp>
 #include <app/Scene.hpp>
@@ -129,8 +130,12 @@ static MixerView* currentView() {
 }
 
 void showMixer(bool show) {
-	if (MixerView* const v = currentView())
-		v->open = show && enabled() && findConsole() != nullptr;
+	MixerView* const v = currentView();
+	if (!v)
+		return;
+	v->open = show && enabled() && findConsole() != nullptr;
+	if (v->open)
+		showEditor(false);
 }
 
 bool mixerShown() {

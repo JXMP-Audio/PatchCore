@@ -9,6 +9,7 @@
 #include <app/Scene.hpp>
 #include <context.hpp>
 #include <engine/Engine.hpp>
+#include <patchcore/Editor.hpp>
 #include <string.hpp>
 #include <system.hpp>
 #include <widget/OpaqueWidget.hpp>
@@ -66,12 +67,25 @@ void transportStop() {
 }
 
 
+void transportSetLoop(double start, double end, bool on) {
+	CardinalPluginContext* const context = pluginContext();
+	context->internalTransportLoopStart = std::max(0.0, start);
+	context->internalTransportLoopEnd = std::max(0.0, end);
+	context->internalTransportLoop = on;
+}
+
+void transportSetMetronome(bool on) {
+	pluginContext()->internalTransportMetronome = on;
+}
+
+
+/** PLAY (pause while it plays; a double click stops and goes back to 1.1.1); the rest only with an Editor */
 enum TransportIcon {
-	ICON_STOP,
 	ICON_PLAY,
 	ICON_REC,
 	ICON_LOOP,
 	ICON_CLICK,
+	ICON_PAUSE,  // drawn on PLAY while playing
 };
 
 
@@ -85,7 +99,10 @@ struct TransportBar : widget::OpaqueWidget {
 	math::Rect tempoRect, tempoUpRect, tempoDownRect, sigRect, buttonsRect, posRect, timeRect, dspRect, masterRect, playRect;
 	/** Standalone: full transport; plugin: thin read-only bar (the DAW owns transport and audio) */
 	const TransportLayout layout = transportLayout(rack::isStandalone());
-	math::Rect buttonRects[5];
+	math::Rect buttonRects[4];
+	int buttonCount = 1;
+	bool editor = false;  // an editor module is in the rack: REC, LOOP, CLICK, position and time
+	bool pressedPlay = false;
 	bool draggingTempo = false;
 	bool showDsp = true, showMaster = true;
 
@@ -131,14 +148,22 @@ struct TransportBar : widget::OpaqueWidget {
 		sigRect = math::Rect(x, cy - 14.f, 38.f, 28.f);
 		x += 38.f + 18.f;
 
-		buttonsRect = math::Rect(x, box.size.y * 0.5f - 24.f, 5 * 42.f + 4 * 6.f + 12.f, 48.f);
-		for (int i = 0; i < 5; ++i)
-			buttonRects[i] = math::Rect(x + 6.f + i * 48.f, buttonsRect.pos.y + 6.f, 42.f, 36.f);
+		editor = editorAvailable();
+		buttonCount = editor ? 4 : 1;
+		buttonsRect = math::Rect(x, box.size.y * 0.5f - 24.f, buttonCount * 42.f + (buttonCount - 1) * 6.f + 12.f, 48.f);
+		for (int i = 0; i < 4; ++i)
+			buttonRects[i] = i < buttonCount ? math::Rect(x + 6.f + i * 48.f, buttonsRect.pos.y + 6.f, 42.f, 36.f) : math::Rect();
 		x += buttonsRect.size.x + 18.f;
 
-		posRect = math::Rect(x, cy - 16.f, 146.f, 32.f);
-		x += 146.f + 12.f;
-		timeRect = math::Rect(x, cy - 14.f, 112.f, 28.f);
+		if (editor) {
+			posRect = math::Rect(x, cy - 16.f, 146.f, 32.f);
+			x += 146.f + 12.f;
+			timeRect = math::Rect(x, cy - 14.f, 112.f, 28.f);
+		}
+		else {
+			posRect = math::Rect();
+			timeRect = math::Rect(x - 20.f, cy, 0.f, 0.f);
+		}
 
 		// Right side: engine info text (about 200 px), the master meter, the DSP meter; whatever does not fit
 		// next to the time display is left out
@@ -190,10 +215,15 @@ struct TransportBar : widget::OpaqueWidget {
 			return;
 		}
 
-		if (buttonRects[ICON_STOP].contains(e.pos))
-			transportStop();
-		else if (buttonRects[ICON_PLAY].contains(e.pos))
+		pressedPlay = buttonRects[ICON_PLAY].contains(e.pos);
+		if (pressedPlay)
 			transportTogglePlay();
+		else if (editor && buttonRects[ICON_REC].contains(e.pos))
+			context->internalTransportRecord = !context->internalTransportRecord;
+		else if (editor && buttonRects[ICON_LOOP].contains(e.pos))
+			context->internalTransportLoop = !context->internalTransportLoop;
+		else if (editor && buttonRects[ICON_CLICK].contains(e.pos))
+			context->internalTransportMetronome = !context->internalTransportMetronome;
 		else if (tempoUpRect.contains(e.pos))
 			context->internalTransportBeatsPerMinute = std::min(999.0, (double)context->internalTransportBeatsPerMinute + 1.0);
 		else if (tempoDownRect.contains(e.pos))
@@ -218,6 +248,9 @@ struct TransportBar : widget::OpaqueWidget {
 		CardinalPluginContext* const context = pluginContext();
 		if (draggingTempo && context->internalTransportActive)
 			context->internalTransportBeatsPerMinute = 120.0;
+		// A double click on PLAY stops and goes back to the start (the two clicks before it played and paused)
+		if (pressedPlay && layout.buttons)
+			transportStop();
 	}
 
 	void drawLabel(NVGcontext* const vg, const math::Rect& r, const std::string& label) {
@@ -238,8 +271,9 @@ struct TransportBar : widget::OpaqueWidget {
 		nvgStrokeWidth(vg, 2.f);
 		nvgBeginPath(vg);
 		switch (icon) {
-			case ICON_STOP:
-				nvgRect(vg, c.x - 6.f, c.y - 6.f, 12.f, 12.f);
+			case ICON_PAUSE:
+				nvgRect(vg, c.x - 6.f, c.y - 7.f, 4.5f, 14.f);
+				nvgRect(vg, c.x + 1.5f, c.y - 7.f, 4.5f, 14.f);
 				nvgFill(vg);
 				break;
 			case ICON_PLAY:
@@ -423,31 +457,43 @@ struct TransportBar : widget::OpaqueWidget {
 
 		// Transport buttons
 		draw::insetBox(vg, buttonsRect, 8.f, nvgRGB(0x12, 0x13, 0x15));
-		for (int i = 0; i < 5; ++i) {
+		for (int i = 0; i < buttonCount; ++i) {
 			const math::Rect& r = buttonRects[i];
-			const bool playOn = i == ICON_PLAY && shownPlaying();
-			// Paused (Space) or stopped: the engine waits, the stop button glows orange
-			const bool pauseOn = i == ICON_STOP && internal && !shownPlaying();
-			// Record, loop and click have no engine behind them yet
-			const bool available = internal && (i == ICON_STOP || i == ICON_PLAY);
+			const bool playing = shownPlaying();
+			// PLAY shows the state: a green play icon while playing, an orange pause icon while paused in the song,
+			// a plain play icon at the start
+			const bool playOn = i == ICON_PLAY && playing;
+			const bool pausedInSong = i == ICON_PLAY && internal && !playing && context->internalTransportFrame > 0;
+			bool lit = false;
+			if (i == ICON_REC)
+				lit = context->internalTransportRecord;
+			else if (i == ICON_LOOP)
+				lit = context->internalTransportLoop;
+			else if (i == ICON_CLICK)
+				lit = context->internalTransportMetronome;
 			if (playOn)
 				draw::bevelBox(vg, r, 5.f, nvgRGB(0x3e, 0x9f, 0x60), nvgRGB(0x25, 0x6b, 0x3e), nvgRGB(0, 0, 0));
-			else if (pauseOn)
+			else if (pausedInSong)
 				draw::bevelBox(vg, r, 5.f, nvgRGB(0xe0, 0x8a, 0x2c), nvgRGB(0x9c, 0x5a, 0x16), nvgRGB(0, 0, 0));
+			else if (lit && i == ICON_REC)
+				draw::bevelBox(vg, r, 5.f, nvgRGB(0xb8, 0x2e, 0x26), nvgRGB(0x7a, 0x1c, 0x17), nvgRGB(0, 0, 0));
+			else if (lit)
+				draw::bevelBox(vg, r, 5.f, nvgRGB(0x2f, 0x6f, 0x8c), nvgRGB(0x1d, 0x48, 0x5c), nvgRGB(0, 0, 0));
 			else
 				draw::bevelBox(vg, r, 5.f, nvgRGB(0x4a, 0x4d, 0x54), nvgRGB(0x2f, 0x32, 0x37), nvgRGB(0, 0, 0));
 
 			NVGcolor color = color::WHITE;
-			if (i == ICON_REC)
+			if (i == ICON_REC && !lit)
 				color = t.rec;
-			else if (i == ICON_LOOP || i == ICON_CLICK)
+			else if ((i == ICON_LOOP || i == ICON_CLICK) && !lit)
 				color = t.accent;
-			if (!available && !playOn)
-				color = color::alpha(color, internal ? 0.3f : 0.55f);
-			drawIcon(vg, (TransportIcon) i, r.getCenter(), color);
+			if (!internal)
+				color = color::alpha(color, 0.55f);
+			drawIcon(vg, pausedInSong ? ICON_PAUSE : (TransportIcon) i, r.getCenter(), color);
 		}
 
-		// Position and time
+		// Position and time: only with an Editor (without one there is no song to place)
+		if (editor) {
 		drawLabel(vg, posRect, "POSITION · BARS");
 		std::string pos = "-.-.-.---";
 		if (valid && context->ticksPerBeat > 0.0) {
@@ -463,6 +509,7 @@ struct TransportBar : widget::OpaqueWidget {
 		const int ms = (int) (std::fmod(seconds, 1.0) * 1000.0);
 		const int whole = (int) seconds;
 		drawLcd(vg, timeRect, 15.f, string::f("%02d:%02d:%02d.%03d", whole / 3600, (whole / 60) % 60, whole % 60, ms), true);
+		}
 
 		// DSP load: share of the audio block time the engine needs
 		if (showDsp) {

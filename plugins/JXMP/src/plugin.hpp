@@ -37,6 +37,7 @@ extern Model* modelJXMPClock;
 extern Model* modelJXMPEuclid;
 extern Model* modelJXMPSampler;
 extern Model* modelJXMPNest;
+extern Model* modelJXMPEditor;
 extern Model* modelJXMPDrums;
 extern Model* modelJXMPReverb;
 extern Model* modelJXMPChorus;
