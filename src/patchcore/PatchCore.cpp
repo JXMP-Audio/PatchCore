@@ -70,6 +70,16 @@ const Theme& theme() {
 }
 
 
+void forgetTouchedParam(widget::Widget* tree) {
+	if (tree == nullptr || APP == nullptr || APP->scene == nullptr || APP->scene->rack == nullptr)
+		return;
+	for (widget::Widget* w = APP->scene->rack->getTouchedParam(); w != nullptr; w = w->parent)
+		if (w == tree) {
+			APP->scene->rack->setTouchedParam(nullptr);
+			return;
+		}
+}
+
 bool enabled() {
 	return !isMini();
 }

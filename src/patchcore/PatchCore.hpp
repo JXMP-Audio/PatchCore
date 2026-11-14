@@ -75,6 +75,9 @@ void saveSettings();
 
 /** True when the PatchCore look is active (always, except in the Mini variant). */
 bool enabled();
+/** Before a widget tree outside the rack is deleted (the Mixer or Editor view): the rack's last touched knob must not
+ * point into it (Rack clears it only when a module is removed; a dangling one crashed the next clear, e.g. on exit). */
+void forgetTouchedParam(widget::Widget* tree);
 
 /** True when the rack shows its back: PatchCore enabled and flipped. */
 bool isBackView();

@@ -48,6 +48,7 @@ struct EditorView : widget::OpaqueWidget {
 
 	void dropContent() {
 		if (content) {
+			forgetTouchedParam(content);
 			removeChild(content);
 			delete content;
 			content = nullptr;
