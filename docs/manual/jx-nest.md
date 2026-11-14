@@ -1,10 +1,39 @@
 # JX-NEST — Plugin host
 
-24 HP · JXMP Audio · [all modules](README.md)
+One VST3, CLAP or LV2 plugin inside the patch: an effect or an instrument, with its own window, audio and note inputs and 8 CV-controlled parameters.
 
-One VST3, CLAP or LV2 plugin inside the patch: an effect (a compressor, an EQ, a reverb) or an instrument (JX808, a synth). Audio goes through it from cables, its own window opens with OPEN UI, notes come from the DAW or from GATE / V/OCT cables, and up to 8 of its parameters move with CV. The patch keeps the plugin with all its settings.
+24 HP · Plugin host · 12 inputs, 12 outputs · [all modules](README.md)
 
-Not in the browser-based PatchCore (WebAssembly).
+<img src="img/jx-nest-front.png" alt="JX-NEST front" height="380"> <img src="img/jx-nest-back.png" alt="JX-NEST back (sockets)" height="380">
+
+## What it does
+
+JX-NEST brings the plugins you already have into a patch: a compressor, an EQ or a reverb on a bus, or an instrument
+(JX808, a synth) played from the rack. Audio goes through it from cables, its own window opens with OPEN UI, notes
+come from the DAW or from GATE / V/OCT cables, and up to 8 of its parameters move with CV. The patch keeps the plugin
+with all its settings. Not in the browser-based PatchCore (WebAssembly).
+
+## How it works
+
+```mermaid
+flowchart LR
+  AI[sockets with role PLUGIN AUDIO IN] --> PL[the plugin]
+  N[GATE, V/OCT, VELOCITY, GATE » NOTE] -->|notes| PL
+  MIDI[PatchCore MIDI in: DAW, keyboard] -->|MIDI channel| PL
+  CV[CV SLOT 1–8 × CV DEPTH] -->|parameters| PL
+  PL --> AO[sockets with role PLUGIN AUDIO OUT]
+  BY[BYPASS] -.->|input to output, same delay| AO
+```
+
+- The 12 inputs and 12 outputs have no fixed job: each one gets a role in Menu › I/O › TABLE.
+- The plugin runs in blocks of 64 samples, so JX-NEST adds 64 samples of delay (about 1.3 ms at 48 kHz); BYPASS keeps
+  the same delay, so switching it never clicks.
+
+## Quick start
+
+1. Press ≡, choose PLUGIN › LOAD, pick a plugin with ▲ ▼ and ✓ (or drop a .vst3 / .clap / .lv2 file on the module).
+2. On the back, a sound into **IN 1–2**, **OUT 1–2** to the console: it now goes through the plugin.
+3. **OPEN UI** opens the plugin's own window.
 
 ## Front panel
 
@@ -16,7 +45,9 @@ Not in the browser-based PatchCore (WebAssembly).
 | BYPASS | The plugin is skipped: each output plays the input that feeds the same plugin port (L to L, R to R), delayed as much as the plugin (64 samples), so switching blends over 10 ms without a click. Notes held while bypassed are ended when the plugin comes back. |
 | CV DEPTH 1–8 | How much CV moves the parameter of slot n: ±100 %. At 100 %, +10 V moves it over the whole range (or the slot's RANGE). Without a cable nothing moves. |
 
-## Sockets (back)
+## Back panel (sockets)
+
+`Tab` or `F2` turns the rack round.
 
 12 inputs and 12 outputs with no fixed job: each one gets a role in **Menu › I/O › TABLE**. The label under a socket shows its role; ✗ = the loaded plugin has no such port (the socket is silent).
 
@@ -63,7 +94,21 @@ Every plugin is tested in a separate program (carla-discovery, shipped with Patc
 - A patch with a plugin this computer does not have shows PLUGIN NOT INSTALLED HERE; its settings are kept in the patch and come back by themselves when you install it and RESCAN (or ADD FOLDER).
 - Every change (load, role, slot, LEARN) can be undone. Undoing a role, slot or MIDI channel change leaves the plugin playing (its window stays open).
 
-## Examples
+## Patch ideas
 
 - JX808 from the rack: JX-CLK ×4 → IN 3 with the role GATE » NOTE 36 (kick), another output → IN 4 GATE » NOTE 38 (snare); OUT 1–2 → the mixer.
 - A compressor on a drum bus: the mix → IN 1–2, OUT 1–2 → the output; an LFO → IN 5 as CV SLOT 1, slot 1 LEARNed to the threshold.
+
+## Everything it can do
+
+- Any VST3, CLAP or LV2 effect or instrument (VST2 is found on Linux too), with its own window.
+- Free socket roles: audio ports by name, CV slots, notes from cables, one drum note per gate.
+- 8 CV slots with LEARN, a range per slot and a depth knob each.
+- MIDI from the DAW or keyboard on a chosen channel.
+- Click-free BYPASS with the same delay.
+- A missing plugin keeps its settings in the patch and comes back by itself once installed.
+- Undo for every change.
+
+## See also
+
+[JX-CONSOLE](jx-console.md) · [JX-EDIT](jx-edit.md) · [JX-CLK](jx-clk.md)

@@ -40,7 +40,8 @@ Without Shift, knobs and jacks always work, even on a selected module.
 
 ## JXMP modules
 
-A manual page per module ([docs/manual/](docs/manual/)); in PatchCore select a module and press `F1`.
+A manual page per module ([docs/manual/](docs/manual/), grouped by category with pictures); in PatchCore select a
+module and press `F1`.
 
 | Panel | Browser name | Manual |
 |---|---|---|
@@ -63,6 +64,7 @@ A manual page per module ([docs/manual/](docs/manual/)); in PatchCore select a m
 | JX-EUC | Euclid | [jx-euc](docs/manual/jx-euc.md) |
 | JX-SMPL | Sampler | [jx-smpl](docs/manual/jx-smpl.md) |
 | JX-NEST | Plugin host (VST3 / CLAP / LV2) | [jx-nest](docs/manual/jx-nest.md) |
+| JX-EDIT | Editor (piano roll, F4) | [jx-edit](docs/manual/jx-edit.md) |
 | JX-DRM | Drums | [jx-drm](docs/manual/jx-drm.md) |
 | JX-REV | Reverb | [jx-rev](docs/manual/jx-rev.md) |
 | JX-CHR | Chorus | [jx-chr](docs/manual/jx-chr.md) |

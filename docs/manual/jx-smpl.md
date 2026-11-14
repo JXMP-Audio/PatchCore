@@ -1,10 +1,40 @@
 # JX-SMPL — Sampler
 
-24 HP · JXMP Audio · [all modules](README.md)
+A 16-slot sampler in the spirit of the FastTracker 2 sample editor: load, cut, loop, tune, record and play sounds from your computer.
 
-16 sample slots in the spirit of the FastTracker 2 sample editor. Every slot holds one sound file from your computer (WAV, FLAC, MP3 or OGG): your own drums, a guitar note, a vocal, a pad. GATE n plays slot n, V/OCT n sets its note. Without a V/OCT cable a slot plays at its original pitch. The samples are saved inside the patch, so the patch works on another computer and in a DAW project.
+24 HP · Sampler · Stereo mix, 16 outputs · [all modules](README.md)
 
 <img src="img/jx-smpl-front.png" alt="JX-SMPL front" height="380"> <img src="img/jx-smpl-back.png" alt="JX-SMPL back (sockets)" height="380">
+
+## What it does
+
+Every slot holds one sound file from your computer (WAV, FLAC, MP3 or OGG): your own drums, a guitar note, a vocal, a
+pad. GATE *n* plays slot *n*, V/OCT *n* sets its note; without a V/OCT cable a slot plays at its original pitch. The
+samples are saved inside the patch, so the patch works on another computer and in a DAW project.
+
+## How it works
+
+```mermaid
+flowchart LR
+  F[sound file / BROWSE / RECORD] --> SL[slot 1–16: START–END, LOOP, ROOT, FINE]
+  G[GATE n] --> P[play slot n]
+  V[V/OCT n] --> P
+  SL --> P
+  E[VOLUME / PAN envelope, FADEOUT] --> P
+  P -->|LEVEL| O[OUT n]
+  P -->|LEVEL, PAN, if OUT n is empty| M[MIX L / R]
+  RI[REC IN L / R, REC GATE] --> F
+```
+
+- The front shows one slot at a time (CH); its knobs always belong to that slot.
+- ONE-SHOT plays to the end on every gate (drums); GATE plays while the gate is high and can hold a loop (notes).
+- A slot whose own OUT is patched leaves the MIX.
+
+## Quick start
+
+1. Drop a WAV file on the module (or Menu › SAMPLE › BROWSE): it goes into slot 1.
+2. Press **PLAY** to hear it.
+3. On the back, a gate into **GATE 1** plays it, **MIX L / R** go to the console.
 
 ## Front panel
 
@@ -25,7 +55,9 @@
 
 The knobs below CH always belong to the selected slot: turn CH and they jump to that slot's values.
 
-## Sockets (back, `Tab` turns the rack)
+## Back panel (sockets)
+
+`Tab` or `F2` turns the rack round.
 
 | Socket | What it does |
 |---|---|
@@ -116,10 +148,23 @@ from the gate (the same at any pitch). They are off until you switch them on.
 - While the slot plays, a cursor runs over the envelope. Line 2 of the wave shows ENV V / P for the envelopes that are on.
 - A new sound loaded into the slot keeps its envelopes and fadeout; START / END, the loop, ROOT and FINE start again from the new sound. Ctrl+Z undoes every change.
 
-## How to use it
+## Patch ideas
 
 - Your own drum machine: JX-EUC GATE 1–4 → GATE 1–4 of a kick, snare, hat and clap; MIX → the console.
 - A melody from one note: a guitar note in slot 7 in GATE mode with a loop, JX-SEQ CV → V/OCT 7, GATE → GATE 7. Smooth the loop with the menu (LOOP › SNAP TO ZERO, CROSSFADE).
 - A pad that swells and pans: a long note in GATE mode with a loop, ENV › VOLUME on with a slow first point, ENV › PAN on (its RESET shape already moves left and right), FADEOUT 1 S.
 - Resampling: patch MIX L / R to REC IN L / R and record what the slots play together into an empty slot.
 - One drum through an effect: patch its OUT to JX-DLY; it leaves the MIX, the rest stays.
+
+## Everything it can do
+
+- 16 slots, each with its own gate, pitch and output; a stereo MIX of the rest.
+- Edits in the module: crop, normalize, reverse, loop with crossfade, zero-crossing snap, seam check, root detection.
+- Volume and pan envelopes per slot (FastTracker style) and a fadeout.
+- A file browser in the display that plays each file as you pass it.
+- Recording from any cable, by hand or by a gate.
+- Undo (Ctrl+Z) for every load, edit and recording; everything is saved in the patch.
+
+## See also
+
+[JX-EUC](jx-euc.md) · [JX-SEQ](jx-seq.md) · [JX-EDIT](jx-edit.md) · [JX-CONSOLE](jx-console.md)
