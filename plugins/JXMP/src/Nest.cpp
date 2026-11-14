@@ -148,6 +148,17 @@ struct Library {
 	}
 
 	std::vector<nest::Folder> searchFolders() const {
+#ifdef ARCH_MAC
+		// macOS: the system's plug-in folders, the user's and the computer's
+		std::vector<nest::Folder> mac;
+		for (const std::string& root : {rack::homeDir() + "/Library/Audio/Plug-Ins", std::string("/Library/Audio/Plug-Ins")}) {
+			mac.push_back(nest::Folder(nest::F_VST3, root + "/VST3"));
+			mac.push_back(nest::Folder(nest::F_CLAP, root + "/CLAP"));
+			mac.push_back(nest::Folder(nest::F_LV2, root + "/LV2"));
+			mac.push_back(nest::Folder(nest::F_VST2, root + "/VST"));
+		}
+		return nest::withUserFolders(mac, folders, false);
+#endif
 		return nest::withUserFolders(nest::standardFolders(kWindows, kWindows ? std::string() : rack::homeDir(), envOr("COMMONPROGRAMFILES"),
 		                                                   envOr("LOCALAPPDATA")),
 		                             folders, kWindows);
@@ -326,6 +337,9 @@ struct Nest : engine::Module {
 	// UI thread
 	nest::PluginEntry plugin;
 	bool hasPlugin = false, uiShown = false;
+	bool restoring = false;    // putting the old plugin back after a failed load
+	std::string uiNotice;      // for the display, from a dialog's callback
+	bool uiBrowse = false;
 	std::string missingName;   // the patch's plugin is not on this computer
 	json_t* missingJ = nullptr;  // its saved data, written back unchanged
 	nest::PortInfo ports;
@@ -700,20 +714,31 @@ struct Nest : engine::Module {
 	bool loadPlugin(const nest::PluginEntry& e, const std::string& state = std::string()) {
 		if (!host)
 			return false;
+		// The plugin there now comes back if `e` does not load
+		const bool had = hasPlugin && !restoring;
+		const nest::PluginEntry old = plugin;
+		const std::string oldState = had ? saveState() : std::string();
 		dropPlugin();
 		plugin = e;
-		missingName.clear();
-		if (missingJ) {
-			json_decref(missingJ);
-			missingJ = nullptr;
-		}
 		const int64_t uid = e.format == nest::F_VST2 ? std::atoll(e.id.c_str()) : 0;
 		if (e.format == nest::F_LV2)
 			prepareLv2(e);
 		if (!carla_add_plugin(host, BINARY_NATIVE, pluginType(e.format), e.file.c_str(), e.name.c_str(), e.label.c_str(), uid, nullptr,
 		                      PLUGIN_OPTIONS_NULL)) {
 			WARN("JX-NEST: %s did not load: %s", e.name.c_str(), carla_get_last_error(host));
+			if (had) {
+				restoring = true;
+				loadPlugin(old, oldState);
+				restoring = false;
+			}
+			else
+				plugin = old;
 			return false;
+		}
+		missingName.clear();
+		if (missingJ) {
+			json_decref(missingJ);
+			missingJ = nullptr;
 		}
 		if (!state.empty())
 			loadState(state);
@@ -898,8 +923,8 @@ struct Nest : engine::Module {
 				for (int b = 0; b < 4; ++b)
 					e.data[b] = h.data[b];
 			}
-			else if (h.at >= absFrame)
-				hostEv[keep++] = h;
+			else
+				hostEv[keep++] = h;  // later, or over the limit of this block: the next one
 		}
 		hostEvCount = keep;
 		for (const nest::NoteEvent& ne : notes) {
@@ -1080,6 +1105,7 @@ struct Nest : engine::Module {
 		const std::string state = json_string_value(json_object_get(p, "state")) ? json_string_value(json_object_get(p, "state")) : "";
 		Library& lib = Library::get();
 		lib.ensureLoaded();
+		dropPlugin();  // the patch names the plugin: a failed load leaves none, not the one before
 		const int at = nest::findById(lib.entries, e.format, e.id);
 		const bool ok = at >= 0 ? loadPlugin(lib.entries[at], state) : (system::exists(e.file) && loadPlugin(e, state));
 		if (!ok) {
@@ -1364,20 +1390,27 @@ struct NestDisplay : widget::OpaqueWidget {
 				brSel = brTop = 0;
 				break;
 			case nest::A_ADD_FOLDER:
-				async_dialog_text_input("Add a plugin folder (its path)", rack::homeDir().c_str(), [this](char* path) {
+			{
+				const int64_t id = m->id;
+				// The module may be gone when the dialog closes: found again by its id, the display reads its flags
+				async_dialog_text_input("Add a plugin folder (its path)", rack::homeDir().c_str(), [id](char* path) {
 					if (!path)
 						return;
 					std::string p = path;
 					std::free(path);
+					Nest* const n = dynamic_cast<Nest*>(APP->engine->getModule(id));
 					if (!system::isDirectory(p)) {
-						say("NOT A FOLDER");
+						if (n)
+							n->uiNotice = "NOT A FOLDER";
 						return;
 					}
 					Library::get().ensureLoaded();
 					Library::get().addFolder(p);
-					screen = BROWSE;
+					if (n)
+						n->uiBrowse = true;
 				});
 				break;
+			}
 			case nest::A_REMOVE:
 				withUndo(m, "JX-NEST remove plugin", [&]() {
 					m->dropPlugin();
@@ -2019,6 +2052,14 @@ struct NestWidget : JXMPModuleWidget {
 		Library& lib = Library::get();
 		lib.idle();
 		m->uiIdle();
+		if (display && m->uiBrowse) {
+			display->screen = NestDisplay::BROWSE;
+			m->uiBrowse = false;
+		}
+		if (display && !m->uiNotice.empty()) {
+			display->say(m->uiNotice);
+			m->uiNotice.clear();
+		}
 		// A dropped plugin, once the scan that searched its folder is done
 		if (!dropFile.empty() && lib.scans >= dropAfter) {
 			const std::string want = nest::folderKey(dropFile, kWindows);

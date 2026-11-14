@@ -62,6 +62,10 @@ jobs:
           mv dist/PatchCore/PatchCoreFX.vst3/Contents/x86_64-linux/CardinalFX.so dist/PatchCore/PatchCoreFX.vst3/Contents/x86_64-linux/PatchCoreFX.so
           cp -rL bin/CardinalSynth.vst3/Contents/Resources dist/PatchCore/resources  # the standalone finds it next to itself
           cp LICENSE README.md docs/LICENSES.md dist/PatchCore/  # LICENSES.md: the licences and authors of the bundled modules
+          # JX-NEST finds plugins with Carla's scanner, shipped in the JXMP resources: the release must have it
+          for d in dist/PatchCore/resources dist/PatchCore/PatchCore.vst3/Contents/Resources dist/PatchCore/PatchCoreFX.vst3/Contents/Resources; do
+            test -x "$d/JXMP/res/carla/carla-discovery-native" || { echo "carla-discovery missing in $d"; exit 1; }
+          done
           tar -c -J -f PatchCore-linux-x86_64-$(echo ${{ github.sha }} | cut -c1-8).tar.xz -C dist PatchCore
       - uses: actions/upload-artifact@v4
         with:
@@ -135,6 +139,10 @@ jobs:
           mv dist/PatchCore/PatchCoreFX.vst3/Contents/x86_64-win/CardinalFX.vst3 dist/PatchCore/PatchCoreFX.vst3/Contents/x86_64-win/PatchCoreFX.vst3
           cp -rL bin/CardinalSynth.vst3/Contents/Resources dist/PatchCore/resources  # the standalone finds it next to itself
           cp LICENSE README.md docs/LICENSES.md dist/PatchCore/  # LICENSES.md: the licences and authors of the bundled modules
+          # JX-NEST finds plugins with Carla's scanner, shipped in the JXMP resources: the release must have it
+          for d in dist/PatchCore/resources dist/PatchCore/PatchCore.vst3/Contents/Resources dist/PatchCore/PatchCoreFX.vst3/Contents/Resources; do
+            test -f "$d/JXMP/res/carla/carla-discovery-native.exe" || { echo "carla-discovery missing in $d"; exit 1; }
+          done
           cd dist && zip -r -9 ../PatchCore-windows-x86_64-$(echo ${{ github.sha }} | cut -c1-8).zip PatchCore
       - uses: actions/upload-artifact@v4
         with:
