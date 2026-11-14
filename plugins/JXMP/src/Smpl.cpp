@@ -2599,7 +2599,7 @@ struct SmplWidget : JXMPModuleWidget {
 			APP->history->push(h);
 			m->postSettings(i, s);
 			m->refreshEdit = true;
-			m->message(i, "POINTS ON ZERO CROSSINGS");
+			m->message(i, s.loop == sm::LOOP_PING ? "LOOP ON PEAKS (PING), START / END ON ZERO" : "POINTS ON ZERO CROSSINGS");
 			break;
 		}
 		case sm::A_SEAM:

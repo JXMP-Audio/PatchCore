@@ -124,13 +124,37 @@ inline size_t nearestZero(const SampleData& d, size_t f, size_t window) {
 	return best;
 }
 
-/** START, END and both loop points onto the nearest rising zero crossing within 20 ms, then the usual order */
+/** The nearest peak or trough to `f` within `window` frames (where the wave turns: flat, so playing it backwards from
+ * there does not kink); `f` itself when there is none */
+inline size_t nearestTurn(const SampleData& d, size_t f, size_t window) {
+	const size_t n = d.frames();
+	size_t best = f, bestD = window + 1;
+	const size_t a = f > window ? f - window : 1, b = std::min(n - 1, f + window + 1);
+	for (size_t k = std::max<size_t>(a, 1); k < b; ++k) {
+		const float before = monoAt(d, k) - monoAt(d, k - 1), after = monoAt(d, k + 1) - monoAt(d, k);
+		if ((before > 0.f && after <= 0.f) || (before < 0.f && after >= 0.f)) {
+			const size_t dist = k > f ? k - f : f - k;
+			if (dist < bestD) {
+				bestD = dist;
+				best = k;
+			}
+		}
+	}
+	return best;
+}
+
+/** START, END and both loop points onto the nearest rising zero crossing within 20 ms, then the usual order. In PING the
+ * loop points go onto the nearest peak or trough instead: the sound turns round there, and a turn on a zero crossing
+ * (the wave at its steepest) clicks the most. */
 inline void snapToZero(const SampleData& d, SlotSettings& s) {
 	const size_t w = (size_t) (0.02f * d.rate);
+	if (d.frames() < 3)
+		return;
 	s.start = nearestZero(d, s.start, w);
 	s.end = nearestZero(d, s.end, w);
-	s.loopStart = nearestZero(d, s.loopStart, w);
-	s.loopEnd = nearestZero(d, s.loopEnd, w);
+	const bool ping = s.loop == LOOP_PING;
+	s.loopStart = ping ? nearestTurn(d, s.loopStart, w) : nearestZero(d, s.loopStart, w);
+	s.loopEnd = ping ? nearestTurn(d, s.loopEnd, w) : nearestZero(d, s.loopEnd, w);
 	constrain(s, d.frames(), P_START);
 }
 

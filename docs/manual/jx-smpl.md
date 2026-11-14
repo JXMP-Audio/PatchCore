@@ -58,7 +58,7 @@ undoes it (the sample, its points and the copy in the patch come back).
 | | NORMALIZE | Raises the whole sample until its loudest peak is at full level; the display says by how much. |
 | | REVERSE S-E | Turns the part between START and END backwards. |
 | LOOP | CROSSFADE ▸ 5 / 10 / 20 / 50 MS | Smooths the loop seam (FWD): the end of the loop blends into the loop's own first milliseconds and LOOP ST moves past them by that much, so the jump back does not click. Only sound inside the loop is used, never what plays before LOOP ST (an attack there stays out of the loop). At most half the loop. The dot marks the length used last. |
-| | SNAP TO ZERO | Moves S, E and both loop points to the nearest place where the wave crosses zero going up: fewer clicks. |
+| | SNAP TO ZERO | Moves S, E and both loop points to the nearest place where the wave crosses zero going up: fewer clicks. In a PING loop the loop points go to the nearest peak or trough instead: the sound turns round there, and the turn is smooth where the wave is flat. |
 | | SHOW SEAM | Shows the end of the loop (left) and its start (right) side by side, the way they join, and says SEAM IS SMOOTH or SEAM CLICKS. Wheel or double click leaves it. |
 | VIEW | WAVE | Back to the wave from an envelope. |
 | | ZOOM TO LOOP | Zooms in on the loop. |
