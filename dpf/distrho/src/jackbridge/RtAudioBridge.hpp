@@ -175,9 +175,16 @@ struct RtAudioBridge : NativeBridge {
         const uint previousBufferSize = bufferSize;
 
         // The audio thread stops first (it takes midiInLock itself); then the MIDI input threads are held off
-        // while the buffers they write into are freed and created again
-        if (handle != nullptr)
-            deactivate();
+        // while the buffers they write into are freed and created again.
+        // Aborted, not stopped: RtAudio's stopStream drains the output (snd_pcm_drain) holding the stream mutex, and
+        // through PipeWire's ALSA plugin a drain may never finish: the whole app hung on a sample-rate change.
+        // The stream is closed right after, so what is still queued does not need to play.
+        if (handle != nullptr && handle->isStreamRunning())
+        {
+            try {
+                handle->abortStream();
+            } DISTRHO_SAFE_EXCEPTION("handle->abortStream()");
+        }
 
         bool ok;
         {
