@@ -22,7 +22,7 @@ Four drum voices: kick, snare, hi-hat (closed and open with choke) and clap. Tun
 | KICK, SNARE, HAT, CLAP trig | Plays the voice on a rising edge; HAT plays a closed hat and chokes an open one. |
 | HAT OPEN | Plays an open hat that rings for the HAT DECAY. |
 | ACCENT (per voice) | High while the trigger comes: that hit is louder. |
-| KICK, SNARE, HAT, CLAP out | Each voice alone, about ±5 V. |
+| KICK, SNARE, HAT, CLAP out | Each voice alone, about ±5 V (an accented hit with long DECAY and high TONE peaks up to about ±8 V). |
 | MIX | All four together. |
 
 ## How to use it

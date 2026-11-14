@@ -31,7 +31,7 @@ Not in the browser-based PatchCore (WebAssembly).
 |---|---|
 | PLUGIN AUDIO OUT | One of the plugin's outputs, by its name (MAIN L / R, the separate outputs of a drum machine). |
 
-A new module: IN 1–2 → the plugin's inputs 1–2, OUT 1–2 ← its outputs 1–2. Roles stay when you load another plugin.
+A new module: IN 1–2 → the plugin's inputs 1–2, OUT 1–2 ← its outputs 1–2. Roles stay when you load another plugin; a CV slot stays when the new plugin has a parameter of the same name, the others are emptied (the display says how many).
 
 ## The menu
 

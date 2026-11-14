@@ -114,7 +114,7 @@ from the gate (the same at any pitch). They are off until you switch them on.
   silent; without one the envelope leaves the loop and runs to its end. In ONE-SHOT mode there is no sustain.
 - Pan: high = left, low = right, the middle = where the PAN knob is. The slot's own OUT is mono and has no pan.
 - While the slot plays, a cursor runs over the envelope. Line 2 of the wave shows ENV V / P for the envelopes that are on.
-- A new sound loaded into the slot keeps its envelopes and fadeout. Ctrl+Z undoes every change.
+- A new sound loaded into the slot keeps its envelopes and fadeout; START / END, the loop, ROOT and FINE start again from the new sound. Ctrl+Z undoes every change.
 
 ## How to use it
 

@@ -273,7 +273,9 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 		addParam(t);
 		for (size_t i = 0; i < legends.size(); ++i) {
 			const float dy = positions == 3 ? (i == 0 ? -7.6f : i == 1 ? 0.f : 7.6f) : (i == 0 ? -7.6f : 7.6f);
-			label(mm.plus(math::Vec(positions == 3 && i == 1 ? -5.f : 0.f, dy)), legends[i].c_str(), 6.f);
+			// The middle legend sits left of the lever, its right end clear of it however long it is
+			const float left = -5.f - 1.2f * std::max(0, (int) legends[i].size() - 3);
+			label(mm.plus(math::Vec(positions == 3 && i == 1 ? left : 0.f, dy)), legends[i].c_str(), 6.f);
 		}
 	}
 

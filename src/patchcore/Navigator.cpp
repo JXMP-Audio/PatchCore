@@ -185,7 +185,10 @@ struct Navigator : widget::OpaqueWidget {
 				draw::text(vg, monoFont(), 10.f, t.textDim, math::Vec(x + w * 0.5f, y + 0.5f), NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, k.first);
 				x += w + 6.f;
 			}
-			draw::text(vg, uiFont(), 11.f, t.textFaint, math::Vec(x, y), NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, k.second);
+			// A narrow navigator: the line gets smaller instead of running past the edge
+			const float room = box.size.x - x - kPad, need = textWidth(uiFont(), 11.f, k.second, 0.f);
+			const float size = need > room && need > 0.f ? std::max(7.f, 11.f * room / need) : 11.f;
+			draw::text(vg, uiFont(), size, t.textFaint, math::Vec(x, y), NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, k.second);
 			y += 19.f;
 		}
 	}

@@ -96,8 +96,8 @@ struct RndWidget : JXMPModuleWidget {
 		for (int p = -5; p <= 8; ++p)
 			rateMarks.push_back({(float) p, p == -5 ? ".03" : p == 1 ? "2" : p == 8 ? "256" : ""});
 		knob(math::Vec(20.32f, 41.5f), Rnd::RATE_PARAM, 15.f, st::CAP_MAIN, -5.f, 8.f, rateMarks);
-		label(math::Vec(20.32f, 56.f), "RATE CV", 7.f);
-		knob(math::Vec(20.32f, 64.f), Rnd::RATE_CV_PARAM, 7.f, st::CAP_GREY, -1.f, 1.f, st::bipolar());
+		label(math::Vec(20.32f, 54.f), "RATE CV", 7.f);
+		knob(math::Vec(20.32f, 65.5f), Rnd::RATE_CV_PARAM, 7.f, st::CAP_GREY, -1.f, 1.f, st::bipolar());
 
 		// OUTPUT
 		section(3.f, 77.f, 34.64f, 40.5f, "OUTPUT");

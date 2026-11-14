@@ -2695,6 +2695,8 @@ struct SmplWidget : JXMPModuleWidget {
 		if (!m || e.paths.empty())
 			return JXMPModuleWidget::onPathDrop(e);
 		loadWithUndo(m, m->selected(), e.paths[0]);
+		if (e.paths.size() > 1)
+			m->message(m->selected(), string::f("ONE SAMPLE PER SLOT: LOADED 1 OF %d", (int) e.paths.size()));
 		e.consume(this);
 	}
 
@@ -2707,7 +2709,11 @@ struct SmplWidget : JXMPModuleWidget {
 		menu->addChild(new ui::MenuSeparator);
 		menu->addChild(createMenuLabel(string::f("Slot %d", slot + 1)));
 		menu->addChild(createMenuItem("Load…", "", [this]() { openDialog(); }));
-		menu->addChild(createMenuItem("Clear slot", "", [m, slot]() { m->clearSlot(slot); }, !m->ui[slot].data));
+		menu->addChild(createMenuItem("Clear slot", "", [this, m, slot]() {
+			// As the panel's CLEAR SAMPLE: can be undone
+			editSample(m, slot, nullptr, sm::SlotSettings(), "clear sample");
+			m->message(slot, string::f("SAMPLE %02d CLEARED", slot + 1));
+		}, !m->ui[slot].data));
 	}
 };
 

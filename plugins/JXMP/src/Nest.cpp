@@ -339,6 +339,8 @@ struct Nest : engine::Module {
 	nest::PluginEntry plugin;
 	bool hasPlugin = false, uiShown = false;
 	bool restoring = false;    // putting the old plugin back after a failed load
+	std::string loadError;     // why the last load failed (Carla's words), for the display
+	int slotsCleared = 0;      // CV slots the last load emptied (the new plugin has no such parameter)
 	std::string uiNotice;      // for the display, from a dialog's callback
 	bool uiBrowse = false;
 	std::string missingName;   // the patch's plugin is not on this computer
@@ -816,6 +818,7 @@ struct Nest : engine::Module {
 		if (!carla_add_plugin(host, BINARY_NATIVE, pluginType(e.format), e.file.c_str(), e.name.c_str(), e.label.c_str(), uid, nullptr,
 		                      PLUGIN_OPTIONS_NULL)) {
 			WARN("JX-NEST: %s did not load: %s", e.name.c_str(), carla_get_last_error(host));
+			loadError = carla_get_last_error(host);
 			if (had) {
 				restoring = true;
 				loadPlugin(old, oldState);
@@ -836,9 +839,12 @@ struct Nest : engine::Module {
 		wire();
 		readParams();
 		nest::renamePorts(io, ports);
+		slotsCleared = 0;
 		for (nest::CvSlot& s : slots) {
-			if (s.param >= (int) params_.size() || (s.param >= 0 && params_[s.param].name != s.paramName))
+			if (s.param >= (int) params_.size() || (s.param >= 0 && params_[s.param].name != s.paramName)) {
 				s = nest::CvSlot();
+				++slotsCleared;
+			}
 			s.last = -1.f;
 		}
 		post();
@@ -1415,8 +1421,12 @@ struct NestDisplay : widget::OpaqueWidget {
 				else if (which == Nest::OK_PARAM && brSel < (int) l.size()) {
 					const nest::PluginEntry e = Library::get().entries[l[brSel]];
 					bool ok = false;
+					module->loadError.clear();
 					withUndo(module, "JX-NEST load plugin", [&]() { ok = module->loadPlugin(e); }, true);
-					say(ok ? "LOADED " + e.name : "DID NOT LOAD: " + e.name);
+					if (ok)
+						say("LOADED " + e.name + (module->slotsCleared ? string::f(", %d SLOTS CLEARED", module->slotsCleared) : ""));
+					else
+						say("DID NOT LOAD: " + e.name + (module->loadError.empty() ? "" : " (" + module->loadError.substr(0, 40) + ")"));
 					screen = MAIN;
 				}
 				break;
@@ -1518,6 +1528,10 @@ struct NestDisplay : widget::OpaqueWidget {
 				break;
 			}
 			case nest::A_REMOVE:
+				if (!m->hasPlugin && !m->missingJ) {
+					say("NO PLUGIN TO REMOVE");
+					break;
+				}
 				withUndo(m, "JX-NEST remove plugin", [&]() {
 					m->dropPlugin();
 					if (m->missingJ) {
@@ -1527,6 +1541,7 @@ struct NestDisplay : widget::OpaqueWidget {
 					m->missingName.clear();
 					m->post();
 				}, true);
+				say("PLUGIN REMOVED");
 				break;
 			case nest::A_IO_TABLE:
 				screen = IO;
@@ -1545,6 +1560,7 @@ struct NestDisplay : widget::OpaqueWidget {
 						s = nest::CvSlot();
 					m->post();
 				});
+				say("ALL SLOTS CLEARED");
 				break;
 			case nest::A_LEARN:
 				m->learnSlot = slotSel;
@@ -1570,8 +1586,10 @@ struct NestDisplay : widget::OpaqueWidget {
 				break;
 			case nest::A_RANGE_MIN:
 			case nest::A_RANGE_MAX:
-				if (m->slots[slotSel].param < 0)
+				if (m->slots[slotSel].param < 0) {
+					say("CHOOSE A PARAMETER FIRST");
 					break;
+				}
 				rangeMax = r.action == nest::A_RANGE_MAX;
 				rangeValue = rangeMax ? m->slots[slotSel].rangeMax : m->slots[slotSel].rangeMin;
 				screen = RANGE;
@@ -1581,6 +1599,7 @@ struct NestDisplay : widget::OpaqueWidget {
 					m->slots[slotSel] = nest::CvSlot();
 					m->post();
 				});
+				say(string::f("SLOT %d EMPTY", slotSel + 1));
 				break;
 			default:
 				break;
@@ -1839,7 +1858,7 @@ struct NestDisplay : widget::OpaqueWidget {
 				continue;
 			}
 			if (s.param < 0 || s.param >= (int) m->params_.size()) {
-				rowText(vg, x0, y, "\xE2\x80\x94   OK = LEARN / CHOOSE", 7.f, on);
+				rowText(vg, x0, y, "\xE2\x80\x94   OK = SLOT MENU", 7.f, on);
 				continue;
 			}
 			const float barX = left() + mm2px(44.f), barW = mm2px(36.f);
@@ -1966,6 +1985,8 @@ struct NestDisplay : widget::OpaqueWidget {
 	void drawParams(NVGcontext* vg) {
 		header(vg, string::f("SLOT %d: PARAMETER", slotSel + 1), paramIdx.empty() ? "MENU = BACK" : string::f("%d/%d", parSel + 1, (int) paramIdx.size()));
 		follow(parSel, parTop, (int) paramIdx.size());
+		if (paramIdx.empty())
+			rowText(vg, left() + mm2px(2.f), rowY(0), "THIS PLUGIN HAS NO PARAMETERS FOR CV", 8.f, false);
 		for (int r = 0; r < kRows; ++r) {
 			const int i = parTop + r;
 			if (i >= (int) paramIdx.size())
