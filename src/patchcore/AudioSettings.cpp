@@ -255,6 +255,9 @@ struct AudioSettingsDialog : widget::OpaqueWidget {
 		std::string err;
 		if (DISTRHO_NAMESPACE::requestAudioSetup(edit, &err)) {
 			error.clear();
+			// A new audio setup starts the song again from 1.1.1 (00:00); the frame count kept across a rate change
+			// would show a time that jumped only part of the way back
+			static_cast<CardinalPluginContext*>(APP)->internalTransportResetRequested = true;
 			edit = DISTRHO_NAMESPACE::getAudioSetup();
 			devices = DISTRHO_NAMESPACE::getAudioDevices(edit.driver);
 			return;
