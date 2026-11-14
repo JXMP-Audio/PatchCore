@@ -62,6 +62,7 @@ A manual page per module ([docs/manual/](docs/manual/)); in PatchCore select a m
 | JX-CLK | Clock | [jx-clk](docs/manual/jx-clk.md) |
 | JX-EUC | Euclid | [jx-euc](docs/manual/jx-euc.md) |
 | JX-SMPL | Sampler | [jx-smpl](docs/manual/jx-smpl.md) |
+| JX-NEST | Plugin host (VST3 / CLAP / LV2) | [jx-nest](docs/manual/jx-nest.md) |
 | JX-DRM | Drums | [jx-drm](docs/manual/jx-drm.md) |
 | JX-REV | Reverb | [jx-rev](docs/manual/jx-rev.md) |
 | JX-CHR | Chorus | [jx-chr](docs/manual/jx-chr.md) |

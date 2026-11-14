@@ -22,6 +22,7 @@ One page per module; in PatchCore, select a module (Shift+click) and press F1 to
 | JX-CLK | Clock | [jx-clk](jx-clk.md) |
 | JX-EUC | Euclid | [jx-euc](jx-euc.md) |
 | JX-SMPL | Sampler | [jx-smpl](jx-smpl.md) |
+| JX-NEST | Plugin host (VST3 / CLAP / LV2) | [jx-nest](jx-nest.md) |
 | JX-DRM | Drums | [jx-drm](jx-drm.md) |
 | JX-REV | Reverb | [jx-rev](jx-rev.md) |
 | JX-CHR | Chorus | [jx-chr](jx-chr.md) |

@@ -57,7 +57,7 @@ undoes it (the sample, its points and the copy in the patch come back).
 | EDIT | CROP TO S-E | Throws away what START and END cut off: the sample gets shorter and takes less room in the patch. |
 | | NORMALIZE | Raises the whole sample until its loudest peak is at full level; the display says by how much. |
 | | REVERSE S-E | Turns the part between START and END backwards. |
-| LOOP | CROSSFADE ▸ 5 / 10 / 20 / 50 MS | Smooths the loop seam: the end of the loop blends into what leads into LOOP ST, so the jump back does not click. Needs that much sound before LOOP ST. The dot marks the length used last. |
+| LOOP | CROSSFADE ▸ 5 / 10 / 20 / 50 MS | Smooths the loop seam (FWD): the end of the loop blends into the loop's own first milliseconds and LOOP ST moves past them by that much, so the jump back does not click. Only sound inside the loop is used, never what plays before LOOP ST (an attack there stays out of the loop). At most half the loop. The dot marks the length used last. |
 | | SNAP TO ZERO | Moves S, E and both loop points to the nearest place where the wave crosses zero going up: fewer clicks. |
 | | SHOW SEAM | Shows the end of the loop (left) and its start (right) side by side, the way they join, and says SEAM IS SMOOTH or SEAM CLICKS. Wheel or double click leaves it. |
 | VIEW | WAVE | Back to the wave from an envelope. |
@@ -71,7 +71,7 @@ undoes it (the sample, its points and the copy in the patch come back).
 | | DETECT ROOT | Listens to START…END and sets ROOT to the note the sample sounds at and FINE to the rest, so V/OCT plays it in tune (a sample 30 cents sharp of A-5: ROOT A-5, FINE −30). Drums, noise and chords have no clear pitch: nothing changes and the display says NO CLEAR PITCH. Ctrl+Z undoes it. |
 | | CLEAR SAMPLE | Empties the slot; asks first (✓ = yes, ≡ = no). |
 
-A good loop in three steps: set LOOP ST and LOOP END roughly, SNAP TO ZERO, then CROSSFADE 20 MS and check SHOW SEAM.
+A good loop in three steps: set LOOP ST and LOOP END roughly, SNAP TO ZERO, then CROSSFADE 20 MS and check SHOW SEAM (it looks at both sides of a stereo sample). Set the points first: a crossfade is written into the sample, moving LOOP ST or LOOP END afterwards needs a new one.
 
 ## Browsing
 
@@ -83,7 +83,7 @@ first, then its sound files (WAV, FLAC, MP3, OGG), each A–Z; the right column 
 - ✓ on a folder opens it, on `..` goes one folder up, on a file loads it into the selected slot and closes the
   browser. Ctrl+Z brings back what the slot held.
 - ≡ closes the browser without loading anything.
-- With the mouse: the wheel moves, a click selects (and plays) a row, a double click opens or loads it.
+- With the mouse: a click selects (and plays) a row, a double click opens or loads it. The wheel is not used here (it scrolls the rack).
 - The folder is remembered for every JX-SMPL, also after a restart. LOAD SAMPLE and dropping a file set it too.
 
 ## Recording

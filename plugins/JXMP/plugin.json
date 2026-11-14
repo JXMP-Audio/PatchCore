@@ -241,6 +241,17 @@
       "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-smpl.md"
     },
     {
+      "slug": "Nest",
+      "name": "Nest",
+      "description": "JX-NEST: hosts a VST3 / CLAP / LV2 plugin, 12 + 12 jacks with roles, 8 CV slots for its parameters",
+      "tags": [
+        "Utility",
+        "Effect",
+        "Synth voice"
+      ],
+      "manualUrl": "https://github.com/JXMP-Audio/PatchCore/blob/main/docs/manual/jx-nest.md"
+    },
+    {
       "slug": "Drums",
       "name": "Drums",
       "description": "JX-DRM: kick, snare, hi-hat (closed/open) and clap with tune, decay, tone, accent, outputs and mix",

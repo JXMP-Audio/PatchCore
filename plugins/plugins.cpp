@@ -1251,6 +1251,11 @@ static void initStatic__JXMP()
         p->addModel(modelJXMPClock);
         p->addModel(modelJXMPEuclid);
         p->addModel(modelJXMPSampler);
+       #if !(defined(DISTRHO_OS_WASM) || defined(STATIC_BUILD))
+        p->addModel(modelJXMPNest);
+       #else
+        spl.removeModule("Nest");
+       #endif
         p->addModel(modelJXMPDrums);
         p->addModel(modelJXMPReverb);
         p->addModel(modelJXMPChorus);

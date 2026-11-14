@@ -1256,7 +1256,9 @@ protected:
             }
 
             context->reset = reset;
-            fNextExpectedFrame = timePos.playing ? timePos.frame + frames : 0;
+            // PatchCore: a paused (frozen) engine does not move the transport, so the next block is expected at the
+            // same frame; otherwise resuming after a pause looked like a jump and reset every clock (JX-CLK RESET)
+            fNextExpectedFrame = timePos.playing ? timePos.frame + (fEngineRuns ? frames : 0) : 0;
 
            #if CARDINAL_VARIANT_MINI && ! DISTRHO_PLUGIN_WANT_DIRECT_ACCESS
             const int flags = (timePos.playing ? 0x1 : 0x0)

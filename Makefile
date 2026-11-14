@@ -154,6 +154,13 @@ ifneq ($(STATIC_BUILD),true)
 		CUSTOM_DPF_PATH=$(CURDIR)/dpf \
 		STATIC_PLUGIN_TARGET=true \
 		USING_CUSTOM_DPF=true
+	# PatchCore JX-NEST: the plugin scanner, run as its own process, shipped in the JXMP resources
+	$(MAKE) discovery -C carla $(CARLA_EXTRA_ARGS) \
+		CAN_GENERATE_LV2_TTL=false \
+		CUSTOM_DPF_PATH=$(CURDIR)/dpf \
+		USING_CUSTOM_DPF=true
+	mkdir -p plugins/JXMP/res/carla
+	cp -f carla/bin/carla-discovery-native* plugins/JXMP/res/carla/
 endif
 
 carla-win32:

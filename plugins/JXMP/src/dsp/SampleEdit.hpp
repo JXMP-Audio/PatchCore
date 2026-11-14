@@ -62,26 +62,43 @@ inline void reverse(SampleData& d, size_t start, size_t end) {
 		std::reverse(d.r.begin() + start, d.r.begin() + end);
 }
 
-/** Blends the last n frames before LOOP END into the n frames that lead into LOOP ST (equal power), so going round the
- * loop sounds like playing into LOOP ST: no click at the seam. n = `ms` long at most, and no more than the room before
- * LOOP ST (from START) and the loop itself. False (nothing changed) when that leaves fewer than 8 frames. */
-inline bool crossfadeLoop(SampleData& d, const SlotSettings& s, float ms) {
+/** Loop crossfade: the last n frames before LOOP END blend into the loop's own first n frames, and LOOP ST moves
+ * past them (by n), so going round the loop continues exactly where the blend ended: no click at the seam. Only sound
+ * inside the loop is used (taking what plays before LOOP ST brought an attack into every round). The gains follow how
+ * alike the two parts are (alike: a straight blend, no swell; unlike: constant power). n = `ms` long at most and half
+ * the loop; false (nothing changed) when that leaves fewer than 8 frames. */
+inline bool crossfadeLoop(SampleData& d, SlotSettings& s, float ms) {
 	const size_t frames = d.frames();
 	const size_t ls = std::min(s.loopStart, frames), le = std::min(std::max(s.loopEnd, ls), frames);
-	const size_t start = std::min(s.start, ls);
 	size_t n = (size_t) std::lround(ms / 1000.f * d.rate);
-	n = std::min(n, std::min(ls - start, le - ls));
+	n = std::min(n, (le - ls) / 2);
 	if (n < 8)
 		return false;
+	const bool stereo = d.r.size() == frames;
+	// How alike the end of the loop and its start are (0..1)
+	double ab = 0.0, aa = 0.0, bb = 0.0;
+	for (size_t k = 0; k < n; ++k) {
+		ab += (double) d.l[le - n + k] * d.l[ls + k];
+		aa += (double) d.l[le - n + k] * d.l[le - n + k];
+		bb += (double) d.l[ls + k] * d.l[ls + k];
+		if (stereo) {
+			ab += (double) d.r[le - n + k] * d.r[ls + k];
+			aa += (double) d.r[le - n + k] * d.r[le - n + k];
+			bb += (double) d.r[ls + k] * d.r[ls + k];
+		}
+	}
+	const float r = aa > 0.0 && bb > 0.0 ? (float) std::min(std::max(ab / std::sqrt(aa * bb), 0.0), 1.0) : 0.f;
 	auto blend = [&](std::vector<float>& x) {
 		for (size_t k = 0; k < n; ++k) {
-			const float t = (float) (k + 1) / (float) n * 1.5707963f;
-			x[le - n + k] = x[le - n + k] * std::cos(t) + x[ls - n + k] * std::sin(t);
+			const float t = (float) (k + 1) / (float) n, a = 1.f - t, b = t;
+			const float g = 1.f / std::sqrt(a * a + b * b + 2.f * r * a * b);
+			x[le - n + k] = g * (a * x[le - n + k] + b * x[ls + k]);
 		}
 	};
 	blend(d.l);
-	if (d.r.size() == frames)
+	if (stereo)
 		blend(d.r);
+	s.loopStart = ls + n;
 	return true;
 }
 
@@ -117,18 +134,22 @@ inline void snapToZero(const SampleData& d, SlotSettings& s) {
 	constrain(s, d.frames(), P_START);
 }
 
-/** Whether going from LOOP END back to LOOP ST jumps or kinks the wave (the SHOW SEAM verdict): the frame at LOOP ST
- * is compared with where the end was heading, and the slopes on both sides with how much the slope changes anyway */
+/** Whether going from LOOP END back to LOOP ST jumps or kinks the wave (the SHOW SEAM verdict), on either side of a
+ * stereo sample: the frame at LOOP ST is compared with where the end was heading, and the slopes on both sides with
+ * how much the slope changes anyway */
 inline bool seamClicks(const SampleData& d, size_t ls, size_t le) {
 	const size_t n = d.frames();
 	if (le > n || ls + 2 > n || le < ls + 3 || le < 3)
 		return false;
-	const float e1 = monoAt(d, le - 1), e2 = monoAt(d, le - 2), e3 = monoAt(d, le - 3);
-	const float s0 = monoAt(d, ls), s1 = monoAt(d, ls + 1);
-	const float slopeEnd = e1 - e2, natural = std::fabs(slopeEnd - (e2 - e3));
-	const float jump = std::fabs(s0 - (e1 + slopeEnd));
-	const float kink = std::fabs((s1 - s0) - slopeEnd);
-	return jump > 0.02f + 2.f * natural || kink > 0.01f + 3.f * natural;
+	auto side = [&](const std::vector<float>& x) {
+		const float e1 = x[le - 1], e2 = x[le - 2], e3 = x[le - 3];
+		const float s0 = x[ls], s1 = x[ls + 1];
+		const float slopeEnd = e1 - e2, natural = std::fabs(slopeEnd - (e2 - e3));
+		const float jump = std::fabs(s0 - (e1 + slopeEnd));
+		const float kink = std::fabs((s1 - s0) - slopeEnd);
+		return jump > 0.02f + 2.f * natural || kink > 0.01f + 3.f * natural;
+	};
+	return side(d.l) || (d.r.size() == n && side(d.r));
 }
 
 } // namespace sampler

@@ -283,7 +283,13 @@ endif
 # --------------------------------------------------------------
 # JXMP (built-in)
 
-PLUGIN_FILES += $(wildcard JXMP/src/*.cpp)
+PLUGIN_FILES += $(filter-out JXMP/src/Nest.cpp,$(wildcard JXMP/src/*.cpp))
+# JX-NEST hosts plugins through Carla, as Ildaeil (not in static / wasm builds)
+ifneq ($(STATIC_BUILD),true)
+ifneq ($(WASM),true)
+PLUGIN_FILES += JXMP/src/Nest.cpp
+endif
+endif
 
 # --------------------------------------------------------------
 # Fundamental (always enabled)
@@ -1498,6 +1504,7 @@ RESOURCE_FILES += WSTD-Drums/res/samples
 RESOURCE_FILES += Meander/res
 # PatchCore: tutorial lessons
 RESOURCE_FILES += JXMP/res/tutorials
+RESOURCE_FILES += $(wildcard JXMP/res/carla)
 RESOURCE_FILES += MindMeldModular/res/ShapeMaster/CommunityPresets
 RESOURCE_FILES += MindMeldModular/res/ShapeMaster/CommunityShapes
 RESOURCE_FILES += MindMeldModular/res/ShapeMaster/MindMeldPresets
@@ -2140,6 +2147,13 @@ $(BUILD_DIR)/Cardinal/%.cpp.o: Cardinal/%.cpp
 		-Dstbtt_fontinfo=stbtt_fontinfo_cardinal \
 		-Dstbrp_node=stbrp_node_cardinal \
 		-Dstbrp_rect=stbrp_rect_cardinal \
+		$(CARLA_FLAGS)
+
+$(BUILD_DIR)/JXMP/src/Nest.cpp.o: JXMP/src/Nest.cpp
+	-@mkdir -p "$(shell dirname $(BUILD_DIR)/$<)"
+	@echo "Compiling $<"
+	$(SILENT)$(CXX) $< $(BUILD_CXX_FLAGS) -c -o $@ \
+		-DpluginInstance=pluginInstance__JXMP \
 		$(CARLA_FLAGS)
 
 $(BUILD_DIR)/JXMP/%.cpp.o: JXMP/%.cpp
