@@ -34,7 +34,11 @@ inline const char* formatName(Format f) {
 struct Folder {
 	Format format;
 	std::string path;
-	Folder(Format f, const std::string& p) : format(f), path(p) {}
+	// Assigned in the body: MinGW defines a function-like macro "format" (include/common.hpp)
+	Folder(Format f, const std::string& p) {
+		format = f;
+		path = p;
+	}
 };
 
 /** windows: VST3 / CLAP under Common Files and the per-user Programs\Common; Linux: the home and system folders.
