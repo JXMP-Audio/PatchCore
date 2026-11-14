@@ -296,6 +296,7 @@ struct Routing {
 	// nothing else holds it, so the audio thread never touches a freed one, even when it takes the routing late.
 	CarlaPluginPtr plugin;
 	bool lv2 = false;
+	bool vst3 = false;  // CV goes through the CV thread (see Nest::cvLoop)
 	bool active = false;
 	Routing() {
 		for (int k = 0; k < nest::kJacks; ++k)
@@ -373,6 +374,23 @@ struct Nest : engine::Module {
 	std::vector<nest::NoteEvent> releaseEv;  // note ends, sent first in the next block
 	nest::BypassFade bypassFade;
 	bool pluginPlayed = false;  // outBuf holds the plugin's real output (it ran last block)
+	// Who runs desc->process: 0 nobody, 1 the audio thread, 2 the UI thread pumping a plugin removal (dropPlugin)
+	std::atomic<int> procOwner{0};
+	std::atomic<uint32_t> procCount{0};  // blocks the audio thread has run
+
+	// VST3 CV: Carla's VST3 setParameterValue calls the plugin's edit controller, which belongs to the UI thread and
+	// may lock or allocate (JUCE plugins do). The audio thread only leaves the value here; cvLoop hands it over.
+	struct CvOut {
+		std::atomic<int> param{-1};
+		std::atomic<float> value{0.f};
+		std::atomic<bool> dirty{false};
+	};
+	CvOut cvOut[nest::kSlots];
+	std::mutex cvMutex;
+	CarlaPluginPtr cvPlugin;  // guarded by cvMutex
+	std::atomic<bool> cvQuit{false};
+	std::atomic<uint32_t> cvWrites{0};
+	std::thread cvThread;
 	nest::DryDelay dryDelay;
 	std::vector<nest::NoteEvent> notes;
 	struct HostEv {
@@ -408,9 +426,42 @@ struct Nest : engine::Module {
 		releaseEv.reserve(64);
 		lightDivider.setDivision(512);
 		startHost();
+		cvThread = std::thread([this]() { cvLoop(); });
+	}
+
+	void cvSetPlugin(CarlaPluginPtr p) {
+		std::lock_guard<std::mutex> lock(cvMutex);
+		cvPlugin = std::move(p);
+		for (CvOut& o : cvOut)
+			o.dirty = false;
+	}
+
+	/** VST3 CV values to the plugin, off the audio thread: every 1 ms while CV moves, otherwise every 20 ms */
+	void cvLoop() {
+		uint32_t seen = 0;
+		int quiet = 1000;
+		while (!cvQuit) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(quiet < 1000 ? 1 : 20));
+			const uint32_t w = cvWrites.load();
+			quiet = w != seen ? 0 : std::min(quiet + 1, 1000);
+			seen = w;
+			std::lock_guard<std::mutex> lock(cvMutex);
+			if (!cvPlugin)
+				continue;
+			for (CvOut& o : cvOut)
+				if (o.dirty.exchange(false)) {
+					const int param = o.param.load();
+					if (param >= 0 && (uint32_t) param < cvPlugin->getParameterCount())
+						cvPlugin->setParameterValue((uint32_t) param, o.value.load(), false, false, false);
+				}
+		}
 	}
 
 	~Nest() override {
+		cvQuit = true;
+		if (cvThread.joinable())
+			cvThread.join();
+		cvPlugin.reset();
 		closeUi();
 		rt.plugin.reset();
 		pending.plugin.reset();
@@ -569,6 +620,8 @@ struct Nest : engine::Module {
 		if (withPlugin && hasPlugin)
 			r.plugin = carlaPluginPtr();
 		r.lv2 = plugin.format == nest::F_LV2;
+		r.vst3 = plugin.format == nest::F_VST3;
+		cvSetPlugin(withPlugin && hasPlugin && r.vst3 ? r.plugin : CarlaPluginPtr());
 		{
 			std::lock_guard<std::mutex> lock(routeMutex);
 			pending = r;
@@ -604,13 +657,50 @@ struct Nest : engine::Module {
 		uiShown = false;
 	}
 
+	/** carla_remove_all_plugins waits until the engine has run a block (up to 2 s). When the audio thread does not
+	 * run it (BYPASS, the module bypassed, the transport paused), the UI thread runs silent blocks itself. */
+	void removeAllPumped() {
+		std::atomic<bool> done{false};
+		std::thread remover([this, &done]() {
+			carla_remove_all_plugins(host);
+			done = true;
+		});
+		static float silence[kPorts][kBlock];
+		float scratch[kPorts][kBlock];
+		uint32_t seen = procCount.load();
+		int idle = 0;
+		while (!done) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(2));
+			const uint32_t now = procCount.load();
+			if (now != seen) {
+				seen = now;
+				idle = 0;
+				continue;
+			}
+			if (++idle < 5)  // the audio thread ran nothing for 10 ms
+				continue;
+			int free = 0;
+			if (!procOwner.compare_exchange_strong(free, 2))
+				continue;
+			float* ins[kPorts];
+			float* outs[kPorts];
+			for (int k = 0; k < kPorts; ++k) {
+				ins[k] = silence[k];
+				outs[k] = scratch[k];
+			}
+			desc->process(handle, ins, outs, kBlock, nullptr, 0);
+			procOwner = 0;
+		}
+		remover.join();
+	}
+
 	/** Takes the plugin out (the audio thread lets go of it first) */
 	void dropPlugin() {
 		closeUi();
 		hasPlugin = false;
 		post(false);
 		if (host && carlaPlugin())
-			carla_remove_all_plugins(host);
+			removeAllPumped();
 		ports = nest::PortInfo();
 		params_.clear();
 		learnSlot = -1;
@@ -886,6 +976,12 @@ struct Nest : engine::Module {
 				const float value = rt.pMin[s] + t * (rt.pMax[s] - rt.pMin[s]);
 				if (rt.lv2)
 					rt.plugin->setParameterValueRT((uint32_t) c.param, value, 0, false);
+				else if (rt.vst3) {
+					cvOut[s].param = c.param;
+					cvOut[s].value = value;
+					cvOut[s].dirty.store(true, std::memory_order_release);
+					cvWrites.fetch_add(1, std::memory_order_relaxed);
+				}
 				else
 					rt.plugin->setParameterValue((uint32_t) c.param, value, false, false, false);
 				rtLast[s] = t;
@@ -952,7 +1048,17 @@ struct Nest : engine::Module {
 				ins[k] = inBuf[k];
 				outs[k] = outBuf[k];
 			}
-			desc->process(handle, ins, outs, kBlock, midiOut, (uint32_t) n);
+			int free = 0;
+			if (procOwner.compare_exchange_strong(free, 1)) {
+				desc->process(handle, ins, outs, kBlock, midiOut, (uint32_t) n);
+				procOwner = 0;
+				procCount.fetch_add(1, std::memory_order_relaxed);
+			}
+			else {
+				// The UI thread is finishing a plugin removal: silence for this block
+				pluginPlayed = false;
+				std::memset(outBuf, 0, sizeof(outBuf));
+			}
 		}
 		else
 			std::memset(outBuf, 0, sizeof(outBuf));
