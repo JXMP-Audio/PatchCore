@@ -57,11 +57,15 @@ struct NameField : ui::TextField {
 			return;
 		finished = true;
 		if (module) {
-			std::string name = keep ? text.substr(0, 24) : before;
+			std::string name = keep ? utf8Cut(text, 24) : before;
 			if (name.empty())
 				name = string::f("TRACK %d", track + 1);
 			module->song.tracks[track].name = name;
 			module->publish();
+			// Esc: nothing changed, so no undo step either
+			module->commit(true);
+			if (!keep && !module->undo.empty() && module->undo.back() == module->song)
+				module->undo.pop_back();
 		}
 		if (done)
 			done();
@@ -71,7 +75,7 @@ struct NameField : ui::TextField {
 	void onChange(const ChangeEvent& e) override {
 		ui::TextField::onChange(e);
 		if (module && !finished)
-			module->song.tracks[track].name = text.substr(0, 24);
+			module->song.tracks[track].name = utf8Cut(text, 24);
 	}
 
 	void onSelectKey(const SelectKeyEvent& e) override {
@@ -82,6 +86,104 @@ struct NameField : ui::TextField {
 			return;
 		}
 		ui::TextField::onSelectKey(e);
+		// While typing, PgUp / PgDn do not switch the track under the field
+		if (e.key == GLFW_KEY_PAGE_UP || e.key == GLFW_KEY_PAGE_DOWN)
+			e.consume(this);
+	}
+
+	// Drawn like the list (dark, its font, one line), not as Rack's light text box
+	static constexpr float kSize = 10.f, kPad = 4.f;
+
+	bool font(NVGcontext* vg) {
+		std::shared_ptr<window::Font> f = st::font(st::FONT_LABEL);
+		if (!f || f->handle < 0)
+			return false;
+		nvgFontFaceId(vg, f->handle);
+		nvgFontSize(vg, kSize);
+		nvgTextLetterSpacing(vg, 0.5f);
+		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+		return true;
+	}
+
+	/** x of each byte position of the text (from 0), with the text scrolled so the cursor shows */
+	std::vector<float> xs;
+	float shift = 0.f;
+	void measure(NVGcontext* vg) {
+		xs.assign(text.size() + 1, 0.f);
+		std::vector<NVGglyphPosition> g(text.size() + 1);
+		const int n = nvgTextGlyphPositions(vg, 0, 0, text.c_str(), nullptr, g.data(), (int) g.size());
+		float end = 0.f;
+		for (int k = 0; k < n; ++k)
+			end = g[k].maxx;
+		size_t gi = 0;
+		for (size_t b = 0; b <= text.size(); ++b) {
+			while (gi < (size_t) n && (size_t) (g[gi].str - text.c_str()) < b)
+				++gi;
+			xs[b] = gi < (size_t) n ? g[gi].x : end;
+		}
+		const float room = box.size.x - 2 * kPad;
+		const float cx = xs[math::clamp(cursor, 0, (int) text.size())];
+		if (cx + shift > room)
+			shift = room - cx;
+		if (cx + shift < 0.f)
+			shift = -cx;
+		if (end + shift < room)
+			shift = std::min(0.f, room - end);
+	}
+
+	void draw(const DrawArgs& args) override {
+		NVGcontext* const vg = args.vg;
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg, 0, 0, box.size.x, box.size.y, 3.f);
+		nvgFillColor(vg, nvgRGB(0x12, 0x13, 0x16));
+		nvgFill(vg);
+		nvgStrokeWidth(vg, 1.f);
+		nvgStrokeColor(vg, kEditColour);
+		nvgStroke(vg);
+		nvgSave(vg);
+		nvgIntersectScissor(vg, kPad - 1.f, 0, box.size.x - 2 * kPad + 2.f, box.size.y);
+		if (font(vg)) {
+			measure(vg);
+			const float x0 = kPad + shift, cy = box.size.y / 2;
+			const int a = math::clamp(std::min(cursor, selection), 0, (int) text.size());
+			const int b = math::clamp(std::max(cursor, selection), 0, (int) text.size());
+			if (a != b) {
+				nvgBeginPath(vg);
+				nvgRect(vg, x0 + xs[a], cy - 7.f, xs[b] - xs[a], 14.f);
+				nvgFillColor(vg, color::alpha(kEditColour, 0.45f));
+				nvgFill(vg);
+			}
+			nvgFillColor(vg, st::legend());
+			nvgText(vg, x0, cy, text.c_str(), nullptr);
+			if (APP->event->selectedWidget == this) {
+				nvgBeginPath(vg);
+				nvgRect(vg, x0 + xs[math::clamp(cursor, 0, (int) text.size())], cy - 6.f, 1.f, 12.f);
+				nvgFillColor(vg, color::WHITE);
+				nvgFill(vg);
+			}
+		}
+		nvgRestore(vg);
+	}
+
+	int getTextPosition(math::Vec mousePos) override {
+		NVGcontext* const vg = APP->window->vg;
+		nvgSave(vg);
+		const bool ok = font(vg);
+		if (ok)
+			measure(vg);
+		nvgRestore(vg);
+		if (!ok || xs.empty())
+			return 0;
+		const float x = mousePos.x - kPad - shift;
+		int best = 0;
+		for (size_t b = 0; b < xs.size(); ++b) {
+			// Only on letter boundaries (not inside a UTF-8 letter)
+			if (b < text.size() && (text[b] & 0xC0) == 0x80)
+				continue;
+			if (std::fabs(xs[b] - x) < std::fabs(xs[best] - x))
+				best = (int) b;
+		}
+		return best;
 	}
 
 	void onDeselect(const DeselectEvent& e) override {
@@ -94,6 +196,7 @@ struct Button {
 	math::Rect rect;
 	std::string label;
 	std::function<void()> action;
+	bool enabled;  // dimmed and inactive when it would do nothing
 };
 
 } // namespace
@@ -104,6 +207,7 @@ struct EditPane : widget::OpaqueWidget {
 	std::vector<char> sel;  // selection of the selected track's notes, parallel to its notes
 	int selTrack = -1;
 	std::vector<sg::Note> clip;
+	int64_t lastPaste = -1, lastPasteFrom = -1;  // where the last paste went and where it was asked for
 	std::vector<Button> buttons;
 
 	enum DragType { DRAG_NONE, DRAG_MOVE, DRAG_LENGTH, DRAG_BOX, DRAG_VEL, DRAG_LOOP_START, DRAG_LOOP_END, DRAG_SEEK, DRAG_SEEK_OVER, DRAG_OVERVIEW };
@@ -121,7 +225,7 @@ struct EditPane : widget::OpaqueWidget {
 	// The overview (whole song) with its own ruler on top; the piano roll with its own ruler below it
 	float overRulerY() const { return kToolH; }
 	float overY() const { return kToolH + kOverRulerH; }
-	float overBottom() const { return overY() + sg::kTracks * kOverRowH; }
+	float overBottom() const { return overY() + sg::kTracks * overRowH(); }
 	float rulerY() const { return overBottom() + kGap; }
 	float rollY() const { return rulerY() + kRulerH; }
 	/** Overview scale: the whole song across the width */
@@ -136,7 +240,16 @@ struct EditPane : widget::OpaqueWidget {
 				return st;
 		return 512;
 	}
-	float velY() const { return box.size.y - kVelH; }
+	float velY() const { return box.size.y - velH(); }
+	/** In a low window the overview rows and then the velocity lane give up height, so the piano roll keeps about
+	 * 16 rows; the minimum window still shows everything */
+	float fixedH() const { return kToolH + kOverRulerH + kGap + kRulerH + kGap; }
+	float overRowH() const {
+		return math::clamp((box.size.y - fixedH() - kVelH - 16 * kRowH) / sg::kTracks, 9.f, kOverRowH);
+	}
+	float velH() const {
+		return math::clamp(box.size.y - fixedH() - sg::kTracks * overRowH() - 16 * kRowH, 40.f, kVelH);
+	}
 	float rollH() const { return velY() - kGap - rollY(); }
 	float noteX0() const { return rightX() + kKeysW; }
 
@@ -144,7 +257,12 @@ struct EditPane : widget::OpaqueWidget {
 	float xOf(double tick) const { return noteX0() + (tick - m->scroll) * m->zoom; }
 	float yOf(int pitch) const { return rollY() + (m->topPitch - pitch) * kRowH; }
 	int pitchAt(float y) const { return m->topPitch - (int) std::floor((y - rollY()) / kRowH); }
+	/** The highest row can go down only until the lowest note (C-1, 0) is at the bottom: nothing below it */
+	int minTop() const { return math::clamp((int) (rollH() / kRowH) - 1, 0, 127); }
+	int clampTop(int top) const { return math::clamp(top, minTop(), 127); }
 
+	/** The shortest loop: a grid step, at least a 1/16 (as a patch is loaded) */
+	double minLoop() const { return (double) std::max<int64_t>(m->grid, sg::kPpq / 4); }
 	int64_t snapDown(double t) const { return (int64_t) std::floor(t / m->grid) * m->grid; }
 	int64_t snapNear(double t) const { return (int64_t) std::llround(t / m->grid) * m->grid; }
 
@@ -166,14 +284,17 @@ struct EditPane : widget::OpaqueWidget {
 
 	/** Polyphony and mode belong to the MIDI channel (its Host MIDI): every track on it shares them */
 	void setPoly(int poly, int mode) {
+		m->remember();
 		const int c = channel();
 		m->song.poly[c] = math::clamp(poly, 1, 16);
 		m->song.polyMode[c] = ((mode % 3) + 3) % 3;
+		m->editorWins[c] = true;
 		m->syncHostMidi(true);
 		m->publish();
 	}
 
 	void setChannel(int c) {
+		m->remember();
 		track().channel = math::clamp(c, 0, 15);
 		m->syncHostMidi(true);
 		m->publish();
@@ -181,7 +302,10 @@ struct EditPane : widget::OpaqueWidget {
 
 	/** The overview's length: its own zoom (at least `overviewBars`), always longer than the song and than what the
 	 * piano roll shows */
+	int64_t overLen = 0;  // the overview's length while the mouse drags in it (else it would grow under the mouse)
 	int64_t songTicks() const {
+		if (overLen > 0)
+			return overLen;
 		const int64_t bar = sg::kPpq * barBeats();
 		const double viewEnd = m->scroll + (box.size.x - noteX0()) / m->zoom;
 		int64_t end = std::max<int64_t>(m->song.lastTick() + 2 * bar, (int64_t) m->overviewBars * bar);
@@ -277,6 +401,45 @@ struct EditPane : widget::OpaqueWidget {
 				orig.push_back(Orig{k, notes[k].start, notes[k].length, notes[k].pitch, notes[k].vel});
 	}
 
+	// ---- the note heard while one is drawn or dragged
+	int previewBase = -1;  // the pitch of the note under the mouse when the drag began, -1 = none
+	int previewVel = 100;
+	double previewUntil = 0.0;  // a click alone still sounds this long
+
+	/** Only while the song does not play (paused or stopped): during playback the song itself is heard */
+	void hear(int pitch) {
+		CardinalPluginContext* const c = m->context();
+		if (!c || !m->song.audible(m->selected) || c->internalTransportPlaying)
+			return;
+		c->editorPreview = sg::NotePreview::pack(track().channel, pitch, previewVel);
+		previewUntil = system::getTime() + 0.25;
+	}
+
+	void stopHearing() {
+		previewBase = -1;
+		previewUntil = 0.0;
+		if (CardinalPluginContext* const c = m->context())
+			c->editorPreview = 0;
+	}
+
+	/** The whole song in the roll: from bar 1 to its last note (at least 4 bars), its notes in the middle */
+	void fitSong() {
+		const int64_t bar = sg::kPpq * barBeats();
+		const int64_t end = (std::max<int64_t>(m->song.lastTick(), 4 * bar) + bar - 1) / bar * bar;
+		m->zoom = std::min(2.0, std::max(0.005, (box.size.x - noteX0() - 8.f) / (double) end));
+		m->scroll = 0.0;
+		int lo = 128, hi = -1;
+		for (const sg::Track& t : m->song.tracks)
+			for (const sg::Note& n : t.notes) {
+				lo = std::min(lo, n.pitch);
+				hi = std::max(hi, n.pitch);
+			}
+		if (hi >= 0) {
+			const int rows = std::max(1, (int) (rollH() / kRowH));
+			m->topPitch = clampTop((lo + hi + 1) / 2 + rows / 2);
+		}
+	}
+
 	// ---- actions
 	void quantize() {
 		syncSel();
@@ -293,7 +456,10 @@ struct EditPane : widget::OpaqueWidget {
 
 	void copy() {
 		syncSel();
+		if (!anySelected())
+			return;
 		clip.clear();
+		lastPaste = -1;
 		const std::vector<sg::Note>& notes = track().notes;
 		int64_t first = INT64_MAX;
 		for (size_t k = 0; k < notes.size(); ++k)
@@ -311,7 +477,19 @@ struct EditPane : widget::OpaqueWidget {
 		syncSel();
 		m->remember();
 		clearSel();
-		const int64_t at = std::max<int64_t>(0, snapDown(m->playTick()));
+		const double viewEnd = m->scroll + (box.size.x - noteX0()) / m->zoom;
+		const double play = m->playTick();
+		int64_t at = std::max<int64_t>(0, snapDown(play >= m->scroll && play < viewEnd ? play : m->scroll + m->grid - 1));
+		if (lastPaste >= 0 && at == lastPasteFrom) {
+			// Ctrl+V again: after the previous one (never the same notes twice in one place)
+			int64_t span = 0;
+			for (const sg::Note& c : clip)
+				span = std::max(span, c.end());
+			at = lastPaste + (span + m->grid - 1) / m->grid * m->grid;
+		}
+		else
+			lastPasteFrom = at;
+		lastPaste = at;
 		for (const sg::Note& c : clip) {
 			sg::Note n = c;
 			n.start += at;
@@ -362,19 +540,52 @@ struct EditPane : widget::OpaqueWidget {
 	void selectTrack(int k) {
 		m->selected = k;
 		syncSel();
+		showNotes();
 		m->publish();
 	}
 
+	/** None of the selected track's notes is in the rows shown: the rows move to the middle of its notes (the time
+	 * stays where it is) */
+	void showNotes() {
+		const std::vector<sg::Note>& notes = track().notes;
+		if (notes.empty())
+			return;
+		const int rows = std::max(1, (int) (rollH() / kRowH));
+		const int bottom = m->topPitch - rows + 1;
+		int lo = 128, hi = -1;
+		for (const sg::Note& n : notes) {
+			if (n.pitch <= m->topPitch && n.pitch >= bottom)
+				return;
+			lo = std::min(lo, n.pitch);
+			hi = std::max(hi, n.pitch);
+		}
+		m->topPitch = clampTop((lo + hi + 1) / 2 + rows / 2);
+	}
+
 	NameField* naming = nullptr;  // the name being typed, a child of this pane
+	/** The left column (tracks, the track's settings) scrolls with the wheel when the window is too low for it */
+	float leftScroll = 0.f, leftContentH = 0.f;
+	float maxLeftScroll() const { return std::max(0.f, leftContentH - box.size.y); }
+
+	~EditPane() {
+		// Going away (the Editor closed, the window closing): the field is deselected while its children are deleted;
+		// the name typed so far is already in the song, and the module may be gone by now, so it does nothing then
+		if (naming) {
+			naming->finished = true;
+			naming->done = nullptr;
+			naming->module = nullptr;
+		}
+	}
 
 	void rename(int k) {
 		if (naming)
 			naming->finish(true);
+		m->remember();
 		NameField* const f = new NameField;
 		f->module = m;
 		f->track = k;
 		f->before = m->song.tracks[k].name;
-		f->box = math::Rect(36.f, kToolH + k * kTrackRowH + 3.f, kListW - 98.f, kTrackRowH - 6.f);
+		f->box = math::Rect(36.f, kToolH + k * kTrackRowH + 3.f - leftScroll, kListW - 58.f - 36.f, kTrackRowH - 6.f);
 		f->setText(f->before);
 		f->done = [this, f]() {
 			if (naming == f)
@@ -390,7 +601,7 @@ struct EditPane : widget::OpaqueWidget {
 		if (!m)
 			return;
 		// A double click on a track's name in the list: type a new one
-		const math::Vec p = mouse();
+		const math::Vec p = mouse().plus(math::Vec(0.f, leftScroll));
 		const int k = (int) std::floor((p.y - kToolH) / kTrackRowH);
 		if (p.x >= 30.f && p.x < kListW - 56.f && k >= 0 && k < sg::kTracks) {
 			rename(k);
@@ -408,23 +619,41 @@ struct EditPane : widget::OpaqueWidget {
 		}
 	}
 
+	float labelWidth(const std::string& s) {
+		std::shared_ptr<window::Font> f = st::font(st::FONT_LABEL);
+		if (!f || f->handle < 0)
+			return 6.f * s.size();
+		NVGcontext* const vg = APP->window->vg;
+		nvgSave(vg);
+		nvgFontFaceId(vg, f->handle);
+		nvgFontSize(vg, 8.5f);
+		nvgTextLetterSpacing(vg, 0.5f);
+		const float w = nvgTextBounds(vg, 0, 0, s.c_str(), nullptr, nullptr);
+		nvgRestore(vg);
+		return w;
+	}
+
 	void layoutButtons() {
 		buttons.clear();
 		float x = rightX() + 8.f;
-		auto add = [&](const std::string& label, float w, std::function<void()> action) {
-			buttons.push_back(Button{math::Rect(x, 5.f, w, kToolH - 10.f), label, action});
-			x += w + 6.f;
+		// As wide as the label: they all fit next to each other in a narrow window too
+		auto add = [&](const std::string& label, std::function<void()> action, bool enabled = true) {
+			const float w = std::max(36.f, labelWidth(label) + 14.f);
+			buttons.push_back(Button{math::Rect(x, 5.f, w, kToolH - 10.f), label, action, enabled});
+			x += w + 5.f;
 		};
-		add(string::f("GRID %s", gridName(m->grid)), 84.f, [this]() { gridMenu(); });
-		add("QUANTIZE", 76.f, [this]() { quantize(); });
-		add("COPY", 50.f, [this]() { copy(); });
-		add("PASTE", 54.f, [this]() { paste(); });
-		add("DELETE", 60.f, [this]() { deleteSelected(); });
-		add("UNDO", 50.f, [this]() {
+		const bool any = anySelected();
+		add(string::f("GRID %s", gridName(m->grid)), [this]() { gridMenu(); });
+		add("FIT SONG", [this]() { fitSong(); });
+		add("QUANTIZE", [this]() { quantize(); }, !track().notes.empty());
+		add("COPY", [this]() { copy(); }, any);
+		add("PASTE", [this]() { paste(); }, !clip.empty());
+		add("DELETE", [this]() { deleteSelected(); }, any);
+		add("UNDO", [this]() {
 			m->undoStep();
 			selTrack = -1;
 			syncSel();
-		});
+		}, m->canUndo());
 	}
 
 	// ---- events
@@ -434,8 +663,16 @@ struct EditPane : widget::OpaqueWidget {
 			return;
 		syncSel();
 		layoutButtons();
-		// The view never starts before the song (a negative scroll put bar 1 under the keys)
+		// A note heard on a click stops a moment later, one being dragged when the mouse is let go
+		CardinalPluginContext* const ctx = m->context();
+		if (previewUntil > 0.0 && ((drag == DRAG_NONE && system::getTime() >= previewUntil) || (ctx && ctx->internalTransportPlaying)))
+			stopHearing();
+		// The view never starts before the song (a negative scroll put bar 1 under the keys), nor below C-1
 		m->scroll = std::max(0.0, m->scroll);
+		m->topPitch = clampTop(m->topPitch);
+		leftScroll = math::clamp(leftScroll, 0.f, maxLeftScroll());
+		if (naming)
+			naming->box.pos.y = kToolH + naming->track * kTrackRowH + 3.f - leftScroll;
 		// Held arrows move the view smoothly (Shift: faster)
 		const double now = system::getTime();
 		const double dt = lastStep < 0.0 ? 0.0 : std::min(0.1, now - lastStep);
@@ -447,7 +684,7 @@ struct EditPane : widget::OpaqueWidget {
 			rows += ((held[2] ? 1 : 0) - (held[3] ? 1 : 0)) * 30.0 * fast * dt;
 			const int whole = (int) rows;
 			if (whole != 0) {
-				m->topPitch = math::clamp(m->topPitch + whole, 20, 127);
+				m->topPitch = clampTop(m->topPitch + whole);
 				rows -= whole;
 			}
 		}
@@ -469,8 +706,9 @@ struct EditPane : widget::OpaqueWidget {
 		dragFrom = dragNow = p;
 		e.consume(this);
 
-		// Track list
+		// Track list (in its own scrolled coordinates)
 		if (p.x < kListW) {
+			const math::Vec p = math::Vec(e.pos.x, e.pos.y + leftScroll);
 			if (left && chanMinusRect().contains(p)) {
 				setChannel(channel() - 1);
 				return;
@@ -499,22 +737,21 @@ struct EditPane : widget::OpaqueWidget {
 				m->toggleMute(k);
 			else if (left && p.x >= sx && p.x < sx + 22.f)
 				m->toggleSolo(k);
-			else if (left) {
-				m->selected = k;
-				m->publish();
-			}
+			else if (left)
+				selectTrack(k);
 			return;
 		}
 		// Toolbar
 		if (p.y < kToolH) {
 			for (Button& b : buttons)
-				if (left && b.rect.contains(p) && b.action)
+				if (left && b.rect.contains(p) && b.action && b.enabled)
 					b.action();
 			return;
 		}
 		// Overview ruler: move the position (song scale)
 		if (p.y < overY()) {
 			if (left && p.x >= noteX0()) {
+				overLen = songTicks();
 				drag = DRAG_SEEK_OVER;
 				seek(snapDown(overTick(p.x)));
 			}
@@ -522,9 +759,12 @@ struct EditPane : widget::OpaqueWidget {
 		}
 		// Overview: choose the track and the place
 		if (p.y < overBottom()) {
-			// Only the view: a click centres the roll there, dragging moves it left / right (tracks are chosen in
-			// the list on the left)
+			// A click picks that row's track and centres the roll there; dragging moves the view left / right
+			const int k = (int) std::floor((p.y - overY()) / overRowH());
+			if (left && k >= 0 && k < sg::kTracks && k != m->selected)
+				selectTrack(k);
 			if (left && p.x >= noteX0()) {
+				overLen = songTicks();
 				centreOn(p.x);
 				drag = DRAG_OVERVIEW;
 			}
@@ -537,10 +777,14 @@ struct EditPane : widget::OpaqueWidget {
 			CardinalPluginContext* const c = m->context();
 			if (!c || !left)
 				return;
+			// The START / STOP flags are in the lower half (START reaches right of its line, STOP left); the nearer
+			// one is taken. The upper half (the bar numbers) always moves the position.
 			const float xa = xOf(c->internalTransportLoopStart * sg::kPpq), xb = xOf(c->internalTransportLoopEnd * sg::kPpq);
-			if (std::fabs(p.x - xa) < 8.f)
+			const bool lower = p.y >= rulerY() + kRulerH / 2;
+			const bool onA = lower && p.x >= xa - 4.f && p.x <= xa + 34.f, onB = lower && p.x >= xb - 30.f && p.x <= xb + 4.f;
+			if (onA && (!onB || std::fabs(p.x - xa) <= std::fabs(p.x - xb)))
 				drag = DRAG_LOOP_START;
-			else if (std::fabs(p.x - xb) < 8.f)
+			else if (onB)
 				drag = DRAG_LOOP_END;
 			else {
 				drag = DRAG_SEEK;
@@ -589,15 +833,26 @@ struct EditPane : widget::OpaqueWidget {
 			}
 			startOrig();
 			drag = edge ? DRAG_LENGTH : DRAG_MOVE;
+			// The next drawn note gets this one's length; it sounds
+			m->drawLength = track().notes[k].length;
+			previewBase = track().notes[k].pitch;
+			previewVel = track().notes[k].vel;
+			hear(previewBase);
 		}
 		else if (mods & (GLFW_MOD_SHIFT | RACK_MOD_CTRL)) {
 			drag = DRAG_BOX;
 		}
 		else {
+			const int pitch = pitchAt(p.y);
+			if (pitch < 0 || pitch > 127)
+				return;
 			m->remember();
 			clearSel();
-			const int pitch = math::clamp(pitchAt(p.y), 0, 127);
-			track().notes.push_back(sg::Note{std::max<int64_t>(0, snapDown(tickAt(p.x))), std::max<int64_t>(m->grid, 1), pitch, 100});
+			const int64_t length = std::max<int64_t>(m->drawLength > 0 ? m->drawLength : m->grid, 1);
+			track().notes.push_back(sg::Note{std::max<int64_t>(0, snapDown(tickAt(p.x))), length, pitch, 100});
+			previewBase = pitch;
+			previewVel = 100;
+			hear(pitch);
 			sel.push_back(1);
 			sortNotes();
 			startOrig();
@@ -616,11 +871,11 @@ struct EditPane : widget::OpaqueWidget {
 		switch (drag) {
 			case DRAG_LOOP_START:
 				if (c)
-					c->internalTransportLoopStart = std::max(0.0, std::min((double) snapNear(tickAt(p.x)), c->internalTransportLoopEnd * sg::kPpq - m->grid) / sg::kPpq);
+					c->internalTransportLoopStart = std::max(0.0, std::min((double) snapNear(tickAt(p.x)), c->internalTransportLoopEnd * sg::kPpq - minLoop()) / sg::kPpq);
 				break;
 			case DRAG_LOOP_END:
 				if (c)
-					c->internalTransportLoopEnd = std::max((double) snapNear(tickAt(p.x)), c->internalTransportLoopStart * sg::kPpq + m->grid) / sg::kPpq;
+					c->internalTransportLoopEnd = std::max((double) snapNear(tickAt(p.x)), c->internalTransportLoopStart * sg::kPpq + minLoop()) / sg::kPpq;
 				break;
 			case DRAG_SEEK:
 				seek(snapDown(tickAt(std::max(p.x, noteX0()))));
@@ -632,23 +887,31 @@ struct EditPane : widget::OpaqueWidget {
 				seek(snapDown(overTick(std::max(p.x, noteX0()))));
 				break;
 			case DRAG_VEL: {
-				const int v = math::clamp((int) std::lround((box.size.y - p.y) / (kVelH - 8.f) * 127.f), 1, 127);
+				const int v = math::clamp((int) std::lround((box.size.y - p.y) / (velH() - 8.f) * 127.f), 1, 127);
 				for (const Orig& o : orig)
-					notes[o.index].vel = orig.size() == 1 ? v : math::clamp(o.vel + (int) std::lround((dragFrom.y - p.y) / (kVelH - 8.f) * 127.f), 1, 127);
+					notes[o.index].vel = orig.size() == 1 ? v : math::clamp(o.vel + (int) std::lround((dragFrom.y - p.y) / (velH() - 8.f) * 127.f), 1, 127);
 				m->publish();
 				break;
 			}
 			case DRAG_MOVE: {
 				const int64_t dt = (int64_t) std::llround((p.x - dragFrom.x) / m->zoom / m->grid) * m->grid;
-				const int dp = (int) std::lround((dragFrom.y - p.y) / kRowH);
+				int dp = (int) std::lround((dragFrom.y - p.y) / kRowH);
 				int64_t minStart = INT64_MAX;
-				for (const Orig& o : orig)
+				int lowest = 127, highest = 0;
+				for (const Orig& o : orig) {
 					minStart = std::min(minStart, o.start);
+					lowest = std::min(lowest, o.pitch);
+					highest = std::max(highest, o.pitch);
+				}
+				// The whole chord stops at C-1 / G9: it keeps its shape
+				dp = math::clamp(dp, -lowest, 127 - highest);
 				const int64_t shift = std::max(dt, -minStart);
 				for (const Orig& o : orig) {
 					notes[o.index].start = o.start + shift;
 					notes[o.index].pitch = math::clamp(o.pitch + dp, 0, 127);
 				}
+				if (previewBase >= 0)
+					hear(math::clamp(previewBase + dp, 0, 127));
 				m->publish();
 				break;
 			}
@@ -677,9 +940,16 @@ struct EditPane : widget::OpaqueWidget {
 	}
 
 	void onDragEnd(const DragEndEvent& e) override {
+		// A note drawn or stretched: the next one is as long
+		if (m && drag == DRAG_LENGTH && !orig.empty() && orig[0].index < track().notes.size())
+			m->drawLength = track().notes[orig[0].index].length;
 		if (m && (drag == DRAG_MOVE || drag == DRAG_LENGTH))
 			changed();
+		// The gesture is over: its undo step now (none if it changed nothing)
+		if (m)
+			m->commit(true);
 		drag = DRAG_NONE;
+		overLen = 0;
 		orig.clear();
 	}
 
@@ -695,6 +965,12 @@ struct EditPane : widget::OpaqueWidget {
 			return;
 		const int mods = APP->window->getMods() & RACK_MOD_MASK;
 		const math::Vec p = e.pos;
+		// Over the left column: it scrolls (only when the window is too low for it)
+		if (p.x < kListW) {
+			leftScroll = math::clamp(leftScroll - e.scrollDelta.y, 0.f, maxLeftScroll());
+			e.consume(this);
+			return;
+		}
 		// Over the overview: Ctrl+wheel shows more or less of the song there
 		if ((mods & RACK_MOD_CTRL) && p.y >= overRulerY() && p.y < overBottom()) {
 			const int bars = e.scrollDelta.y > 0 ? m->overviewBars * 2 / 3 : m->overviewBars * 3 / 2;
@@ -710,7 +986,7 @@ struct EditPane : widget::OpaqueWidget {
 			m->scroll = std::max(0.0, m->scroll - d / m->zoom);
 		}
 		else {
-			m->topPitch = math::clamp(m->topPitch + (e.scrollDelta.y > 0 ? 2 : -2), 20, 127);
+			m->topPitch = clampTop(m->topPitch + (e.scrollDelta.y > 0 ? 2 : -2));
 		}
 		e.consume(this);
 	}
@@ -763,6 +1039,34 @@ struct EditPane : widget::OpaqueWidget {
 		st::text(vg, math::Vec(x, y), s, size, c, st::FONT_LABEL, align, 0.5f);
 	}
 
+	float textWidth(NVGcontext* vg, const std::string& s, float size) {
+		std::shared_ptr<window::Font> f = st::font(st::FONT_LABEL);
+		if (!f || f->handle < 0)
+			return 6.f * s.size();
+		nvgSave(vg);
+		nvgFontFaceId(vg, f->handle);
+		nvgFontSize(vg, size);
+		nvgTextLetterSpacing(vg, 0.5f);
+		const float w = nvgTextBounds(vg, 0, 0, s.c_str(), nullptr, nullptr);
+		nvgRestore(vg);
+		return w;
+	}
+
+	/** `s` cut (whole letters) with "…" so it is at most `room` wide */
+	std::string fit(NVGcontext* vg, const std::string& s, float size, float room) {
+		if (textWidth(vg, s, size) <= room)
+			return s;
+		size_t n = 0;
+		for (size_t i = 0; i < s.size(); ++i)
+			n += (s[i] & 0xC0) != 0x80;
+		while (n > 0) {
+			const std::string cut = utf8Cut(s, --n) + "…";
+			if (textWidth(vg, cut, size) <= room)
+				return cut;
+		}
+		return "";
+	}
+
 	void rect(NVGcontext* vg, float x, float y, float w, float h, NVGcolor c) {
 		nvgBeginPath(vg);
 		nvgRect(vg, x, y, w, h);
@@ -773,6 +1077,23 @@ struct EditPane : widget::OpaqueWidget {
 	void drawList(NVGcontext* vg) {
 		rect(vg, 0, 0, kListW, box.size.y, nvgRGB(0x26, 0x28, 0x2d));
 		rect(vg, kListW - 1.f, 0, 1.f, box.size.y, nvgRGB(0, 0, 0));
+		nvgSave(vg);
+		nvgIntersectScissor(vg, 0, 0, kListW - 1.f, box.size.y);
+		nvgTranslate(vg, 0, -leftScroll);
+		drawListContent(vg);
+		nvgRestore(vg);
+		// A low window: a scroll bar shows there is more (the wheel scrolls)
+		if (maxLeftScroll() > 0.f) {
+			const float h = box.size.y * box.size.y / leftContentH;
+			const float y = (box.size.y - h) * leftScroll / maxLeftScroll();
+			nvgBeginPath(vg);
+			nvgRoundedRect(vg, kListW - 6.f, y + 2.f, 3.f, h - 4.f, 1.5f);
+			nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0x40));
+			nvgFill(vg);
+		}
+	}
+
+	void drawListContent(NVGcontext* vg) {
 		text(vg, 12.f, kToolH / 2, "TRACKS", 9.f, kEditColour);
 		text(vg, kListW - 58.f, kToolH / 2, "CH", 8.f, st::legendDim(), NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE);
 		const double tick = m->playTick();
@@ -801,12 +1122,15 @@ struct EditPane : widget::OpaqueWidget {
 			nvgFillColor(vg, on ? col : color::mult(col, 0.3f));
 			nvgFill(vg);
 			text(vg, 26.f, y + kTrackRowH / 2, string::f("%d", k + 1), 9.f, st::legendDim());
-			if (!naming || naming->track != k)
-				text(vg, 40.f, y + kTrackRowH / 2, t.name.substr(0, 10), 10.f, m->song.audible(k) ? st::legend() : st::legendDim());
-			// Its MIDI channel (and the polyphony of that channel)
+			// Its MIDI channel (and the polyphony of that channel); the name gets the room left of it
 			const int poly = m->song.poly[t.channel];
-			text(vg, kListW - 58.f, y + kTrackRowH / 2, poly > 1 ? string::f("%d ×%d", t.channel + 1, poly) : string::f("%d", t.channel + 1), 8.f,
-			     st::legendDim(), NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE);
+			const std::string chText = poly > 1 ? string::f("%d ×%d", t.channel + 1, poly) : string::f("%d", t.channel + 1);
+			// (the name field, while open, takes the room up to M)
+			if (!naming || naming->track != k) {
+				text(vg, kListW - 58.f, y + kTrackRowH / 2, chText, 8.f, st::legendDim(), NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE);
+				const float room = kListW - 58.f - textWidth(vg, chText, 8.f) - 8.f - 40.f;
+				text(vg, 40.f, y + kTrackRowH / 2, fit(vg, t.name, 10.f, room), 10.f, m->song.audible(k) ? st::legend() : st::legendDim());
+			}
 			auto msBtn = [&](float x, const char* l, float b, NVGcolor lc) {
 				const bool lit = b > 0.4f;
 				nvgBeginPath(vg);
@@ -822,7 +1146,7 @@ struct EditPane : widget::OpaqueWidget {
 		// The selected track's settings: its MIDI channel, and that channel's polyphony (written into its Host MIDI)
 		const int c = channel(), ch = c + 1;
 		const int shared = m->tracksOn(c);
-		text(vg, 12.f, panelY(), string::f("TRACK %d · %s", m->selected + 1, track().name.substr(0, 14).c_str()), 9.f, kEditColour);
+		text(vg, 12.f, panelY(), fit(vg, string::f("TRACK %d · %s", m->selected + 1, track().name.c_str()), 9.f, kListW - 24.f), 9.f, kEditColour);
 		auto box2 = [&](math::Rect r, const std::string& l, bool on) {
 			nvgBeginPath(vg);
 			nvgRoundedRect(vg, RECT_ARGS(r), 3.f);
@@ -846,54 +1170,79 @@ struct EditPane : widget::OpaqueWidget {
 		box2(polyPlusRect(), "+", m->song.poly[c] < 16);
 		text(vg, 12.f, modeY(), "MODE", 8.f, st::legendDim());
 		static const char* const modes[] = {"ROTATE", "REUSE", "RESET"};
-		box2(modeRect(), modes[math::clamp(m->song.polyMode[c], 0, 2)], true);
+		// MPE is chosen in the Host MIDI itself (left alone from here until MODE is clicked)
+		box2(modeRect(), m->hostMpe[c] ? "MPE (HOST MIDI)" : modes[math::clamp(m->song.polyMode[c], 0, 2)], true);
 		// Below the controls, under a line: what is true now (one line each, nothing overlaps), then the hints
 		rect(vg, 12.f, infoY() - 12.f, kListW - 24.f, 1.f, nvgRGB(0x33, 0x35, 0x3b));
 		float y = infoY();
 		const float step = 15.f;
 		const NVGcolor warn = nvgRGB(0xe0, 0x8a, 0x2c);
-		const bool has = m->hostMidi[c];
-		nvgBeginPath(vg);
-		nvgCircle(vg, 16.f, y, 3.5f);
-		nvgFillColor(vg, has ? nvgRGB(0x5d, 0xd1, 0x6a) : warn);
-		nvgFill(vg);
-		text(vg, 26.f, y, has ? string::f("HOST MIDI CH %d IN THE RACK", ch) : string::f("NO HOST MIDI ON CH %d", ch), 8.f,
-		     has ? st::legend() : warn);
+		// One line of the information (the column scrolls when the window is too low for all of it)
+		auto line = [&](float x, const std::string& t, float size, NVGcolor col) {
+			text(vg, x, y, t, size, col);
+		};
+		const bool has = m->hostMidi[c], viaAll = !has && m->hostMidiAll > 0;
+		const NVGcolor allColour = nvgRGB(0xe8, 0xc5, 0x3a);
+		{
+			nvgBeginPath(vg);
+			nvgCircle(vg, 16.f, y, 3.5f);
+			nvgFillColor(vg, has ? nvgRGB(0x5d, 0xd1, 0x6a) : viaAll ? allColour : warn);
+			nvgFill(vg);
+		}
+		if (has)
+			line(26.f, string::f("HOST MIDI CH %d IN THE RACK", ch), 8.f, st::legend());
+		else if (viaAll)
+			line(26.f, "A HOST MIDI ON ALL PLAYS IT", 8.f, allColour);
+		else
+			line(26.f, string::f("NO HOST MIDI ON CH %d", ch), 8.f, warn);
 		y += step;
-		if (!has) {
-			text(vg, 26.f, y, "ITS MENU: PLAYS MIDI CHANNEL", 7.5f, st::legendDim());
+		if (viaAll) {
+			line(26.f, string::f("FOR POLYPHONY: ONE ON CH %d", ch), 7.5f, st::legendDim());
+			y += step;
+		}
+		else if (!has) {
+			line(26.f, "ADD A HOST MIDI, IN ITS MENU SET", 7.5f, st::legendDim());
+			y += 12.f;
+			line(26.f, string::f("PLAYS MIDI CHANNEL TO %d", ch), 7.5f, st::legendDim());
 			y += step;
 		}
 		if (shared > 1) {
-			text(vg, 12.f, y, string::f("SHARED BY %d TRACKS ON CH %d", shared, ch), 7.5f, st::legendDim());
+			line(26.f, string::f("SHARED BY %d TRACKS ON CH %d", shared, ch), 7.5f, st::legendDim());
 			y += step;
 		}
 		// A Host MIDI on "All" plays every track (and gets no polyphony from here)
 		if (m->hostMidiAll > 0) {
 			y += 4.f;
-			text(vg, 12.f, y, m->hostMidiAll == 1 ? "1 HOST MIDI ON ALL CHANNELS:" : string::f("%d HOST MIDI ON ALL CHANNELS:", m->hostMidiAll), 7.5f, warn);
+			line(26.f, m->hostMidiAll == 1 ? "1 HOST MIDI ON ALL CHANNELS:" : string::f("%d HOST MIDI ON ALL CHANNELS:", m->hostMidiAll), 7.5f, warn);
 			y += 12.f;
-			text(vg, 12.f, y, "IT PLAYS EVERY TRACK", 7.5f, warn);
+			line(26.f, "IT PLAYS EVERY TRACK", 7.5f, warn);
 			y += step;
 		}
 		y += 8.f;
-		text(vg, 12.f, y, "KEYBOARD: THIS TRACK IN THE EDITOR", 7.5f, st::legendDim());
+		line(12.f, "KEYBOARD: THIS TRACK IN THE EDITOR", 7.5f, st::legendDim());
 		y += step;
-		text(vg, 12.f, y, "DOUBLE-CLICK A NAME: RENAME", 7.5f, st::legendDim());
+		line(12.f, "DOUBLE-CLICK A NAME: RENAME", 7.5f, st::legendDim());
+		y += step;
+		line(12.f, "RIGHT-CLICK MODE: BACK", 7.5f, st::legendDim());
+		leftContentH = y + 14.f;
 	}
 
 	void drawToolbar(NVGcontext* vg) {
 		rect(vg, kListW, 0, box.size.x - kListW, kToolH, nvgRGB(0x1d, 0x1f, 0x23));
 		rect(vg, kListW, kToolH - 1.f, box.size.x - kListW, 1.f, nvgRGB(0, 0, 0));
+		const math::Vec mp = mouse();
+		const bool here = APP->event->hoveredWidget == this;
 		for (const Button& b : buttons) {
+			const bool hot = here && b.enabled && b.rect.contains(mp);
 			nvgBeginPath(vg);
 			nvgRoundedRect(vg, RECT_ARGS(b.rect), 4.f);
-			nvgFillColor(vg, nvgRGB(0x2b, 0x2d, 0x33));
+			nvgFillColor(vg, hot ? nvgRGB(0x3c, 0x3f, 0x47) : nvgRGB(0x2b, 0x2d, 0x33));
 			nvgFill(vg);
 			nvgStrokeWidth(vg, 1.f);
-			nvgStrokeColor(vg, nvgRGB(0x45, 0x48, 0x4f));
+			nvgStrokeColor(vg, hot ? color::alpha(kEditColour, 0.8f) : nvgRGB(0x45, 0x48, 0x4f));
 			nvgStroke(vg);
-			text(vg, b.rect.getCenter().x, b.rect.getCenter().y, b.label, 8.5f, st::legend(), NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+			text(vg, b.rect.getCenter().x, b.rect.getCenter().y, b.label, 8.5f, b.enabled ? st::legend() : color::alpha(st::legendDim(), 0.45f),
+			     NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
 		}
 		const float hx = buttons.empty() ? kListW : buttons.back().rect.getRight() + 16.f;
 		const char* const hints[] = {"CLICK DRAWS · DRAG MOVES · EDGE = LENGTH · RIGHT DELETES · SHIFT+DRAG SELECTS · CTRL+WHEEL ZOOM",
@@ -932,9 +1281,12 @@ struct EditPane : widget::OpaqueWidget {
 		nvgClosePath(vg);
 		nvgFillColor(vg, mk);
 		nvgFill(vg);
-		if (b - a > 70.f) {
-			text(vg, a + 11.f, y + h - 5.f, "START", 7.f, mk);
-			text(vg, b - 11.f, y + h - 5.f, "STOP", 7.f, mk, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE);
+		// A marker out of view: its label at that edge, pointing to it (never cut in half)
+		const float W = box.size.x, x0 = noteX0();
+		const float la = a < x0 ? x0 + 4.f : a + 11.f, lb = b > W ? W - 4.f : b - 11.f;
+		if (lb - la > 70.f && a < W && b > x0) {
+			text(vg, la, y + h - 5.f, a < x0 ? "‹ START" : "START", 7.f, mk);
+			text(vg, lb, y + h - 5.f, b > W ? "STOP ›" : "STOP", 7.f, mk, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE);
 		}
 	}
 
@@ -970,7 +1322,7 @@ struct EditPane : widget::OpaqueWidget {
 	}
 
 	void drawOverview(NVGcontext* vg) {
-		const float W = box.size.x, y0 = overY(), h = sg::kTracks * kOverRowH;
+		const float W = box.size.x, y0 = overY(), h = sg::kTracks * overRowH();
 		// Its own ruler: the whole song
 		rect(vg, rightX(), overRulerY(), W - rightX(), kOverRulerH, nvgRGB(0x20, 0x22, 0x26));
 		text(vg, rightX() + 6.f, overRulerY() + kOverRulerH / 2, "SONG", 7.f, st::legendDim());
@@ -985,17 +1337,17 @@ struct EditPane : widget::OpaqueWidget {
 		const double sx = overScale();
 		for (int k = 0; k < sg::kTracks; ++k) {
 			const sg::Track& t = m->song.tracks[k];
-			const float y = y0 + k * kOverRowH;
+			const float y = y0 + k * overRowH();
 			if (k == m->selected)
-				rect(vg, rightX(), y, W - rightX(), kOverRowH, nvgRGB(0x2a, 0x2d, 0x33));
-			rect(vg, rightX(), y + kOverRowH - 1.f, W - rightX(), 1.f, nvgRGB(0x1c, 0x1d, 0x20));
+				rect(vg, rightX(), y, W - rightX(), overRowH(), nvgRGB(0x2a, 0x2d, 0x33));
+			rect(vg, rightX(), y + overRowH() - 1.f, W - rightX(), 1.f, nvgRGB(0x1c, 0x1d, 0x20));
 			const NVGcolor col = color::alpha(kTrackColours[k], m->song.audible(k) ? 1.f : 0.3f);
 			// The gutter: the track number on its colour (the names are in the list on the left)
 			nvgBeginPath(vg);
-			nvgRoundedRect(vg, rightX() + 8.f, y + 3.f, kKeysW - 16.f, kOverRowH - 6.f, 3.f);
+			nvgRoundedRect(vg, rightX() + 8.f, y + 3.f, kKeysW - 16.f, overRowH() - 6.f, 3.f);
 			nvgFillColor(vg, col);
 			nvgFill(vg);
-			text(vg, rightX() + kKeysW / 2, y + kOverRowH / 2, string::f("%d", k + 1), 8.f, nvgRGB(0x14, 0x14, 0x16), NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+			text(vg, rightX() + kKeysW / 2, y + overRowH() / 2, string::f("%d", k + 1), 8.f, nvgRGB(0x14, 0x14, 0x16), NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
 			int lo = 127, hi = 0;
 			for (const sg::Note& n : t.notes) {
 				lo = std::min(lo, n.pitch);
@@ -1003,7 +1355,7 @@ struct EditPane : widget::OpaqueWidget {
 			}
 			nvgBeginPath(vg);
 			for (const sg::Note& n : t.notes) {
-				const float yy = y + kOverRowH - 4.f - (hi > lo ? (float) (n.pitch - lo) / (hi - lo) : 0.5f) * (kOverRowH - 8.f);
+				const float yy = y + overRowH() - 4.f - (hi > lo ? (float) (n.pitch - lo) / (hi - lo) : 0.5f) * (overRowH() - 8.f);
 				nvgRect(vg, overX((double) n.start), yy - 1.f, std::max(1.f, (float) (n.length * sx)), 2.f);
 			}
 			nvgFillColor(vg, col);
@@ -1083,10 +1435,10 @@ struct EditPane : widget::OpaqueWidget {
 	void drawVelocity(NVGcontext* vg) {
 		const float W = box.size.x, y0 = velY();
 		rect(vg, rightX(), y0 - kGap, W - rightX(), kGap, nvgRGB(0, 0, 0));
-		rect(vg, rightX(), y0, W - rightX(), kVelH, nvgRGB(0x14, 0x15, 0x18));
+		rect(vg, rightX(), y0, W - rightX(), velH(), nvgRGB(0x14, 0x15, 0x18));
 		text(vg, rightX() + 6.f, y0 + 10.f, "VEL", 8.f, st::legendDim());
 		nvgSave(vg);
-		nvgScissor(vg, noteX0(), y0, W - noteX0(), kVelH);
+		nvgScissor(vg, noteX0(), y0, W - noteX0(), velH());
 		const sg::Track& t = track();
 		const NVGcolor col = kTrackColours[m->selected];
 		for (size_t k = 0; k < t.notes.size(); ++k) {
@@ -1094,7 +1446,7 @@ struct EditPane : widget::OpaqueWidget {
 			const float x = xOf((double) n.start);
 			if (x > W || x < noteX0() - 4.f)
 				continue;
-			const float hh = (kVelH - 8.f) * n.vel / 127.f;
+			const float hh = (velH() - 8.f) * n.vel / 127.f;
 			const NVGcolor c = k < sel.size() && sel[k] ? color::WHITE : col;
 			rect(vg, x, box.size.y - hh - 2.f, 2.f, hh, c);
 			rect(vg, x - 2.f, box.size.y - hh - 3.f, 6.f, 3.f, c);

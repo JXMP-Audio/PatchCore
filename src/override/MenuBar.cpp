@@ -56,6 +56,8 @@
 #include "../CardinalRemote.hpp"
 #include "../CardinalPluginContext.hpp"
 #include "../patchcore/PatchCore.hpp"
+#include <patchcore/Editor.hpp>
+#include <patchcore/Mixer.hpp>
 #include "DistrhoPlugin.hpp"
 #include "DistrhoStandaloneUtils.hpp"
 
@@ -828,6 +830,97 @@ struct HelpButton : MenuButton {
 
 
 ////////////////////
+// Shortcuts (PatchCore)
+////////////////////
+
+
+/** The keys and mouse moves, the open view's part first */
+struct ShortcutsButton : MenuButton {
+	static void section(ui::Menu* menu, const char* title, std::initializer_list<std::pair<const char*, const char*>> rows) {
+		menu->addChild(createMenuLabel(title));
+		for (const auto& r : rows)
+			menu->addChild(createMenuItem(r.first, r.second));
+	}
+
+	static void editor(ui::Menu* menu) {
+		section(menu, "Editor (piano roll)", {
+			{"Draw a note (as long as the last one)", "Click"},
+			{"Move notes / change the length", "Drag / drag the end"},
+			{"Delete a note", "Right-click"},
+			{"Add to the selection", "Shift+click"},
+			{"Select with a box", "Shift+drag"},
+			{"Select all / copy / paste", "Ctrl+A / C / V"},
+			{"Delete the selected notes", "Delete"},
+			{"Quantize", "Q"},
+			{"Undo", "Ctrl+Z"},
+			{"Choose a track", "Click it (list / overview)"},
+			{"Previous / next track", "PgUp / PgDn"},
+			{"Scroll the track column (a low window)", "Wheel over it"},
+			{"Move the view (faster with Shift)", "Arrows"},
+			{"Higher / lower notes", "Wheel"},
+			{"Earlier / later", "Shift+wheel"},
+			{"Zoom", "Ctrl+wheel"},
+			{"How much of the song the overview shows", "Ctrl+wheel on it"},
+			{"Rename a track", "Double-click its name"},
+			{"Back to the rack", "Esc"},
+		});
+	}
+
+	static void rack(ui::Menu* menu) {
+		section(menu, "Rack", {
+			{"Add a module", "Enter / right-click"},
+			{"Select modules with a box", "Ctrl+drag"},
+			{"Select one more module", "Shift+click"},
+			{"Select all / none", "Ctrl+A / Ctrl+Shift+A"},
+			{"Copy / paste modules", "Ctrl+C / V"},
+			{"Duplicate (with cables)", "Ctrl+D (Ctrl+Shift+D)"},
+			{"Bypass", "Ctrl+E"},
+			{"Reset / randomize", "Ctrl+I / Ctrl+R"},
+			{"Unplug all cables", "Ctrl+U"},
+			{"Delete modules", "Delete"},
+			{"Manual of the selected module", "F1"},
+			{"Undo / redo", "Ctrl+Z / Ctrl+Shift+Z"},
+			{"Zoom", "Ctrl+wheel, Ctrl+- / Ctrl+="},
+			{"Move around", "Arrows"},
+		});
+	}
+
+	static void everywhere(ui::Menu* menu) {
+		section(menu, "Everywhere", {
+			{"Play / pause", "Space"},
+			{"Stop, back to the start", "Space twice"},
+			{"Rack front / back", "F1 / F2 (Tab flips)"},
+			{"Mixer / Editor", "F3 / F4"},
+			{"New / open / save / save as", "Ctrl+N / O / S / Shift+S"},
+		});
+	}
+
+	void onAction(const ActionEvent& e) override {
+		ui::Menu* menu = createMenu();
+		menu->cornerFlags = BND_CORNER_TOP;
+		menu->box.pos = getAbsoluteOffset(math::Vec(0, box.size.y));
+		if (patchcore::editorShown()) {
+			editor(menu);
+			menu->addChild(new ui::MenuSeparator);
+			everywhere(menu);
+			menu->addChild(new ui::MenuSeparator);
+			rack(menu);
+		}
+		else {
+			if (patchcore::mixerShown())
+				section(menu, "Mixer", {{"Back to the rack", "Esc"}});
+			else
+				rack(menu);
+			menu->addChild(new ui::MenuSeparator);
+			everywhere(menu);
+			menu->addChild(new ui::MenuSeparator);
+			editor(menu);
+		}
+	}
+};
+
+
+////////////////////
 // MenuBar
 ////////////////////
 
@@ -889,6 +982,7 @@ struct MenuBar : widget::OpaqueWidget {
 
 	ui::SequentialLayout* layout;
 	HelpButton* helpButton;
+	ShortcutsButton* shortcutsButton;
 	InfoLabel* infoLabel;
 	widget::Widget* patchcoreLogo;
 	widget::Widget* patchcoreCenter;
@@ -934,6 +1028,10 @@ struct MenuBar : widget::OpaqueWidget {
 		helpButton->text = "Help";
 		layout->addChild(helpButton);
 
+		shortcutsButton = new ShortcutsButton;
+		shortcutsButton->text = "Shortcuts";
+		layout->addChild(shortcutsButton);
+
 		infoLabel = new InfoLabel;
 		infoLabel->box.size.x = 600;
 		infoLabel->alignment = ui::Label::RIGHT_ALIGNMENT;
@@ -960,6 +1058,7 @@ struct MenuBar : widget::OpaqueWidget {
 		patchcoreCenter->setVisible(patchcoreEnabled);
 		patchcoreRight->setVisible(patchcoreEnabled);
 		infoLabel->setVisible(!patchcoreEnabled);
+		shortcutsButton->setVisible(patchcoreEnabled);
 
 		if (patchcoreEnabled) {
 			box.size.y = kPatchCoreHeight;
@@ -976,9 +1075,11 @@ struct MenuBar : widget::OpaqueWidget {
 
 		if (patchcoreEnabled) {
 			// Selection status only fits on wide windows
-			patchcoreRight->box.size = math::Vec(box.size.x >= 1400 ? 360 : 130, box.size.y);
+			// The view switch first; the selection status takes what is left (it hides under 100 px)
+			patchcoreCenter->box.pos = math::Vec(layout->box.pos.x + shortcutsButton->box.getRight() + 14, 0);
+			const float left = box.size.x - 12 - 24 - patchcoreCenter->box.pos.x - patchcore::topBarCenterMinWidth(patchcoreCenter);
+			patchcoreRight->box.size = math::Vec(std::max(0.f, std::min(box.size.x >= 1400 ? 360.f : 130.f, left)), box.size.y);
 			patchcoreRight->box.pos = math::Vec(box.size.x - patchcoreRight->box.size.x - 12, 0);
-			patchcoreCenter->box.pos = math::Vec(layout->box.pos.x + helpButton->box.getRight() + 14, 0);
 			patchcoreCenter->box.size = math::Vec(patchcoreRight->box.pos.x - patchcoreCenter->box.pos.x - 24, box.size.y);
 			return;
 		}

@@ -30,6 +30,10 @@ struct Note {
 	int64_t end() const {
 		return start + std::max<int64_t>(1, length);
 	}
+
+	bool operator==(const Note& o) const {
+		return start == o.start && length == o.length && pitch == o.pitch && vel == o.vel;
+	}
 };
 
 struct Track {
@@ -47,6 +51,10 @@ struct Track {
 
 	void sort() {
 		std::stable_sort(notes.begin(), notes.end(), [](const Note& a, const Note& b) { return a.start < b.start; });
+	}
+
+	bool operator==(const Track& o) const {
+		return name == o.name && mute == o.mute && solo == o.solo && channel == o.channel && notes == o.notes;
 	}
 };
 
@@ -66,6 +74,19 @@ struct Song {
 			poly[c] = 1;
 			polyMode[c] = 0;
 		}
+	}
+
+	bool operator==(const Song& o) const {
+		for (int k = 0; k < kTracks; ++k)
+			if (!(tracks[k] == o.tracks[k]))
+				return false;
+		for (int c = 0; c < 16; ++c)
+			if (poly[c] != o.poly[c] || polyMode[c] != o.polyMode[c])
+				return false;
+		return true;
+	}
+	bool operator!=(const Song& o) const {
+		return !(*this == o);
 	}
 
 	bool anySolo() const {
@@ -104,6 +125,10 @@ struct SongPlayer {
 	};
 	Held held[kMaxHeld];
 	int heldCount = 0;
+	/** Every note ends this many frames early (at most half of it), and after a jump the notes start this late: a mono
+	 * Host MIDI then sees its gate fall between two notes that touch, so the envelope starts again on each one (with
+	 * the end and the next start on one frame the gate stayed high and only the first note had its attack). 0 = off. */
+	uint32_t gapFrames = 0;
 	double expected = -1.0;  // the tick where the next part should start; anything else is a jump
 
 	struct Event {
@@ -133,11 +158,19 @@ struct SongPlayer {
 		};
 
 		const bool jump = expected >= 0.0 && std::fabs(t0 - expected) > 1e-6;
+		const bool endedHeld = heldCount > 0;
 		if (song == nullptr || !playing || jump) {
 			for (int k = 0; k < heldCount; ++k)
 				push(0, (uint8_t)(0x80 | held[k].channel), held[k].pitch, 0);
 			heldCount = 0;
 		}
+		// Notes start a little late right after held notes were ended at a jump (see gapFrames)
+		const uint32_t firstOn = jump && endedHeld ? std::min(gapFrames, lastFrame()) : 0u;
+		const double gap = framesPerTick > 0.0 ? gapFrames / framesPerTick : 0.0;
+		auto offTick = [&](const Note& n) {
+			const double e = (double) n.end();
+			return std::max((double) n.start + (e - (double) n.start) * 0.5, e - gap);
+		};
 		if (song == nullptr || !playing || frames == 0 || framesPerTick <= 0.0) {
 			expected = -1.0;
 			flush(count, emit);
@@ -165,12 +198,16 @@ struct SongPlayer {
 			auto it = std::lower_bound(notes.begin(), notes.end(), t0, [](const Note& n, double s) { return (double) n.start < s; });
 			for (; it != notes.end() && (double) it->start < t1; ++it) {
 				const uint8_t pitch = (uint8_t) std::max(0, std::min(127, it->pitch));
-				push(frameOf((double) it->start), (uint8_t)(0x90 | ch), pitch, (uint8_t) std::max(1, std::min(127, it->vel)));
-				const double end = (double) it->end();
-				if (end < t1)
+				const uint32_t on = std::max(frameOf((double) it->start), firstOn);
+				push(on, (uint8_t)(0x90 | ch), pitch, (uint8_t) std::max(1, std::min(127, it->vel)));
+				const double end = offTick(*it);
+				// The end after its own start (never before it on the same frame)
+				if (end < t1 && frameOf(end) > on)
 					push(frameOf(end), (uint8_t)(0x80 | ch), pitch, 0);
+				else if (end < t1 && on + 1 <= lastFrame())
+					push(on + 1, (uint8_t)(0x80 | ch), pitch, 0);
 				else if (heldCount < kMaxHeld)
-					held[heldCount++] = Held{end, (uint8_t) tr, ch, pitch};
+					held[heldCount++] = Held{std::max(end, t1), (uint8_t) tr, ch, pitch};
 			}
 		}
 		expected = t1;
@@ -189,6 +226,27 @@ struct SongPlayer {
 		});
 		for (int k = 0; k < count; ++k)
 			emit(events[k].frame, events[k].status, events[k].d1, events[k].d2);
+	}
+};
+
+/** The Editor's note preview: the UI asks for one sounding note (packed in one int, 0 = none), the audio thread turns
+ * each change into a note off of the old one and a note on of the new one. */
+struct NotePreview {
+	static int32_t pack(int channel, int pitch, int vel) {
+		return 0x40000000 | (channel & 15) << 16 | (std::max(0, std::min(127, pitch))) << 8 | std::max(1, std::min(127, vel));
+	}
+	int32_t playing = 0;
+
+	/** `emit(status, data1, data2)` */
+	template <typename Emit>
+	void render(const int32_t wanted, Emit&& emit) {
+		if (wanted == playing)
+			return;
+		if (playing)
+			emit((uint8_t)(0x80 | ((playing >> 16) & 15)), (uint8_t)((playing >> 8) & 127), (uint8_t) 0);
+		if (wanted)
+			emit((uint8_t)(0x90 | ((wanted >> 16) & 15)), (uint8_t)((wanted >> 8) & 127), (uint8_t)(wanted & 127));
+		playing = wanted;
 	}
 };
 

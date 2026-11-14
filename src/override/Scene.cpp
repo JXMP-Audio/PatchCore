@@ -431,6 +431,33 @@ void Scene::onHoverKey(const HoverKeyEvent& e) {
 		}
 	}
 
+	// PatchCore: while the Mixer or the Editor covers the rack, the rack's own keys would act on modules nobody sees
+	// (delete, bypass, select, paste, zoom, scroll, Enter's module browser; in the Editor also the rack's undo).
+	// File keys, Space and the F keys stay.
+	if (editor || patchcore::mixerShown()) {
+		if (e.key == GLFW_KEY_LEFT || e.key == GLFW_KEY_RIGHT || e.key == GLFW_KEY_UP || e.key == GLFW_KEY_DOWN) {
+			e.consume(this);
+			return;
+		}
+		const int mods = e.mods & RACK_MOD_MASK;
+		const std::string& k = e.keyName;
+		const bool ctrl = mods == RACK_MOD_CTRL, ctrlShift = mods == (RACK_MOD_CTRL | GLFW_MOD_SHIFT);
+		const bool rackOnly =
+			(ctrl && (k == "a" || k == "c" || k == "v" || k == "i" || k == "r" || k == "u" || k == "e" || k == "d" ||
+			          k == "-" || k == "=" || k == "+" || k == "0" || k == "1" || k == "2")) ||
+			(ctrlShift && (k == "a" || k == "d")) ||
+			(editor && (ctrl || ctrlShift) && k == "z") ||
+			(mods == 0 && (e.key == GLFW_KEY_DELETE || e.key == GLFW_KEY_BACKSPACE || e.key == GLFW_KEY_ENTER ||
+			               e.key == GLFW_KEY_KP_ENTER));
+		if (rackOnly) {
+			// The Mixer's own children (its strips) still get them first
+			if (!editor)
+				OpaqueWidget::onHoverKey(e);
+			e.consume(this);
+			return;
+		}
+	}
+
 	// Key commands that override children
 	if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
 		// DEBUG("key '%d '%c' scancode %d '%c' keyName '%s'", e.key, e.key, e.scancode, e.scancode, e.keyName.c_str());

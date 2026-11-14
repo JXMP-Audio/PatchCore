@@ -151,6 +151,8 @@ float menuButtonWidth(const std::string& text);
 widget::Widget* createTopBarLogo();
 /** View segment (Rack/Back/Browser/Mixer) and the patch name LCD. */
 widget::Widget* createTopBarCenter();
+/** The least width the center needs: the view switch without its key hints (they are in the Shortcuts menu) */
+float topBarCenterMinWidth(widget::Widget* center);
 /** Sheen slider and selection status. */
 widget::Widget* createTopBarRight();
 

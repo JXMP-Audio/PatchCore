@@ -14,6 +14,7 @@
 #include <patchcore/Song.hpp>
 
 #include <deque>
+#include <memory>
 
 namespace jxedit {
 
@@ -38,6 +39,8 @@ struct Edit : engine::Module {
 	int topPitch = 84;
 	int overviewBars = 32;  // how much the overview shows at least (Ctrl+wheel over it)
 	int64_t grid = sg::kPpq / 4;
+	/** A new note is as long as the last one drawn, stretched or clicked (0 = one grid step) */
+	int64_t drawLength = 0;
 
 	Edit();
 	~Edit();
@@ -52,9 +55,15 @@ struct Edit : engine::Module {
 	CardinalPluginContext* context() const;
 	/** The audio thread plays the current state of `song` from now on; the keyboard plays the selected track */
 	void publish();
-	/** Before a change of the song: a step for Ctrl+Z */
+	/** Before a change of the song: it becomes a step for Ctrl+Z once the song really differs from it (a click that
+	 * changes nothing leaves no step) */
 	void remember();
+	/** The step remembered last goes onto the undo list if the song changed since; `settle` = the gesture is over,
+	 * an unchanged one is dropped */
+	void commit(bool settle);
+	bool canUndo() const;
 	bool undoStep();
+	std::unique_ptr<sg::Song> pending;
 	/** The transport position in ticks */
 	double playTick() const;
 	double sampleRate() const;
@@ -70,6 +79,11 @@ struct Edit : engine::Module {
 	float muteLight(int k) const;
 	/** Per MIDI channel: a Host MIDI on it is in the rack */
 	bool hostMidi[16] = {};
+	/** Per MIDI channel: its Host MIDI is in MPE mode (set there; the Editor leaves the mode alone until MODE is
+	 * clicked) */
+	bool hostMpe[16] = {};
+	/** Per MIDI channel: polyphony / mode were just changed in the Editor, so they go into the Host MIDI even over MPE */
+	bool editorWins[16] = {};
 	/** How many Host MIDI modules listen on "All" channels (they play every track) */
 	int hostMidiAll = 0;
 	/** Per MIDI channel, what the song and its Host MIDI last agreed on (-1 = not yet): a side that differs from it was
@@ -85,6 +99,18 @@ struct Edit : engine::Module {
 	json_t* dataToJson() override;
 	void dataFromJson(json_t* rootJ) override;
 };
+
+/** The first `n` letters of UTF-8 text (never half a letter: names with accents) */
+inline std::string utf8Cut(const std::string& s, size_t n) {
+	size_t i = 0, count = 0;
+	while (i < s.size() && count < n) {
+		++count;
+		++i;
+		while (i < s.size() && (s[i] & 0xC0) == 0x80)
+			++i;
+	}
+	return s.substr(0, i);
+}
 
 /** The Editor's content over the rack area (EditView.cpp) */
 widget::Widget* createEditPane(Edit* module);

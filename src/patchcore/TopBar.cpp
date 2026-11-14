@@ -153,16 +153,27 @@ struct ViewSegment : widget::OpaqueWidget {
 		return (i == 3 && !mixerAvailable()) || (i == 4 && !editorAvailable());
 	}
 
-	void step() override {
+	/** The width it may take (set by the top bar); in less than its full width the key hints go */
+	float maxWidth = INFINITY;
+	bool compact = false;
+	float compactWidth = 0.f;
+
+	float layout(bool keys) {
 		float x = 2.f;
 		for (Item& item : items) {
 			item.x = x;
-			item.w = textWidth(uiFont(), 13.f, item.label, 0.f) + 22.f;
-			if (!item.key.empty())
+			item.w = textWidth(uiFont(), 13.f, item.label, 0.f) + (keys ? 22.f : 18.f);
+			if (keys && !item.key.empty())
 				item.w += textWidth(monoFont(), 10.f, item.key, 0.f) + 6.f;
 			x += item.w;
 		}
-		box.size.x = x + 2.f;
+		return x + 2.f;
+	}
+
+	void step() override {
+		compactWidth = layout(false);
+		compact = layout(true) > maxWidth;
+		box.size.x = layout(!compact);
 		OpaqueWidget::step();
 	}
 
@@ -215,9 +226,9 @@ struct ViewSegment : widget::OpaqueWidget {
 			if (isDisabled(i))
 				color = color::alpha(t.textDim, 0.35f);
 
-			float x = r.pos.x + 11.f;
+			float x = r.pos.x + (compact ? 9.f : 11.f);
 			draw::text(vg, uiFont(), 13.f, color, math::Vec(x, r.pos.y + r.size.y * 0.5f), NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, item.label);
-			if (!item.key.empty()) {
+			if (!compact && !item.key.empty()) {
 				x += textWidth(uiFont(), 13.f, item.label, 0.f) + 6.f;
 				draw::text(vg, monoFont(), 10.f, t.textFaint, math::Vec(x, r.pos.y + r.size.y * 0.5f + 1.f),
 				           NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, item.key);
@@ -301,6 +312,7 @@ struct TopBarCenter : widget::Widget {
 
 	void step() override {
 		Widget::step();
+		segment->maxWidth = box.size.x;
 		segment->box.pos = math::Vec(0, (box.size.y - 30.f) * 0.5f);
 		segment->box.size.y = 30.f;
 		// The LCD takes what is left of the width given by the menu bar
@@ -337,6 +349,12 @@ widget::Widget* createTopBarLogo() {
 
 widget::Widget* createTopBarCenter() {
 	return new TopBarCenter;
+}
+
+
+float topBarCenterMinWidth(widget::Widget* const center) {
+	TopBarCenter* const c = dynamic_cast<TopBarCenter*>(center);
+	return c ? c->segment->compactWidth : 0.f;
 }
 
 

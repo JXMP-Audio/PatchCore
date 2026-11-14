@@ -119,6 +119,8 @@ struct CardinalPluginContext : rack::Context {
     // on; -1 = the keyboard as it sends (a Host MIDI on its channel plays it directly)
     volatile int editorKeyboardTrack = -1;
     volatile int editorKeyboardChannel = 0;
+    // The note the Editor lets sound while one is drawn or dragged (pcsong::NotePreview::pack, 0 = none)
+    volatile int32_t editorPreview = 0;
     // Keyboard notes recorded while REC is on (audio thread → the Editor)
     ::pcsong::RecordRing editorRecord;
     // PatchCore: peak level of the first two plugin outputs over the last block, for the transport meters

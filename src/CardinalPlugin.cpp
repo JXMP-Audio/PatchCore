@@ -190,14 +190,17 @@ class CardinalPlugin : public CardinalBasePlugin
     // PatchCore: a real pause of the standalone transport
     patchcore::PauseFade fPauseFade;
     bool fEngineRuns = true;
+    // PatchCore: a note heard from the Editor while paused or stopped runs the engine (PauseFade.hpp)
+    patchcore::PreviewRun fPreviewRun;
     // PatchCore: the loop splits a block in two parts; the second gets these offset pointers and its MIDI events
     const float* fPartIns[DISTRHO_PLUGIN_NUM_INPUTS + 1] = {};
     float* fPartOuts[DISTRHO_PLUGIN_NUM_OUTPUTS + 1] = {};
     MidiEvent fPartMidi[512];
     // PatchCore: the Editor's song played into the part's MIDI (merged with the incoming events)
     ::pcsong::SongPlayer fSongPlayer;
-    MidiEvent fSongMidi[::pcsong::SongPlayer::kMaxEvents];
-    MidiEvent fMergedMidi[512 + ::pcsong::SongPlayer::kMaxEvents];
+    ::pcsong::NotePreview fNotePreview;
+    MidiEvent fSongMidi[2 + ::pcsong::SongPlayer::kMaxEvents];
+    MidiEvent fMergedMidi[512 + 2 + ::pcsong::SongPlayer::kMaxEvents];
     // PatchCore: metronome click
     uint32_t fClickLeft = 0;
     float fClickPhase = 0.f, fClickFreq = 1000.f;
@@ -1186,7 +1189,8 @@ protected:
     {
         CardinalPluginContext* const ctx = context;
         const ::pcsong::Song* const song = ctx->editorSong.current();
-        if (song == nullptr && fSongPlayer.heldCount == 0)
+        const int32_t preview = ctx->editorPreview;
+        if (song == nullptr && fSongPlayer.heldCount == 0 && preview == fNotePreview.playing)
             return;
 
         const double framesPerTick = getSampleRate() * 60.0
@@ -1194,6 +1198,19 @@ protected:
                                    / ::pcsong::kPpq;
         const bool rolls = ctx->internalTransportActive && ctx->internalTransportPlaying && fEngineRuns;
         uint32_t generated = 0;
+        // The note being drawn in the Editor goes first, on the first frame
+        fNotePreview.render(preview, [&](const uint8_t status, const uint8_t d1, const uint8_t d2) {
+            MidiEvent& e(fSongMidi[generated++]);
+            e.frame = 0;
+            e.size = 3;
+            e.data[0] = status;
+            e.data[1] = d1;
+            e.data[2] = d2;
+            e.data[3] = 0;
+            e.dataExt = nullptr;
+        });
+        // 1 ms between two notes that touch, so a mono Host MIDI starts the envelope again on each
+        fSongPlayer.gapFrames = static_cast<uint32_t>(std::max(1.0, getSampleRate() * 0.001));
         fSongPlayer.render(song, songFrame / framesPerTick, partFrames, framesPerTick, rolls,
                            [&](const uint32_t frame, const uint8_t status, const uint8_t d1, const uint8_t d2) {
             MidiEvent& e(fSongMidi[generated++]);
@@ -1321,8 +1338,12 @@ protected:
 
                 // PatchCore: standalone without a timebase master gets an internal transport
                 context->internalTransportActive = rack::isStandalone() && !timePos.bbt.valid;
-                // PatchCore: a real pause; the engine stops after a 10 ms fade (see below)
-                fEngineRuns = !fPauseFade.frozen(!context->internalTransportActive || context->internalTransportPlaying);
+                // PatchCore: a real pause; the engine stops after a 10 ms fade (see below). A note heard from the
+                // Editor runs it meanwhile (and 2 s after, for its release), the transport shown as stopped.
+                const bool stopped = context->internalTransportActive && !context->internalTransportPlaying;
+                const bool previewSounds = fPreviewRun.begin(stopped, context->editorPreview != 0, getSampleRate());
+                fEngineRuns = !fPauseFade.frozen(!stopped || previewSounds);
+                fPreviewRun.engine(fEngineRuns);
                 if (context->internalTransportActive)
                 {
                     if (context->internalTransportResetRequested)
@@ -1344,7 +1365,7 @@ protected:
 
                     // A pause (Space) is not a stop for the modules: they keep seeing a rolling transport while the
                     // engine fades out and then is frozen, so nothing reacts to it (no clock reset, no stray notes)
-                    timePos.playing = context->internalTransportPlaying || context->internalTransportHeld;
+                    timePos.playing = context->internalTransportPlaying || (context->internalTransportHeld && !fPreviewRun.showStopped);
                     timePos.frame = context->internalTransportFrame;
                     timePos.bbt.valid = true;
                     timePos.bbt.bar = static_cast<int32_t>(wholeBeats / beatsPerBar) + 1;
@@ -1402,7 +1423,9 @@ protected:
                 context->reset = reset;
                 // PatchCore: a paused (frozen) engine does not move the transport, so the next block is expected at the
                 // same frame; otherwise resuming after a pause looked like a jump and reset every clock (JX-CLK RESET)
-                fNextExpectedFrame = timePos.playing ? timePos.frame + (fEngineRuns ? partFrames : 0) : 0;
+                // (a note heard while paused shows a stopped transport for a moment; the pause position stays expected)
+                if (!fPreviewRun.showStopped)
+                    fNextExpectedFrame = timePos.playing ? timePos.frame + (fEngineRuns ? partFrames : 0) : 0;
 
                #if CARDINAL_VARIANT_MINI && ! DISTRHO_PLUGIN_WANT_DIRECT_ACCESS
                 const int flags = (timePos.playing ? 0x1 : 0x0)
@@ -1467,15 +1490,17 @@ protected:
             // PatchCore: pausing the standalone transport fades the output out over 10 ms, then the engine does not
             // run at all (everything waits where it is); Play runs it again and fades back in. A DAW keeps its own.
             const bool transportRuns = !context->internalTransportActive || context->internalTransportPlaying;
+            const bool sounding = transportRuns || fPreviewRun.frames > 0;
+            fPreviewRun.end(context->editorPreview != 0, partFrames);
             if (fEngineRuns)
             {
                 context->engine->stepBlock(partFrames);
-                if (!transportRuns || fPauseFade.gain < 1.f)
+                if (!sounding || fPauseFade.gain < 1.f)
                 {
                     const float sampleRate = static_cast<float>(getSampleRate());
                     for (uint32_t j=offset; j<offset+partFrames; ++j)
                     {
-                        const float g = fPauseFade.next(transportRuns, sampleRate);
+                        const float g = fPauseFade.next(sounding, sampleRate);
                         for (int i=0; i<fNumActiveOutputs; ++i)
                             if (blockOuts[i] != nullptr)
                                 blockOuts[i][j] *= g;

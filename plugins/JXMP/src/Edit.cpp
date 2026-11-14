@@ -84,6 +84,9 @@ void Edit::routeKeyboard(const bool editorOpen) {
 	const int k = math::clamp(selected, 0, sg::kTracks - 1);
 	c->editorKeyboardChannel = song.tracks[k].channel & 0x0F;
 	c->editorKeyboardTrack = editorOpen || c->internalTransportRecord ? k : -1;
+	// The Editor closed while a note was heard: silence it
+	if (!editorOpen)
+		c->editorPreview = 0;
 }
 
 int Edit::tracksOn(const int c) const {
@@ -94,12 +97,29 @@ int Edit::tracksOn(const int c) const {
 }
 
 void Edit::remember() {
-	undo.push_back(song);
-	while (undo.size() > 100)
-		undo.pop_front();
+	commit(true);
+	pending.reset(new sg::Song(song));
+}
+
+void Edit::commit(const bool settle) {
+	if (!pending)
+		return;
+	if (*pending != song) {
+		undo.push_back(*pending);
+		while (undo.size() > 100)
+			undo.pop_front();
+		pending.reset();
+	}
+	else if (settle)
+		pending.reset();
+}
+
+bool Edit::canUndo() const {
+	return !undo.empty() || (pending && *pending != song);
 }
 
 bool Edit::undoStep() {
+	commit(true);
 	if (undo.empty())
 		return false;
 	song = undo.back();
@@ -139,7 +159,7 @@ void Edit::syncHostMidi(const bool force) {
 	if (!force && now - lastSync < 0.5)
 		return;
 	lastSync = now;
-	bool found[16] = {};
+	bool found[16] = {}, mpe[16] = {};
 	int all = 0;
 	for (const int64_t id : APP->engine->getModuleIds()) {
 		engine::Module* const hm = APP->engine->getModule(id);
@@ -154,26 +174,42 @@ void Edit::syncHostMidi(const bool force) {
 			++all;
 		if (ch >= 1 && ch <= 16) {
 			const int c = ch - 1;
-			const int hmPoly = (int) json_integer_value(json_object_get(dataJ, "channels"));
+			const int hmPoly = math::clamp((int) json_integer_value(json_object_get(dataJ, "channels")), 1, 16);
 			const int hmMode = (int) json_integer_value(json_object_get(dataJ, "polyMode"));
-			// Changed in the Host MIDI (its menu) while the song kept the agreed value: the song takes it over.
-			// The first Host MIDI of a channel decides; MPE (mode 3) is left to the Host MIDI.
-			if (!found[c] && agreedPoly[c] >= 0 && song.poly[c] == agreedPoly[c] && song.polyMode[c] == agreedMode[c]
-			    && (hmPoly != agreedPoly[c] || hmMode != agreedMode[c]) && hmMode >= 0 && hmMode <= 2) {
-				song.poly[c] = math::clamp(hmPoly, 1, 16);
-				song.polyMode[c] = hmMode;
-				publish();
+			const bool hmMpe = hmMode == 3;  // MPE: chosen in the Host MIDI, left alone from here
+			// The first Host MIDI of a channel with a track decides what the song takes over, unless the user just
+			// changed it in the Editor (then the Editor wins)
+			if (!found[c] && tracksOn(c) > 0 && !editorWins[c]) {
+				bool take = false;
+				if (agreedPoly[c] >= 0)
+					// Changed in the Host MIDI (its menu) while the song kept the agreed value
+					take = song.poly[c] == agreedPoly[c] && song.polyMode[c] == agreedMode[c]
+					       && (hmPoly != agreedPoly[c] || (!hmMpe && hmMode != agreedMode[c]));
+				else
+					// Nothing agreed yet (a track just moved onto this channel, or the Host MIDI is new): one already
+					// set up (not the default 1 voice, rotate) keeps its settings
+					take = hmPoly != 1 || (hmMode != 0 && !hmMpe);
+				if (take && (song.poly[c] != hmPoly || (!hmMpe && song.polyMode[c] != hmMode))) {
+					song.poly[c] = hmPoly;
+					if (hmMode >= 0 && hmMode <= 2)
+						song.polyMode[c] = hmMode;
+					publish();
+				}
 			}
+			if (!found[c])
+				mpe[c] = hmMpe;
 			found[c] = true;
 			// Only the channels a track plays on are set from here
 			if (tracksOn(c) > 0) {
 				const int poly = math::clamp(song.poly[c], 1, 16), mode = math::clamp(song.polyMode[c], 0, 2);
 				agreedPoly[c] = poly;
 				agreedMode[c] = mode;
-				if (hmPoly != poly || hmMode != mode) {
-					// The whole data back with the two values changed (a missing key would reset some of its settings)
+				const bool keepMode = hmMpe && !editorWins[c];
+				if (hmPoly != poly || (!keepMode && hmMode != mode)) {
+					// The whole data back with the values changed (a missing key would reset some of its settings)
 					json_object_set_new(dataJ, "channels", json_integer(poly));
-					json_object_set_new(dataJ, "polyMode", json_integer(mode));
+					if (!keepMode)
+						json_object_set_new(dataJ, "polyMode", json_integer(mode));
 					hm->dataFromJson(dataJ);
 				}
 			}
@@ -186,6 +222,8 @@ void Edit::syncHostMidi(const bool force) {
 	hostMidiAll = all;
 	for (int c = 0; c < 16; ++c) {
 		hostMidi[c] = found[c];
+		hostMpe[c] = found[c] && mpe[c] && !editorWins[c];
+		editorWins[c] = false;
 		// No Host MIDI on the channel: a new one takes the song's settings
 		if (!found[c])
 			agreedPoly[c] = agreedMode[c] = -1;
@@ -193,6 +231,7 @@ void Edit::syncHostMidi(const bool force) {
 }
 
 void Edit::toggleMute(const int k) {
+	remember();
 	sg::Track& t = song.tracks[k];
 	t.mute = !t.mute;
 	if (t.mute)
@@ -201,6 +240,7 @@ void Edit::toggleMute(const int k) {
 }
 
 void Edit::toggleSolo(const int k) {
+	remember();
 	sg::Track& t = song.tracks[k];
 	t.solo = !t.solo;
 	if (t.solo)
@@ -266,6 +306,7 @@ json_t* Edit::dataToJson() {
 	json_object_set_new(rootJ, "scroll", json_real(scroll));
 	json_object_set_new(rootJ, "topPitch", json_integer(topPitch));
 	json_object_set_new(rootJ, "overviewBars", json_integer(overviewBars));
+	json_object_set_new(rootJ, "drawLength", json_integer(drawLength));
 	json_object_set_new(rootJ, "grid", json_integer(grid));
 	if (CardinalPluginContext* const c = context()) {
 		json_object_set_new(rootJ, "loop", json_boolean(c->internalTransportLoop));
@@ -324,6 +365,8 @@ void Edit::dataFromJson(json_t* const rootJ) {
 		scroll = std::max(0.0, json_number_value(j));
 	if (json_t* const j = json_object_get(rootJ, "overviewBars"))
 		overviewBars = math::clamp((int) json_integer_value(j), 8, 512);
+	if (json_t* const j = json_object_get(rootJ, "drawLength"))
+		drawLength = std::max<int64_t>(0, json_integer_value(j));
 	if (json_t* const j = json_object_get(rootJ, "topPitch"))
 		topPitch = math::clamp((int) json_integer_value(j), 12, 127);
 	if (json_t* const j = json_object_get(rootJ, "grid"))
@@ -428,7 +471,7 @@ struct TrackRow : widget::OpaqueWidget {
 			nvgStroke(vg);
 		}
 		st::vfdText(vg, math::Vec(mm2px(4.2f), box.size.y / 2), string::f("%d", track + 1), 8.f, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
-		std::string shown = name.substr(0, 9);
+		std::string shown = utf8Cut(name, 9);
 		st::vfdText(vg, math::Vec(mm2px(7.f), box.size.y / 2), string::uppercase(shown), 8.f, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
 		// Its MIDI channel at the right end of the display, dimmer
 		const int ch = module ? module->song.tracks[track].channel + 1 : track + 1;
@@ -508,8 +551,8 @@ struct EditWidget : JXMPModuleWidget, patchcore::EditorProvider {
 
 	void drawBackLegends(NVGcontext* const vg) override {
 		st::text(vg, mm2px(math::Vec(30.48f, 40.f)), "NO JACKS", 8.f, decor->stripe, st::FONT_LABEL);
-		const char* lines[] = {"TRACK N PLAYS ON MIDI CHANNEL N.", "ADD A HOST MIDI MODULE PER TRACK", "AND SET ITS CHANNEL; POLYPHONY",
-		                       "AND MODE ARE SET THERE."};
+		const char* lines[] = {"EACH TRACK PLAYS ON ITS MIDI", "CHANNEL (SET IN THE EDITOR).", "A HOST MIDI ON IT PLAYS IT;",
+		                       "POLYPHONY: EDITOR OR HOST MIDI."};
 		for (int k = 0; k < 4; ++k)
 			st::text(vg, mm2px(math::Vec(30.48f, 50.f + k * 5.f)), lines[k], 6.f, st::legendDim(), st::FONT_LABEL);
 	}
@@ -526,6 +569,8 @@ struct EditWidget : JXMPModuleWidget, patchcore::EditorProvider {
 		JXMPModuleWidget::step();
 		if (edit && edit->active()) {
 			edit->collectRecording();
+			// A change since the last remembered step becomes an undo step (a drag: the state before it)
+			edit->commit(false);
 			edit->syncHostMidi(false);
 			edit->routeKeyboard(patchcore::editorShown());
 #ifdef JXEDIT_UITEST
