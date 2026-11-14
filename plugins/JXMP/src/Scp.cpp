@@ -371,7 +371,7 @@ struct ScpWidget : JXMPModuleWidget {
 
 		// Trigger source, AUTO / NORM, display mode
 		section(83.f, 82.f, 35.f, 18.f, "SOURCE · MODE");
-		toggle(math::Vec(90.f, 93.f), Scp::TRIG_SOURCE_PARAM, 3, {"CH1", "CH2", "EXT"});
+		toggle(math::Vec(90.f, 93.f), Scp::TRIG_SOURCE_PARAM, 3, {"CH1", "CH2", "EXT"}, -0.8f);
 		toggle(math::Vec(102.f, 93.f), Scp::TRIG_MODE_PARAM, 2, {"AUTO", "NORM"});
 		toggle(math::Vec(113.5f, 93.f), Scp::MODE_PARAM, 2, {"Y-T", "X-Y"});
 

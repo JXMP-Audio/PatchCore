@@ -266,7 +266,7 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 	}
 
 	/** Chrome toggle centred at `mm` with `positions` (2 or 3) and legends from the top position down. */
-	void toggle(math::Vec mm, int paramId, int positions, const std::vector<std::string>& legends) {
+	void toggle(math::Vec mm, int paramId, int positions, const std::vector<std::string>& legends, float middleShift = 0.f) {
 		jxmp::style::Toggle* const t = createParam<jxmp::style::Toggle>(math::Vec(), module, paramId);
 		t->positions = positions;
 		t->box.pos = mm2px(mm).minus(t->box.size.div(2));
@@ -274,7 +274,7 @@ struct JXMPModuleWidget : app::ModuleWidget, patchcore::SidedModuleWidget {
 		for (size_t i = 0; i < legends.size(); ++i) {
 			const float dy = positions == 3 ? (i == 0 ? -7.6f : i == 1 ? 0.f : 7.6f) : (i == 0 ? -7.6f : 7.6f);
 			// The middle legend sits left of the lever, its right end clear of it however long it is
-			const float left = -5.f - 1.2f * std::max(0, (int) legends[i].size() - 3);
+			const float left = -5.f - 1.2f * std::max(0, (int) legends[i].size() - 3) + middleShift;
 			label(mm.plus(math::Vec(positions == 3 && i == 1 ? left : 0.f, dy)), legends[i].c_str(), 6.f);
 		}
 	}
