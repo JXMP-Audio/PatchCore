@@ -78,6 +78,9 @@ struct Envelope {
 		}
 		if (!run && mode == ADSR && (stage == ATTACK || stage == DECAY || stage == SUSTAIN))
 			start(RELEASE);
+		// Only ADSR holds a sustain: after a switch to AD or LOOP mid-note it falls away as a release
+		else if (mode != ADSR && stage == SUSTAIN)
+			start(RELEASE);
 		return value;
 	}
 

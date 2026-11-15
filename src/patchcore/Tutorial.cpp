@@ -53,10 +53,14 @@ static std::string tutorialsDir() {
 }
 
 static std::string readFile(const std::string& path) {
-	std::ifstream f(path.c_str());
-	std::stringstream ss;
-	ss << f.rdbuf();
-	return ss.str();
+	// Through Rack's file functions: the path is UTF-8, which a narrow ifstream cannot open on Windows
+	try {
+		const std::vector<uint8_t> data = system::readFile(path);
+		return std::string(data.begin(), data.end());
+	}
+	catch (...) {
+		return std::string();
+	}
 }
 
 static bool loadLesson(const std::string& id, tu::Lesson* out, std::string* error) {

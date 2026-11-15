@@ -1188,7 +1188,8 @@ protected:
     void mixEditorMidi(const uint64_t songFrame, const uint32_t partFrames)
     {
         CardinalPluginContext* const ctx = context;
-        const ::pcsong::Song* const song = ctx->editorSong.current();
+        const ::pcsong::SongStore::Reader reader(ctx->editorSong);
+        const ::pcsong::Song* const song = reader.song;
         const int32_t preview = ctx->editorPreview;
         if (song == nullptr && fSongPlayer.heldCount == 0 && preview == fNotePreview.playing)
             return;

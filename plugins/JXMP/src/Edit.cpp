@@ -5,6 +5,7 @@
  * JX-EDIT: the module behind PatchCore's Editor. See Edit.hpp.
  */
 
+#include "ProjectOwner.hpp"
 #include "Edit.hpp"
 
 // Local UI tests (src/patchcore/tests, not in git): built in only where that file exists
@@ -28,7 +29,7 @@ namespace jxedit {
 
 namespace st = jxmp::style;
 
-Edit::Edit() {
+Edit::Edit() : ownerSlot(jxmp::projectOwnerSlot<Edit>()) {
 	config(0, 0, 0, 0);
 	for (int c = 0; c < 16; ++c)
 		agreedPoly[c] = agreedMode[c] = -1;
@@ -41,12 +42,10 @@ Edit::~Edit() {
 	owner().compare_exchange_strong(expected, nullptr);
 }
 
-std::atomic<Edit*>& Edit::owner() {
-	static std::atomic<Edit*> o(nullptr);
-	return o;
-}
-
 bool Edit::active() const {
+	// Takes over when the project's editor was removed
+	Edit* expected = nullptr;
+	owner().compare_exchange_strong(expected, const_cast<Edit*>(this));
 	return owner().load() == this && standalone();
 }
 
@@ -108,7 +107,9 @@ void Edit::commit(const bool settle) {
 		undo.push_back(*pending);
 		while (undo.size() > 100)
 			undo.pop_front();
+		redo.clear();
 		pending.reset();
+		markUnsaved();
 	}
 	else if (settle)
 		pending.reset();
@@ -122,10 +123,30 @@ bool Edit::undoStep() {
 	commit(true);
 	if (undo.empty())
 		return false;
+	redo.push_back(song);
 	song = undo.back();
 	undo.pop_back();
 	publish();
+	markUnsaved();
 	return true;
+}
+
+bool Edit::redoStep() {
+	commit(true);
+	if (redo.empty())
+		return false;
+	undo.push_back(song);
+	song = redo.back();
+	redo.pop_back();
+	publish();
+	markUnsaved();
+	return true;
+}
+
+void Edit::markUnsaved() {
+	// The Editor keeps its own undo list, so the rack's history does not see its changes
+	if (APP && APP->history)
+		APP->history->savedIndex = -1;
 }
 
 void Edit::collectRecording() {
@@ -210,7 +231,11 @@ void Edit::syncHostMidi(const bool force) {
 					json_object_set_new(dataJ, "channels", json_integer(poly));
 					if (!keepMode)
 						json_object_set_new(dataJ, "polyMode", json_integer(mode));
-					hm->dataFromJson(dataJ);
+					// Under the engine's lock (the audio thread reads these settings): the whole module back as JSON
+					json_t* const moduleJ = hm->toJson();
+					json_object_set(moduleJ, "data", dataJ);
+					APP->engine->moduleFromJson(hm, moduleJ);
+					json_decref(moduleJ);
 				}
 			}
 			else {
@@ -260,6 +285,22 @@ float Edit::muteLight(const int k) const {
 void Edit::onAdd(const AddEvent& e) {
 	engine::Module::onAdd(e);
 	publish();
+}
+
+void Edit::onReset(const ResetEvent& e) {
+	engine::Module::onReset(e);
+	const sg::Song blank;
+	for (int k = 0; k < sg::kTracks; ++k) {
+		sg::Track& t = song.tracks[k];
+		t.name = blank.tracks[k].name;
+		t.mute = t.solo = false;
+		t.notes.clear();
+	}
+	pending.reset();
+	undo.clear();
+	redo.clear();
+	if (active())
+		publish();
 }
 
 void Edit::onRemove(const RemoveEvent& e) {
@@ -356,6 +397,7 @@ void Edit::dataFromJson(json_t* const rootJ) {
 		loaded.polyMode[c] = math::clamp((int) json_integer_value(json_array_get(modeJ, c)), 0, 2);
 	song = loaded;
 	undo.clear();
+	redo.clear();
 	for (int c = 0; c < 16; ++c)
 		agreedPoly[c] = agreedMode[c] = -1;
 	selected = math::clamp((int) json_integer_value(json_object_get(rootJ, "selected")), 0, sg::kTracks - 1);
@@ -529,6 +571,7 @@ struct EditNotice : widget::TransparentWidget {
 };
 
 struct EditWidget : JXMPModuleWidget, patchcore::EditorProvider {
+	bool wasActive = false;
 	Edit* edit;
 
 	explicit EditWidget(Edit* const module) : edit(module) {
@@ -567,7 +610,12 @@ struct EditWidget : JXMPModuleWidget, patchcore::EditorProvider {
 
 	void step() override {
 		JXMPModuleWidget::step();
-		if (edit && edit->active()) {
+		const bool nowActive = edit && edit->active();
+		// Took over from a removed editor: its song plays from now on
+		if (nowActive && !wasActive)
+			edit->publish();
+		wasActive = nowActive;
+		if (nowActive) {
 			edit->collectRecording();
 			// A change since the last remembered step becomes an undo step (a drag: the state before it)
 			edit->commit(false);

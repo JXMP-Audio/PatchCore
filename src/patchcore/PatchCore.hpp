@@ -77,6 +77,10 @@ void saveSettings();
 bool enabled();
 /** Before a widget tree outside the rack is deleted (the Mixer or Editor view): the rack's last touched knob must not
  * point into it (Rack clears it only when a module is removed; a dangling one crashed the next clear, e.g. on exit). */
+/** A path handed to the restarted process through the environment, as "hex:" + hex digits: pure ASCII, so
+Windows' ANSI environment functions keep a UTF-8 path intact. envDecode() also takes a plain value. */
+std::string envEncode(const std::string& value);
+std::string envDecode(const char* value);
 void forgetTouchedParam(widget::Widget* tree);
 
 /** True when the rack shows its back: PatchCore enabled and flipped. */

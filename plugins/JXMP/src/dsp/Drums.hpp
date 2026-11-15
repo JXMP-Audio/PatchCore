@@ -61,6 +61,8 @@ struct Kick {
 	float phase = 0.f, amp = 0.f, pitchEnv = 0.f, gain = 1.f;
 
 	void trigger(bool accent) {
+		// Every hit starts at the sine's zero crossing: the same punch each time, no step at the start
+		phase = 0.f;
 		amp = 1.f;
 		pitchEnv = 1.f;
 		gain = accent ? 1.4f : 1.f;
@@ -86,6 +88,7 @@ struct Snare {
 	HighPass hp;
 
 	void trigger(bool accent) {
+		p1 = p2 = 0.f;
 		body = snap = 1.f;
 		gain = accent ? 1.4f : 1.f;
 	}

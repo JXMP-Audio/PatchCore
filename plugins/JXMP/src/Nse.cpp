@@ -92,20 +92,22 @@ struct Nse : engine::Module {
 			level *= math::clamp(inputs[LEVEL_INPUT].getVoltage() / 10.f, 0.f, 1.f);
 		const float gain = 5.f / std::sqrt(2.f) * level;
 
+		// Gaussian noise has no top: its rare peaks (blue up to ~6 sigma) are kept within Rack's ±12 V
+		auto rail = [](float v) { return math::clamp(v, -12.f, 12.f); };
 		const float white = random::normal();
-		outputs[WHITE_OUTPUT].setVoltage(white * gain);
+		outputs[WHITE_OUTPUT].setVoltage(rail(white * gain));
 		if (outputs[RED_OUTPUT].isConnected())
-			outputs[RED_OUTPUT].setVoltage(redFilter.process(white) / 0.0645f * gain);
+			outputs[RED_OUTPUT].setVoltage(rail(redFilter.process(white) / 0.0645f * gain));
 		if (outputs[VIOLET_OUTPUT].isConnected())
-			outputs[VIOLET_OUTPUT].setVoltage((white - lastWhite) / 1.41f * gain);
+			outputs[VIOLET_OUTPUT].setVoltage(rail((white - lastWhite) / 1.41f * gain));
 		lastWhite = white;
 		if (outputs[GRAY_OUTPUT].isConnected())
-			outputs[GRAY_OUTPUT].setVoltage(grayFilter.process(args.sampleTime, white) / 1.67f * gain);
+			outputs[GRAY_OUTPUT].setVoltage(rail(grayFilter.process(args.sampleTime, white) / 1.67f * gain));
 
 		if (outputs[PINK_OUTPUT].isConnected() || outputs[BLUE_OUTPUT].isConnected()) {
 			const float pink = pinkNoise.process(uniform) / 0.816f;
-			outputs[PINK_OUTPUT].setVoltage(pink * gain);
-			outputs[BLUE_OUTPUT].setVoltage((pink - lastPink) / 0.705f * gain);
+			outputs[PINK_OUTPUT].setVoltage(rail(pink * gain));
+			outputs[BLUE_OUTPUT].setVoltage(rail((pink - lastPink) / 0.705f * gain));
 			lastPink = pink;
 		}
 		if (outputs[BLACK_OUTPUT].isConnected())

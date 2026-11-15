@@ -16,7 +16,12 @@ struct RandomCore {
 	float from = 0.f, to = 0.f, held = 0.f, phase = 0.f;
 
 	void tick(float value) {
+		// A NaN / Inf (sampled from IN, or left in the glide) would be held for good
+		if (!std::isfinite(value))
+			value = 0.f;
 		from = smooth();
+		if (!std::isfinite(from))
+			from = value;
 		to = value;
 		held = value;
 		phase = 0.f;
@@ -25,6 +30,11 @@ struct RandomCore {
 	/** Moves time on by `dt` at `freq` ticks per second. With `wrap` (internal rate) it returns true when a
 	new tick is due; without it (external clock) the phase just stops at the end of the glide. */
 	bool advance(float freq, float dt, bool wrap = true) {
+		// A NaN rate would make the phase NaN, and a NaN phase never ticks again
+		if (!std::isfinite(freq))
+			freq = 0.f;
+		if (!std::isfinite(phase))
+			phase = 0.f;
 		phase += freq * dt;
 		if (wrap && phase >= 1.f) {
 			phase -= std::floor(phase);

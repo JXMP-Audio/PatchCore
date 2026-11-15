@@ -154,6 +154,14 @@ public:
             puglBackendLeave(pData->view);
     }
 
+protected:
+    // standalone: the window's close button asks the UI first
+    bool onClose() override
+    {
+        return ui->uiCloseRequest();
+    }
+
+public:
     // called after creating UI, restoring proper context
     void leaveContext()
     {

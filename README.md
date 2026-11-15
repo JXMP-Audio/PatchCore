@@ -28,7 +28,7 @@ It comes as a **standalone app** and as two **VST3 plugins**, **PatchCore** (ins
 | Key / mouse | Does |
 |---|---|
 | `Tab` | turn the rack around (front / back) |
-| `F1` | the rack; with a selected module: its manual |
+| `F1` | the rack (front) |
 | `F2` / `F3` | the back / the Mixer view |
 | `Enter`, right-click | find and add a module |
 | `Space` | play / pause (standalone): a pause freezes everything where it is; Space twice quickly (or ■) stops and goes back to the start |
@@ -40,8 +40,8 @@ Without Shift, knobs and jacks always work, even on a selected module.
 
 ## JXMP modules
 
-A manual page per module ([docs/manual/](docs/manual/), grouped by category with pictures); in PatchCore select a
-module and press `F1`.
+A manual page per module ([docs/manual/](docs/manual/), grouped by category with pictures); in PatchCore right-click a
+module and choose Info > User manual.
 
 | Panel | Browser name | Manual |
 |---|---|---|

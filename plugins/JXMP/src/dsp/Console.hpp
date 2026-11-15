@@ -65,9 +65,16 @@ struct Biquad {
 	double z1 = 0.0, z2 = 0.0;
 
 	float process(float x) {
+		// A NaN / Inf at the input would stay in the state for good: drop it, and restart a broken state
+		if (!std::isfinite(x))
+			x = 0.f;
 		const double y = b0 * x + z1;
 		z1 = b1 * x - a1 * y + z2;
 		z2 = b2 * x - a2 * y;
+		if (!std::isfinite(z1) || !std::isfinite(z2)) {
+			z1 = z2 = 0.0;
+			return 0.f;
+		}
 		return (float) y;
 	}
 

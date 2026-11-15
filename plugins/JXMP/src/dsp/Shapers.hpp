@@ -175,16 +175,25 @@ struct Gates {
 /** Sequential switch of JX-SW: steps 0 … length-1 on each clock, back to 0 on reset */
 struct Stepper {
 	int step = 0;
+	/** After a start or a RESET the next clock plays step 1 (as JX-SEQ and JX-EUC), so all stay in step */
+	bool armed = true;
 	void clock(int length) {
 		length = std::min(std::max(length, 2), 4);
+		if (armed) {
+			armed = false;
+			step = 0;
+			return;
+		}
 		step = (step + 1) % length;
 	}
 	void reset() {
 		step = 0;
+		armed = true;
 	}
 	/** A step saved with the patch, kept inside 0..3 */
 	void restore(int s) {
 		step = std::min(std::max(s, 0), 3);
+		armed = false;
 	}
 	int current(int length) const {
 		return step % std::min(std::max(length, 2), 4);

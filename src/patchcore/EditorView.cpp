@@ -5,6 +5,7 @@
  * Editor view: covers the rack area and shows the content built by the project's editor module (JX-EDIT).
  */
 
+#include <set>
 #include "PatchCore.hpp"
 #include <patchcore/Editor.hpp>
 #include <patchcore/Mixer.hpp>
@@ -41,9 +42,23 @@ bool editorAvailable() {
 }
 
 
+struct EditorView;
+static std::set<EditorView*>& allViews() {
+	static std::set<EditorView*> views;
+	return views;
+}
+
 struct EditorView : widget::OpaqueWidget {
+	EditorView() {
+		allViews().insert(this);
+	}
+	~EditorView() override {
+		allViews().erase(this);
+	}
+
 	bool open = false;
 	app::ModuleWidget* owner = nullptr;
+	EditorProvider* ownerProvider = nullptr;
 	widget::Widget* content = nullptr;
 
 	void dropContent() {
@@ -54,6 +69,7 @@ struct EditorView : widget::OpaqueWidget {
 			content = nullptr;
 		}
 		owner = nullptr;
+		ownerProvider = nullptr;
 	}
 
 	void step() override {
@@ -68,7 +84,8 @@ struct EditorView : widget::OpaqueWidget {
 		if (editor != owner) {
 			dropContent();
 			owner = editor;
-			content = dynamic_cast<EditorProvider*>(editor)->createEditorView();
+			ownerProvider = dynamic_cast<EditorProvider*>(editor);
+			content = ownerProvider->createEditorView();
 			addChild(content);
 		}
 		content->box = box.zeroPos();
@@ -103,6 +120,13 @@ static EditorView* currentView() {
 		if (EditorView* const v = dynamic_cast<EditorView*>(w))
 			return v;
 	return nullptr;
+}
+
+void editorProviderGone(EditorProvider* provider) {
+	// Every view alive in the process (one per plugin instance); not through the scene, which may be mid-teardown
+	for (EditorView* const v : allViews())
+		if (provider && v->ownerProvider == provider)
+			v->dropContent();
 }
 
 void showEditor(bool show) {

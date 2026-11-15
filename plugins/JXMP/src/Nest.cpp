@@ -33,6 +33,7 @@
 #include <atomic>
 #include <cstdlib>
 #include <fstream>
+#include <sstream>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -85,7 +86,16 @@ std::string envOr(const char* name) {
 
 std::vector<std::string> readLines(const std::string& path) {
 	std::vector<std::string> out;
-	std::ifstream f(path);
+	// Through Rack's file functions: the paths are UTF-8, which a narrow ifstream cannot open on Windows
+	std::string text;
+	try {
+		const std::vector<uint8_t> data = system::readFile(path);
+		text.assign(data.begin(), data.end());
+	}
+	catch (...) {
+		return out;
+	}
+	std::istringstream f(text);
 	std::string line;
 	while (std::getline(f, line)) {
 		while (!line.empty() && (line.back() == '\r' || line.back() == '\n'))
@@ -97,9 +107,14 @@ std::vector<std::string> readLines(const std::string& path) {
 }
 
 void writeLines(const std::string& path, const std::vector<std::string>& lines) {
-	std::ofstream f(path, std::ios::trunc);
+	std::string text;
 	for (const std::string& l : lines)
-		f << l << "\n";
+		text += l + "\n";
+	try {
+		system::writeFile(path, std::vector<uint8_t>(text.begin(), text.end()));
+	}
+	catch (...) {
+	}
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -349,6 +364,8 @@ struct Nest : engine::Module {
 	nest::IOTable io;
 	nest::CvSlot slots[nest::kSlots];
 	std::vector<ParamInfo> params_;
+	/** Counts every change of the plugin's parameter list or ports, so the display leaves screens built from them. */
+	uint32_t pluginGen = 0;
 	int midiChannel = 0;
 	int learnSlot = -1;
 	nest::Menu menu, slotMenu{nest::Menu::SLOT};
@@ -705,6 +722,7 @@ struct Nest : engine::Module {
 			removeAllPumped();
 		ports = nest::PortInfo();
 		params_.clear();
+		++pluginGen;
 		learnSlot = -1;
 	}
 
@@ -756,6 +774,7 @@ struct Nest : engine::Module {
 
 	void readParams() {
 		params_.clear();
+		++pluginGen;
 		const uint32_t n = carla_get_parameter_count(host, 0);
 		for (uint32_t k = 0; k < n; ++k) {
 			ParamInfo p;
@@ -929,7 +948,10 @@ struct Nest : engine::Module {
 		for (int j = 0; j < nest::kJacks; ++j) {
 			float plug = 0.f;
 			if (rt.outAudio[j] >= 0 && mix < 1.f) {
-				const float s = outBuf[rt.outAudio[j]][fill];
+				float s = outBuf[rt.outAudio[j]][fill];
+				// A broken plugin may put out NaN / Inf, which would stick in the console or effects after it
+				if (!std::isfinite(s))
+					s = 0.f;
 				peakOut = std::max(peakOut, std::fabs(s));
 				plug = s * kFullScale;
 			}
@@ -1043,7 +1065,14 @@ struct Nest : engine::Module {
 		}
 		notes.clear();
 		// Events must be in time order
-		std::stable_sort(midiOut, midiOut + n, [](const NativeMidiEvent& a, const NativeMidiEvent& b) { return a.time < b.time; });
+		// Insertion sort by time (stable, no allocation on the audio thread; the events are almost in order already)
+		for (uint32_t i = 1; i < (uint32_t) n; ++i) {
+			const NativeMidiEvent ev = midiOut[i];
+			uint32_t k = i;
+			for (; k > 0 && midiOut[k - 1].time > ev.time; --k)
+				midiOut[k] = midiOut[k - 1];
+			midiOut[k] = ev;
+		}
 
 		pluginPlayed = plays;
 		if (pluginPlayed) {
@@ -1346,6 +1375,7 @@ struct NestDisplay : widget::OpaqueWidget {
 	// parameter list
 	std::vector<int> paramIdx;
 	int parSel = 0, parTop = 0;
+	uint32_t seenGen = 0;
 	// RANGE
 	bool rangeMax = false;
 	float rangeValue = 0.f;
@@ -1458,7 +1488,7 @@ struct NestDisplay : widget::OpaqueWidget {
 					parSel = (parSel + (int) paramIdx.size() - 1) % (int) paramIdx.size();
 				else if (!paramIdx.empty() && which == Nest::DOWN_PARAM)
 					parSel = (parSel + 1) % (int) paramIdx.size();
-				else if (which == Nest::OK_PARAM && parSel < (int) paramIdx.size()) {
+				else if (which == Nest::OK_PARAM && parSel < (int) paramIdx.size() && paramIdx[parSel] < (int) module->params_.size()) {
 					const int p = paramIdx[parSel];
 					withUndo(module, "JX-NEST slot parameter", [&]() {
 						nest::CvSlot& s = module->slots[slotSel];
@@ -1989,7 +2019,7 @@ struct NestDisplay : widget::OpaqueWidget {
 			rowText(vg, left() + mm2px(2.f), rowY(0), "THIS PLUGIN HAS NO PARAMETERS FOR CV", 8.f, false);
 		for (int r = 0; r < kRows; ++r) {
 			const int i = parTop + r;
-			if (i >= (int) paramIdx.size())
+			if (i >= (int) paramIdx.size() || paramIdx[i] >= (int) module->params_.size())
 				break;
 			const float y = rowY(r);
 			const bool on = i == parSel;
@@ -2176,6 +2206,14 @@ struct NestWidget : JXMPModuleWidget {
 		Nest* const m = dynamic_cast<Nest*>(module);
 		if (!m)
 			return;
+		// The plugin changed under a screen built from its parameters or ports (undo, a new plugin): back to MAIN
+		if (display && display->seenGen != m->pluginGen) {
+			display->seenGen = m->pluginGen;
+			if (display->screen == NestDisplay::PARAMS || display->screen == NestDisplay::RANGE || display->screen == NestDisplay::ROLES)
+				display->screen = NestDisplay::MAIN;
+			display->paramIdx.clear();
+			display->roleChoices.clear();
+		}
 		Library& lib = Library::get();
 		lib.idle();
 		m->uiIdle();

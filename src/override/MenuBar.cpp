@@ -348,7 +348,7 @@ struct FileButton : MenuButton {
 			menu->addChild(new ui::MenuSeparator);
 
 			menu->addChild(createMenuItem("Quit", RACK_MOD_CTRL_NAME "+Q", []() {
-				APP->window->close();
+				patchUtils::quitDialog();
 			}));
 		}
 #endif
@@ -852,7 +852,7 @@ struct ShortcutsButton : MenuButton {
 			{"Select all / copy / paste", "Ctrl+A / C / V"},
 			{"Delete the selected notes", "Delete"},
 			{"Quantize", "Q"},
-			{"Undo", "Ctrl+Z"},
+			{"Undo / redo", "Ctrl+Z / Ctrl+Shift+Z"},
 			{"Choose a track", "Click it (list / overview)"},
 			{"Previous / next track", "PgUp / PgDn"},
 			{"Scroll the track column (a low window)", "Wheel over it"},
@@ -878,7 +878,7 @@ struct ShortcutsButton : MenuButton {
 			{"Reset / randomize", "Ctrl+I / Ctrl+R"},
 			{"Unplug all cables", "Ctrl+U"},
 			{"Delete modules", "Delete"},
-			{"Manual of the selected module", "F1"},
+			{"Manual of a module", "Right-click it > Info > User manual"},
 			{"Undo / redo", "Ctrl+Z / Ctrl+Shift+Z"},
 			{"Zoom", "Ctrl+wheel, Ctrl+- / Ctrl+="},
 			{"Move around", "Arrows"},

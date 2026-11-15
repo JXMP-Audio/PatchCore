@@ -256,6 +256,17 @@ struct QuickSearch : widget::OpaqueWidget {
 		APP->event->setSelectedWidget(field);
 	}
 
+	// However it closes (Esc, a click or right-click outside, adding a module), the hidden search field must not keep
+	// the keyboard: it would swallow Tab and the other rack keys until the next left click
+	void onHide(const HideEvent& e) override {
+		for (widget::Widget* w = APP->event->getSelectedWidget(); w != nullptr; w = w->parent)
+			if (w == this) {
+				APP->event->setSelectedWidget(nullptr);
+				break;
+			}
+		OpaqueWidget::onHide(e);
+	}
+
 	void step() override {
 		if (parent)
 			box.size = parent->box.size;

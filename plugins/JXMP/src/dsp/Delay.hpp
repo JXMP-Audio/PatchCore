@@ -61,6 +61,19 @@ struct DelayCore {
 
 	/** `tone` −1 (dark, lowpass) .. 0 (neutral) .. +1 (thin, highpass). `mix` 0 = dry, 1 = wet. */
 	float process(float in, float delaySamples, float feedback, float tone, float mix, float dt) {
+		// A NaN / Inf at an input (or a TIME CV) would stay in the smoothed time and the tone filters for good
+		if (!std::isfinite(in))
+			in = 0.f;
+		if (!std::isfinite(delaySamples))
+			delaySamples = std::isfinite(smoothed) && smoothed >= 0.f ? smoothed : 1.f;
+		if (!std::isfinite(feedback))
+			feedback = 0.f;
+		if (!std::isfinite(tone))
+			tone = 0.f;
+		if (!std::isfinite(mix))
+			mix = 1.f;
+		if (!std::isfinite(smoothed) || !std::isfinite(lowState) || !std::isfinite(bassState) || !std::isfinite(dcOut) || !std::isfinite(dcIn))
+			smoothed = -1.f, lowState = bassState = dcOut = dcIn = 0.f;
 		if (smoothed < 0.f)
 			smoothed = delaySamples;
 		else

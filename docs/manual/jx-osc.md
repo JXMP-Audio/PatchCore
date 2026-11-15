@@ -48,7 +48,7 @@ flowchart LR
 | FREQ | C4 ±54 semitones (≈ 12 Hz – 5.9 kHz) | Base pitch; the centre is C4 (262 Hz). |
 | OCTAVE | −2 … +2 | Shifts the pitch in whole octaves. |
 | FM | −100 … +100 % | How much the FM socket moves the pitch; negative inverts it. |
-| FM MODE (LIN / EXP) | EXP default | EXP: octaves per volt (vibrato, sweeps). LIN: linear through-zero FM, stays in tune for bell and metal tones. |
+| FM MODE (LIN / EXP) | EXP default | EXP: octaves per volt (vibrato, sweeps). LIN: linear FM (in Hz), stays in tune for bell and metal tones. Not through-zero: the frequency stops at 0 Hz. |
 | SYNC (HARD / SOFT) | HARD default | HARD restarts the cycle on each rising edge at SYNC; SOFT reverses it (gentler). |
 | PW | 1 … 99 % | Pulse width of the square; 50 % is a true square, narrow is nasal. |
 | PWM | −100 … +100 % | How much the PWM socket moves PW. |
@@ -80,7 +80,7 @@ flowchart LR
 
 - Four shapes at once, plus a morphing shape: use several outputs for layered sounds.
 - Unison up to 7 voices per note, also in polyphony (up to 16 notes, each with its own unison).
-- Exponential or linear (through-zero) FM; hard or soft sync.
+- Exponential or linear FM; hard or soft sync.
 - Pulse width and its modulation for the classic PWM string sound.
 - A sub oscillator one or two octaves down, mixed in or on its own output.
 - Safe: if a channel ever produces an invalid value it restarts silently instead of locking up; outputs are limited

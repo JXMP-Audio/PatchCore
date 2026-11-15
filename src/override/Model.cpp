@@ -39,6 +39,7 @@
 #include <helpers.hpp>
 
 #include "../CardinalCommon.hpp"
+#include "../patchcore/PatchCore.hpp"
 
 
 namespace rack {
@@ -162,7 +163,7 @@ void Model::appendContextMenu(ui::Menu* menu, bool inBrowser) {
 	// manual
 	std::string manualUrl = getManualUrl();
 	if (manualUrl != "") {
-		menu->addChild(createMenuItem("User manual", RACK_MOD_CTRL_NAME "+F1", [=]() {
+		menu->addChild(createMenuItem("User manual", patchcore::enabled() ? "" : RACK_MOD_CTRL_NAME "+F1", [=]() {
 			patchUtils::openBrowser(manualUrl);
 		}));
 	}

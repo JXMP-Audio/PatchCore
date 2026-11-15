@@ -8,6 +8,7 @@
  * (double-click the module, or Mixer in the top bar).
  */
 
+#include "ProjectOwner.hpp"
 #include "JXMPWidget.hpp"
 #include "dsp/Console.hpp"
 #include <patchcore/Mixer.hpp>
@@ -61,10 +62,10 @@ struct Console : engine::Module {
 	cs::Biquad eq[kMaxChannels][3];
 	dsp::ClockDivider eqDivider;
 
-	/** The project's console: the first one to run. Others stay silent. */
-	static std::atomic<Console*>& owner() {
-		static std::atomic<Console*> o(nullptr);
-		return o;
+	/** The project's console: the first one to run. Others stay silent. One per Rack context (plugin instance). */
+	std::atomic<Console*>* const ownerSlot = jxmp::projectOwnerSlot<Console>();
+	std::atomic<Console*>& owner() const {
+		return *ownerSlot;
 	}
 
 	int ch(int channel, int p) const { return channel * CH_PARAMS + p; }
@@ -113,6 +114,9 @@ struct Console : engine::Module {
 		configOutput(OUT_SEND_A, "Send A")->description = "Mono effect send A: the channels × their SEND A (pre- or post-fader).";
 		configOutput(OUT_SEND_B, "Send B")->description = "Mono effect send B: the channels × their SEND B (pre- or post-fader).";
 		eqDivider.setDivision(32);
+		// Randomize would throw the whole mix around (master to +6 dB, mutes, solos): the console keeps its settings
+		for (engine::ParamQuantity* const q : paramQuantities)
+			q->randomizeEnabled = false;
 
 		Console* expected = nullptr;
 		owner().compare_exchange_strong(expected, this);
@@ -201,8 +205,12 @@ struct Console : engine::Module {
 		}
 
 		for (int r = 0; r < 2; ++r) {
-			const float l = inputs[returnInput(r, 0)].getVoltageSum();
-			const float rr = inputs[returnInput(r, 1)].isConnected() ? inputs[returnInput(r, 1)].getVoltageSum() : l;
+			float l = inputs[returnInput(r, 0)].getVoltageSum();
+			float rr = inputs[returnInput(r, 1)].isConnected() ? inputs[returnInput(r, 1)].getVoltageSum() : l;
+			if (!std::isfinite(l))
+				l = 0.f;
+			if (!std::isfinite(rr))
+				rr = 0.f;
 			const float g = param(global(r == 0 ? G_RETURN_A : G_RETURN_B));
 			left += l * g;
 			right += rr * g;
@@ -806,7 +814,7 @@ struct ConsoleView : widget::Widget {
 struct InactiveNotice : widget::TransparentWidget {
 	Console* module = nullptr;
 	void draw(const DrawArgs& args) override {
-		if (!module || Console::owner().load() == module || Console::owner().load() == nullptr)
+		if (!module || module->owner().load() == module || module->owner().load() == nullptr)
 			return;
 		NVGcontext* const vg = args.vg;
 		nvgBeginPath(vg);
@@ -877,7 +885,7 @@ struct ConsoleWidget : JXMPModuleWidget, patchcore::MixerProvider {
 	bool mixerActive() override {
 		if (!console)
 			return false;
-		Console* const o = Console::owner().load();
+		Console* const o = console->owner().load();
 		return o == console || o == nullptr;
 	}
 

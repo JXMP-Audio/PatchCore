@@ -5,6 +5,7 @@
  * Mixer view: covers the rack area and shows the content built by the project's console module.
  */
 
+#include <set>
 #include "PatchCore.hpp"
 #include <patchcore/Mixer.hpp>
 #include <patchcore/Editor.hpp>
@@ -66,9 +67,23 @@ bool mixerAvailable() {
 }
 
 
+struct MixerView;
+static std::set<MixerView*>& allViews() {
+	static std::set<MixerView*> views;
+	return views;
+}
+
 struct MixerView : widget::OpaqueWidget {
+	MixerView() {
+		allViews().insert(this);
+	}
+	~MixerView() override {
+		allViews().erase(this);
+	}
+
 	bool open = false;
 	app::ModuleWidget* owner = nullptr;
+	MixerProvider* ownerProvider = nullptr;
 	widget::Widget* content = nullptr;
 
 	void dropContent() {
@@ -79,6 +94,7 @@ struct MixerView : widget::OpaqueWidget {
 			content = nullptr;
 		}
 		owner = nullptr;
+		ownerProvider = nullptr;
 	}
 
 	void step() override {
@@ -93,7 +109,8 @@ struct MixerView : widget::OpaqueWidget {
 		if (console != owner) {
 			dropContent();
 			owner = console;
-			content = dynamic_cast<MixerProvider*>(console)->createMixerView();
+			ownerProvider = dynamic_cast<MixerProvider*>(console);
+			content = ownerProvider->createMixerView();
 			addChild(content);
 		}
 		content->box = box.zeroPos();
@@ -128,6 +145,13 @@ static MixerView* currentView() {
 		if (MixerView* const v = dynamic_cast<MixerView*>(w))
 			return v;
 	return nullptr;
+}
+
+void mixerProviderGone(MixerProvider* provider) {
+	// Every view alive in the process (one per plugin instance); not through the scene, which may be mid-teardown
+	for (MixerView* const v : allViews())
+		if (provider && v->ownerProvider == provider)
+			v->dropContent();
 }
 
 void showMixer(bool show) {

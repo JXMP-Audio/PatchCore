@@ -22,8 +22,15 @@ namespace patchcore {
 
 /** Implemented by the widget of a console module, next to app::ModuleWidget. The first active one in the
 rack is shown by the Mixer view; double-clicking such a module opens the view. */
+struct MixerProvider;
+/** Called by a provider while it is destroyed (its module is still alive then): the view drops the content it built
+at once, before the module goes. Defined with the view. */
+void mixerProviderGone(MixerProvider* provider);
+
 struct MixerProvider {
-	virtual ~MixerProvider() {}
+	virtual ~MixerProvider() {
+		mixerProviderGone(this);
+	}
 	/** Builds the content of the Mixer view. The core owns it, sets its box every frame and deletes it
 	when the view closes or the module goes away. */
 	virtual widget::Widget* createMixerView() = 0;

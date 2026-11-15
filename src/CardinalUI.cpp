@@ -49,6 +49,8 @@
 #include "Application.hpp"
 #include "AsyncDialog.hpp"
 #include "CardinalCommon.hpp"
+#include <history.hpp>
+#include <app/RackWidget.hpp>
 #include "CardinalPluginContext.hpp"
 #include "WindowParameters.hpp"
 #include "extra/Base64.hpp"
@@ -533,6 +535,17 @@ public:
     {
         const ScopedContext sc(this);
         context->window->step();
+    }
+
+    // PatchCore: the window's close button asks about unsaved work, like Ctrl+Q and File > Quit
+    bool uiCloseRequest() override
+    {
+        const ScopedContext sc(this);
+        if (context->scene == nullptr || context->history == nullptr || context->history->isSaved()
+            || context->scene->rack->hasModules())  // (hasModules() is true for an empty rack)
+            return true;
+        patchUtils::quitDialog();
+        return false;
     }
 
     void uiIdle() override

@@ -16,8 +16,15 @@ struct Widget;
 namespace patchcore {
 
 /** Implemented by the widget of an editor module, next to app::ModuleWidget. */
+struct EditorProvider;
+/** Called by a provider while it is destroyed (its module is still alive then): the view drops the content it built
+at once, before the module goes. Defined with the view. */
+void editorProviderGone(EditorProvider* provider);
+
 struct EditorProvider {
-	virtual ~EditorProvider() {}
+	virtual ~EditorProvider() {
+		editorProviderGone(this);
+	}
 	/** Builds the content of the Editor view. The core owns it, sets its box every frame and deletes it when the view
 	closes or the module goes away. */
 	virtual widget::Widget* createEditorView() = 0;

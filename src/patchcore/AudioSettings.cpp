@@ -77,8 +77,8 @@ void restartApp() {
 		return;
 	}
 #ifdef ARCH_WIN
-	SetEnvironmentVariableA("PATCHCORE_DEV_PATCH", tmp.c_str());
-	SetEnvironmentVariableA("PATCHCORE_RESTORE_PATH", original.c_str());
+	SetEnvironmentVariableA("PATCHCORE_DEV_PATCH", envEncode(tmp).c_str());
+	SetEnvironmentVariableA("PATCHCORE_RESTORE_PATH", envEncode(original).c_str());
 	SetEnvironmentVariableA("PATCHCORE_RESTORE_MODIFIED", modified ? "1" : "0");
 	// The new instance waits for this one to exit (and free the audio device) before it opens audio
 	SetEnvironmentVariableA("PATCHCORE_RESTART_WAIT_PID", std::to_string(GetCurrentProcessId()).c_str());
@@ -105,8 +105,8 @@ void restartApp() {
 		WARN("PatchCore: could not save the settings before the restart: %s", e.what());
 	}
 	saveSettings();
-	setenv("PATCHCORE_DEV_PATCH", tmp.c_str(), 1);
-	setenv("PATCHCORE_RESTORE_PATH", original.c_str(), 1);
+	setenv("PATCHCORE_DEV_PATCH", envEncode(tmp).c_str(), 1);
+	setenv("PATCHCORE_RESTORE_PATH", envEncode(original).c_str(), 1);
 	setenv("PATCHCORE_RESTORE_MODIFIED", modified ? "1" : "0", 1);
 	char exe[4096];
 	const ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);

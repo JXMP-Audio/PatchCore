@@ -248,8 +248,8 @@ void Scene::step() {
 	}
 
 	if (internal->navigator != nullptr) {
-		// Not with the Editor: it shows the rack, which the Editor covers
-		const bool visible = patchcoreChrome && patchcore::settings.navigatorVisible && !patchcore::editorShown();
+		// Not with the Editor or the Mixer: it shows the rack, which they cover
+		const bool visible = patchcoreChrome && patchcore::settings.navigatorVisible && !patchcore::editorShown() && !patchcore::mixerShown();
 		internal->navigator->setVisible(visible);
 		if (visible) {
 			const float w = 132.f;
@@ -273,7 +273,7 @@ void Scene::step() {
 	if (internal->mixerView != nullptr) {
 		if (patchcore::mixerShown())
 			internal->mixerView->show();
-		internal->mixerView->box = rackRect;  // already without the navigator
+		internal->mixerView->box = rackRect;
 	}
 	if (internal->editorView != nullptr) {
 		if (patchcore::editorShown())
@@ -281,8 +281,9 @@ void Scene::step() {
 		internal->editorView->box = rackRect;
 	}
 
-	// Scroll RackScrollWidget with arrow keys (not while the Editor covers the rack)
-	if (patchcore::editorShown())
+	// Scroll RackScrollWidget with arrow keys (not while the Editor or the Mixer covers the rack: a key released
+	// there never reaches the rack, so a held arrow would stay held)
+	if (patchcore::editorShown() || patchcore::mixerShown())
 		for (bool& held : internal->heldArrowKeys)
 			held = false;
 	math::Vec arrowDelta;
@@ -466,7 +467,7 @@ void Scene::onHoverKey(const HoverKeyEvent& e) {
 			e.consume(this);
 		}
 		if (e.keyName == "q" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
-			APP->window->close();
+			patchUtils::quitDialog();
 			e.consume(this);
 		}
 		if (e.keyName == "o" && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL) {
@@ -658,6 +659,12 @@ void Scene::onHoverKey(const HoverKeyEvent& e) {
 
 		// PatchCore shortcuts
 		if (patchcore::enabled() && (e.mods & RACK_MOD_MASK) == 0) {
+			// Tab, F1, F3 and F4 toggle or open something: only a fresh press counts, a held key's repeat does not
+			const bool fresh = e.action == GLFW_PRESS;
+			if (!fresh && (e.key == GLFW_KEY_TAB || e.key == GLFW_KEY_F1 || e.key == GLFW_KEY_F3 || e.key == GLFW_KEY_F4)) {
+				e.consume(this);
+				return;
+			}
 			if (e.key == GLFW_KEY_TAB && (patchcore::mixerShown() || patchcore::editorShown())) {
 				patchcore::showMixer(false);
 				patchcore::showEditor(false);
@@ -680,19 +687,11 @@ void Scene::onHoverKey(const HoverKeyEvent& e) {
 				}
 				e.consume(this);
 			}
-			// F1 Rack, F2 Back, F3 Mixer, F4 Editor. F1 opens a module's manual only while that module is selected
-			// on the rack (shown, not under the Mixer or Editor); never a general page.
+			// F1 Rack, F2 Back, F3 Mixer, F4 Editor. A module's manual is in its right-click menu (Info > User manual).
 			if (e.key == GLFW_KEY_F1) {
-				const std::set<app::ModuleWidget*>& selected = rack->getSelected();
-				const bool onRack = !patchcore::mixerShown() && !patchcore::editorShown();
-				const std::string url = selected.size() == 1 && onRack ? (*selected.begin())->model->getManualUrl() : "";
-				if (!url.empty())
-					patchUtils::openBrowser(url);
-				else {
-					patchcore::showMixer(false);
-					patchcore::showEditor(false);
-					patchcore::setViewSide(patchcore::VIEW_FRONT);
-				}
+				patchcore::showMixer(false);
+				patchcore::showEditor(false);
+				patchcore::setViewSide(patchcore::VIEW_FRONT);
 				e.consume(this);
 			}
 			if (e.key == GLFW_KEY_F2) {

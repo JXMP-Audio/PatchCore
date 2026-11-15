@@ -223,6 +223,14 @@ struct Knob : app::Knob {
 		maxAngle = 0.83f * M_PI;
 	}
 
+	/** A stepped knob (OCTAVE, TYPE, VOICES …) moves one step per about 40 px of drag; Rack's default spreads the
+	whole range over 1000 px, which is 170–330 px per step for a knob with a few positions */
+	void onDragStart(const DragStartEvent& e) override {
+		engine::ParamQuantity* const pq = getParamQuantity();
+		speed = pq && pq->snapEnabled && pq->isBounded() && pq->getRange() > 0.f ? std::max(1.f, 25.f / pq->getRange()) : 1.f;
+		app::Knob::onDragStart(e);
+	}
+
 	void setDiameter(float mm) {
 		diameterMm = mm;
 		box.size = mm2px(math::Vec(mm, mm));

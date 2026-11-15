@@ -44,7 +44,8 @@ struct SubDivider {
 	float lastPhase = 0.f;
 	int count = 0;
 	float process(float phase, int octaves) {
-		if (phase < lastPhase)
+		// A wrap is a jump back by most of a cycle; SOFT sync runs the phase backwards in small steps, which are not
+		if (phase < lastPhase - 0.5f)
 			++count;
 		lastPhase = phase;
 		const int div = octaves >= 2 ? 2 : 1;

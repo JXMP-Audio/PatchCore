@@ -867,6 +867,13 @@ struct EditPane : widget::OpaqueWidget {
 		const math::Vec p = mouse();
 		dragNow = p;
 		std::vector<sg::Note>& notes = track().notes;
+		// The note list may have changed under the drag (undo, track switch): end the gesture
+		for (const Orig& o : orig)
+			if (o.index >= notes.size()) {
+				orig.clear();
+				drag = DRAG_NONE;
+				return;
+			}
 		CardinalPluginContext* const c = m->context();
 		switch (drag) {
 			case DRAG_LOOP_START:
@@ -1009,6 +1016,11 @@ struct EditPane : widget::OpaqueWidget {
 		}
 		if (e.action != GLFW_PRESS && e.action != GLFW_REPEAT)
 			return;
+		// No edits, undo or track changes while the mouse is dragging (the drag holds note indices)
+		if (drag != DRAG_NONE) {
+			e.consume(this);
+			return;
+		}
 		const int mods = e.mods & RACK_MOD_MASK;
 		if (mods == RACK_MOD_CTRL && e.keyName == "c")
 			copy();
@@ -1016,6 +1028,11 @@ struct EditPane : widget::OpaqueWidget {
 			paste();
 		else if (mods == RACK_MOD_CTRL && e.keyName == "z") {
 			m->undoStep();
+			selTrack = -1;
+			syncSel();
+		}
+		else if ((mods == (RACK_MOD_CTRL | GLFW_MOD_SHIFT) && e.keyName == "z") || (mods == RACK_MOD_CTRL && e.keyName == "y")) {
+			m->redoStep();
 			selTrack = -1;
 			syncSel();
 		}

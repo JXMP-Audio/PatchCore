@@ -59,6 +59,8 @@ void switchDarkMode(bool darkMode);
 namespace patchUtils {
 
 void loadDialog();
+/** Standalone Quit (Ctrl+Q, File > Quit): asks first when the patch is unsaved. */
+void quitDialog();
 void loadPathDialog(const std::string& path, bool asTemplate = false, std::function<void()> afterLoad = nullptr);
 void loadSelectionDialog();
 void loadTemplate(bool factory);

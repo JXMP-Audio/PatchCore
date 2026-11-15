@@ -72,6 +72,40 @@ const NVGcolor kColour = nvgRGB(0xff, 0x5c, 0x8a);
 /** Root note shown as FastTracker 2 writes it ("C-4") */
 struct NoteQuantity : engine::ParamQuantity {
 	std::string getDisplayValueString() override { return sm::noteName((int) std::round(getValue())); }
+	/** Takes what it shows ("C-4", "C#4", "C4", "Db3"), and still a plain MIDI number */
+	void setDisplayValueString(std::string text) override {
+		std::string t;
+		for (const char ch : text)
+			if (ch != ' ')
+				t += ch;
+		if (!t.empty()) {
+			static const int semis[7] = {9, 11, 0, 2, 4, 5, 7};  // A B C D E F G
+			const char letter = (char) std::toupper((unsigned char) t[0]);
+			if (letter >= 'A' && letter <= 'G') {
+				int semi = semis[letter - 'A'];
+				size_t k = 1;
+				if (k < t.size() && t[k] == '#') {
+					++semi;
+					++k;
+				}
+				else if (k < t.size() && (t[k] == 'b' || t[k] == 'B') && k + 1 < t.size()) {
+					--semi;
+					++k;
+				}
+				else if (k < t.size() && t[k] == '-' && k + 1 < t.size() && std::isdigit((unsigned char) t[k + 1]))
+					++k;
+				if (k < t.size()) {
+					char* end = nullptr;
+					const long oct = std::strtol(t.c_str() + k, &end, 10);
+					if (end && *end == '\0') {
+						setValue(math::clamp((float) ((oct + 1) * 12 + semi), getMinValue(), getMaxValue()));
+						return;
+					}
+				}
+			}
+		}
+		engine::ParamQuantity::setDisplayValueString(text);
+	}
 };
 
 struct Smpl : engine::Module {
@@ -176,7 +210,9 @@ struct Smpl : engine::Module {
 	Smpl() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(CH_PARAM, 0.f, kSlots - 1, 0.f, "Slot", "", 0.f, 1.f, 1.f)->snapEnabled = true;
-		configButton(LOAD_PARAM, "Load a sound (WAV, FLAC, MP3, OGG) into the selected slot");
+		// No longer on the panel (Menu > SAMPLE > LOAD SAMPLE): kept so the params of saved patches keep their order
+		configButton(LOAD_PARAM, "Load a sound (WAV, FLAC, MP3, OGG) into the selected slot")->description =
+		    "Kept for old patches: load from Menu > SAMPLE > LOAD SAMPLE.";
 		configButton(MENU_PARAM, "Menu (open, back, close)");
 		configButton(UP_PARAM, "Menu up");
 		configButton(DOWN_PARAM, "Menu down");
@@ -1991,7 +2027,11 @@ struct SmplDisplay : widget::OpaqueWidget {
 				h->paramId = Smpl::CH_PARAM;
 				h->oldValue = old;
 				h->newValue = (float) i;
-				APP->history->push(h);
+				// A click on the slot already selected changes nothing: no undo step
+				if (old != (float) i)
+					APP->history->push(h);
+				else
+					delete h;
 				e.consume(this);
 				return;
 			}
@@ -2070,7 +2110,10 @@ struct SmplDisplay : widget::OpaqueWidget {
 			h->paramId = paramOf(dragging);
 			h->oldValue = oldValue;
 			h->newValue = module->params[paramOf(dragging)].getValue();
-			APP->history->push(h);
+			if (h->oldValue != h->newValue)
+				APP->history->push(h);
+			else
+				delete h;
 		}
 		dragging = H_NONE;
 	}

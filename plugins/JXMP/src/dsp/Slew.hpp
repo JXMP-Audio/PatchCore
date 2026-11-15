@@ -16,6 +16,11 @@ struct Slew {
 	float value = 0.f;
 
 	float process(float target, float rise, float fall, bool exponential, float dt) {
+		// A NaN / Inf input or state would stay for good
+		if (!std::isfinite(target))
+			target = 0.f;
+		if (!std::isfinite(value))
+			value = target;
 		const float time = target > value ? rise : fall;
 		if (time <= 0.f) {
 			value = target;

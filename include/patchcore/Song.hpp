@@ -199,8 +199,12 @@ struct SongPlayer {
 			for (; it != notes.end() && (double) it->start < t1; ++it) {
 				const uint8_t pitch = (uint8_t) std::max(0, std::min(127, it->pitch));
 				const uint32_t on = std::max(frameOf((double) it->start), firstOn);
-				push(on, (uint8_t)(0x90 | ch), pitch, (uint8_t) std::max(1, std::min(127, it->vel)));
 				const double end = offTick(*it);
+				// A note is only started when its end is sure: room for both events in this block, and for the
+				// note in the held list when it ends in a later block (otherwise it would never get its note-off)
+				if (count + 2 > kMaxEvents || (end >= t1 && heldCount >= kMaxHeld))
+					continue;
+				push(on, (uint8_t)(0x90 | ch), pitch, (uint8_t) std::max(1, std::min(127, it->vel)));
 				// The end after its own start (never before it on the same frame)
 				if (end < t1 && frameOf(end) > on)
 					push(frameOf(end), (uint8_t)(0x80 | ch), pitch, 0);
@@ -344,6 +348,24 @@ struct SongStore {
 		return live.load(std::memory_order_acquire);
 	}
 
+	/** The snapshot the audio thread is reading now (a hazard pointer): never freed while it is set */
+	std::atomic<const Song*> reading{nullptr};
+
+	/** Audio thread: holds the played snapshot for one block */
+	struct Reader {
+		SongStore& store;
+		const Song* song;
+		explicit Reader(SongStore& s) : store(s) {
+			do {
+				song = store.live.load();
+				store.reading.store(song);
+			} while (song != store.live.load());
+		}
+		~Reader() {
+			store.reading.store(nullptr);
+		}
+	};
+
 	/** UI thread: `song` (new, owned from now on, or nullptr) becomes the played one; `now` in seconds */
 	void publish(const Song* const song, const double now) {
 		const Song* const old = live.exchange(song, std::memory_order_acq_rel);
@@ -355,7 +377,7 @@ struct SongStore {
 	/** UI thread: frees snapshots replaced more than a second ago */
 	void collect(const double now) {
 		for (size_t k = 0; k < retired.size();) {
-			if (now - retired[k].since > 1.0) {
+			if (now - retired[k].since > 1.0 && retired[k].song != reading.load()) {
 				delete retired[k].song;
 				retired[k] = retired.back();
 				retired.pop_back();

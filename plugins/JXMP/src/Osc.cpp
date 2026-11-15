@@ -45,7 +45,7 @@ struct Osc : engine::Module {
 		configParam(VOICES_PARAM, 1.f, 7.f, 1.f, "Unison voices")->snapEnabled = true;
 		configParam(DETUNE_PARAM, 0.f, 50.f, 15.f, "Unison detune", " cents");
 		configInput(PITCH_INPUT, "V/Oct")->description = "Pitch, 1 V per octave (0 V = C4). Polyphonic: one oscillator per channel.";
-		configInput(FM_INPUT, "FM")->description = "Frequency modulation, amount set by the FM knob. EXP: in octaves per volt, LIN: linear through zero.";
+		configInput(FM_INPUT, "FM")->description = "Frequency modulation, amount set by the FM knob. EXP: in octaves per volt, LIN: linear (in Hz), stays in tune for bell and metal tones.";
 		configInput(SYNC_INPUT, "Sync")->description = "Sync: a rising signal restarts the cycle (HARD) or reverses it (SOFT).";
 		configInput(PW_INPUT, "PWM")->description = "Pulse width CV for the square, amount set by the PWM knob.";
 		configInput(MORPH_INPUT, "Morph")->description = "Morph CV: moves the MIX output through sine, triangle, saw and square, amount set by MORPH CV.";
@@ -113,7 +113,12 @@ struct Osc : engine::Module {
 				}
 			}
 
-			const float subV = sub[c].process(osc[c][0].phase[0], subOct);
+			// The sub follows the least detuned voice (the middle one for an odd count), so it stays in tune
+			int centre = 0;
+			for (int k = 1; k < voices; ++k)
+				if (std::fabs(offsets[k]) < std::fabs(offsets[centre]))
+					centre = k;
+			const float subV = sub[c].process(osc[c][centre / 4].phase[centre % 4], subOct);
 			const float morph = params[MORPH_PARAM].getValue() + inputs[MORPH_INPUT].getPolyVoltage(c) / 10.f * 3.f * params[MORPH_CV_PARAM].getValue();
 			float out[6];
 			for (int i = 0; i < 4; ++i)

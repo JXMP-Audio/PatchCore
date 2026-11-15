@@ -81,7 +81,9 @@ inline bool gate(double beats, double period, float swing, bool swung) {
 	const double local = beats - n * period;
 	const bool odd = ((long long) n & 1) != 0;
 	const double offset = swung && odd ? (std::min(std::max((double) swing, 0.5), 0.75) - 0.5) * 2.0 * period : 0.0;
-	return local >= offset && local < offset + period * 0.5;
+	// A swung gate ends at least a tenth of a period before the next tick, so that tick always gets a rising edge
+	const double width = std::min(period * 0.5, period * 0.9 - offset);
+	return local >= offset && local < offset + width;
 }
 
 /**

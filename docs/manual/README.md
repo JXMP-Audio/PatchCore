@@ -1,12 +1,12 @@
 # JXMP modules — manual
 
-One page per module. In PatchCore, select a module (click it, or Shift+click) and press **F1**: its page opens here.
+One page per module. In PatchCore, right-click a module and choose **Info › User manual**: its page opens here.
 
 Every page has the same parts: *What it does*, *How it works* (with a signal-flow picture), *Quick start*, the
 *Front panel* and *Back panel* tables, *Everything it can do*, *Patch ideas*, *Good to know* and *See also*.
 
 **The rack has two sides.** JXMP modules have their knobs on the front and their sockets on the back: `Tab` turns the
-rack (or `F1` front — when no module is selected — and `F2` back). Basic modules (Host MIDI, Host Audio, other plugins) have their sockets on the front;
+rack (or `F1` front and `F2` back). Basic modules (Host MIDI, Host Audio, other plugins) have their sockets on the front;
 a [patchbay](jx-pb.md) connects the two sides. `F3` opens the Mixer view of [JX-CONSOLE](jx-console.md), `F4` the
 [Editor](jx-edit.md). All keys are in the top bar under **Shortcuts**.
 

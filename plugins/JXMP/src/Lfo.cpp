@@ -64,6 +64,9 @@ struct Lfo : engine::Module {
 			const float pitch = params[FREQ_PARAM].getValue() + inputs[FM_INPUT].getVoltage(c) * params[FM_PARAM].getValue();
 			const float pw = math::clamp(params[PW_PARAM].getValue() + inputs[PW_INPUT].getPolyVoltage(c) / 10.f * params[PWM_PARAM].getValue(), 0.01f, 0.99f);
 			phases[c] = jxmp::lfoAdvance(phases[c], jxmp::lfoFreq(pitch, clockFreq), args.sampleTime);
+			// A NaN / Inf rate, clock or reset input would leave the phase broken for good
+			if (!std::isfinite(phases[c]))
+				phases[c] = 0.f;
 			if (resetTriggers[c].process(inputs[RESET_INPUT].getPolyVoltage(c), 0.1f, 2.f))
 				phases[c] = 0.f;
 

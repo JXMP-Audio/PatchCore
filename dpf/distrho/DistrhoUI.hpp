@@ -273,6 +273,12 @@ protected:
     virtual void uiIdle() {}
 
    /**
+      Standalone only: the user asked to close the window (its close button, the window manager).
+      Return false to keep it open, e.g. to ask about unsaved work first (PatchCore).
+    */
+    virtual bool uiCloseRequest() { return true; }
+
+   /**
       Window scale factor function, called when the scale factor changes.
       This function is for plugin UIs to be able to override Window::onScaleFactorChanged(double).
 

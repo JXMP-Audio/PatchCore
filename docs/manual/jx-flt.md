@@ -88,6 +88,8 @@ flowchart LR
 
 - KEYTRACK needs V/OCT patched; without it the knob does nothing.
 - High resonance with a loud input can clip the next module: lower the level or use DRIVE negative.
+- The cutoff goes up to 0.18 × the sample rate (about 8.6 kHz at 48 kHz, 17 kHz at 96 kHz), so a fully open filter
+  sounds a little brighter at a higher sample rate.
 
 ## See also
 

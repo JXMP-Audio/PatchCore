@@ -33,6 +33,8 @@ struct Edit : engine::Module {
 	sg::Recorder recorder;
 	bool wasRecording = false;
 	std::deque<sg::Song> undo;
+	/** Steps undone, for Ctrl+Shift+Z; a new change empties it */
+	std::deque<sg::Song> redo;
 	/** The view of the Editor, kept with the patch */
 	double zoom = 0.12;  // px per tick
 	double scroll = 0.0;  // ticks at the left edge
@@ -48,7 +50,11 @@ struct Edit : engine::Module {
 	/** How many tracks play on MIDI channel `c` */
 	int tracksOn(int c) const;
 	/** The project's editor: the first one added. Others stay inactive. */
-	static std::atomic<Edit*>& owner();
+	/** One per Rack context (plugin instance); the first editor added, or the next one when it is removed */
+	std::atomic<Edit*>* const ownerSlot;
+	std::atomic<Edit*>& owner() const {
+		return *ownerSlot;
+	}
 	bool active() const;
 	static bool standalone();
 
@@ -63,6 +69,9 @@ struct Edit : engine::Module {
 	void commit(bool settle);
 	bool canUndo() const;
 	bool undoStep();
+	bool redoStep();
+	/** The song changed: the patch counts as unsaved (title *, the question before New / Open / Quit) */
+	void markUnsaved();
 	std::unique_ptr<sg::Song> pending;
 	/** The transport position in ticks */
 	double playTick() const;
@@ -96,6 +105,8 @@ struct Edit : engine::Module {
 
 	void onAdd(const AddEvent& e) override;
 	void onRemove(const RemoveEvent& e) override;
+	/** Initialize (Ctrl+I): an empty song. Channels, polyphony and modes stay, so the Host MIDI modules keep theirs. */
+	void onReset(const ResetEvent& e) override;
 	json_t* dataToJson() override;
 	void dataFromJson(json_t* rootJ) override;
 };

@@ -70,6 +70,29 @@ const Theme& theme() {
 }
 
 
+std::string envEncode(const std::string& value) {
+	static const char digits[] = "0123456789abcdef";
+	std::string out = "hex:";
+	for (const unsigned char c : value) {
+		out += digits[c >> 4];
+		out += digits[c & 15];
+	}
+	return out;
+}
+
+std::string envDecode(const char* value) {
+	if (value == nullptr)
+		return std::string();
+	const std::string v = value;
+	if (v.compare(0, 4, "hex:") != 0)
+		return v;
+	auto nibble = [](char c) { return c >= 'a' ? c - 'a' + 10 : c >= 'A' ? c - 'A' + 10 : c - '0'; };
+	std::string out;
+	for (size_t k = 4; k + 1 < v.size(); k += 2)
+		out += (char) (nibble(v[k]) << 4 | nibble(v[k + 1]));
+	return out;
+}
+
 void forgetTouchedParam(widget::Widget* tree) {
 	if (tree == nullptr || APP == nullptr || APP->scene == nullptr || APP->scene->rack == nullptr)
 		return;
@@ -256,14 +279,15 @@ void devStep() {
 
 	if (frame == 1) {
 		bool loaded = false;
-		if (const char* const path = std::getenv("PATCHCORE_DEV_PATCH")) {
+		if (const char* const pathEnv = std::getenv("PATCHCORE_DEV_PATCH")) {
+			const std::string path = envDecode(pathEnv);
 			try {
 				APP->patch->load(path);
 				APP->patch->path = path;
 				loaded = true;
 			}
 			catch (Exception& e) {
-				WARN("PatchCore: could not load %s: %s", path, e.what());
+				WARN("PatchCore: could not load %s: %s", path.c_str(), e.what());
 				if (std::getenv("PATCHCORE_RESTORE_PATH") != nullptr)
 					showNotice(std::string("The patch could not be reopened after the restart; it is kept in ") + path);
 			}
@@ -273,9 +297,9 @@ void devStep() {
 		const char* const original = std::getenv("PATCHCORE_RESTORE_PATH");
 		if (original != nullptr && loaded) {
 			if (const char* const tmp = std::getenv("PATCHCORE_DEV_PATCH"))
-				system::remove(tmp);
+				system::remove(envDecode(tmp));
 			// "path:" prefix, so an untitled patch (empty path) survives Windows' environment
-			const std::string restored = original;
+			const std::string restored = envDecode(original);
 			APP->patch->path = restored.compare(0, 5, "path:") == 0 ? restored.substr(5) : restored;
 			const char* const modified = std::getenv("PATCHCORE_RESTORE_MODIFIED");
 			if (modified != nullptr && std::string(modified) == "1")

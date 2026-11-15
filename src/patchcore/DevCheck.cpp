@@ -86,7 +86,20 @@ int checkPatches() {
 				files.push_back(system::join(dir, "start.vcv"));
 	for (const std::string& f : files) {
 		json_error_t err;
-		json_t* const root = json_load_file(f.c_str(), 0, &err);
+		json_t* root = json_load_file(f.c_str(), 0, &err);
+		// A patch saved by Rack is an archive (zstd tar) with patch.json inside: unpack it to a temporary folder
+		if (!root) {
+			const std::string tmp = asset::user("devcheck-unpack");
+			try {
+				system::removeRecursively(tmp);
+				system::createDirectories(tmp);
+				system::unarchiveToDirectory(f, tmp);
+				root = json_load_file(system::join(tmp, "patch.json").c_str(), 0, &err);
+			}
+			catch (Exception& e) {
+			}
+			system::removeRecursively(tmp);
+		}
 		if (!root) {
 			WARN("DEV CHECK patch %s: %s", f.c_str(), err.text);
 			++problems;
@@ -121,6 +134,10 @@ int checkPatches() {
 		}
 		INFO("DEV CHECK patch %s: %d module(s), %d cable(s)", system::getFilename(f).c_str(), (int) mods.size(),
 		     (int) json_array_size(cables));
+		// Freed: a one-per-project module (JX-CONSOLE, JX-EDIT) left alive would stay the project's one, and the
+		// module checks below would then test a silent second console
+		for (auto& kv : mods)
+			delete kv.second;
 		json_decref(root);
 	}
 	return problems;
@@ -148,14 +165,23 @@ int fuzz(plugin::Model* model, engine::Module* module) {
 	const int nIn = (int) module->inputs.size(), nOut = (int) module->outputs.size();
 	std::vector<bool> badOut(nOut, false), hugeOut(nOut, false);
 
+	// Every output as if patched (an unpatched one has 0 channels, and its voltages would never be looked at)
+	for (int o = 0; o < nOut; ++o)
+		if (module->outputs[o].channels == 0)
+			module->outputs[o].channels = 1;
 	auto randomize = [&](bool nan) {
 		for (int i = 0; i < nIn; ++i) {
 			const int ch = unit(rng) < 0.3f ? 0 : 1 + (int) (unit(rng) * 15.99f);
-			module->inputs[i].setChannels(ch);
+			// Directly, as a cable would: setChannels() does nothing on an unpatched port (0 channels)
+			module->inputs[i].channels = ch;
+			// The engine leaves 0 V on channels without a cable; a NaN from the burst must not stay there
+			for (int c = 0; c < engine::PORT_MAX_CHANNELS; ++c)
+				module->inputs[i].voltages[c] = 0.f;
 			for (int c = 0; c < ch; ++c)
 				module->inputs[i].setVoltage(nan && unit(rng) < 0.5f ? NAN : volts(rng), c);
 		}
 	};
+	int maxVoices = 1;
 	const auto t0 = std::chrono::steady_clock::now();
 	const int total = (int) fs * 2;
 	for (int n = 0; n < total; ++n) {
@@ -175,12 +201,19 @@ int fuzz(plugin::Model* model, engine::Module* module) {
 					module->inputs[i].setVoltage(volts(rng), c);
 		}
 		module->process(args);
+		// Inputs are up to ±10 V on up to 16 voices: a module that sums a poly cable (an effect's stereo input) may
+		// go as far as the voices add up; a product of two ±10 V inputs reaches 20 V (ring: A × B / 5)
+		int voices = 1;
+		for (int i = 0; i < nIn; ++i)
+			voices = std::max(voices, module->inputs[i].getChannels());
+		maxVoices = std::max(maxVoices, voices);
+		const float limit = 20.5f * voices;
 		for (int o = 0; o < nOut; ++o) {
 			for (int c = 0; c < module->outputs[o].getChannels(); ++c) {
 				const float v = module->outputs[o].getVoltage(c);
 				if (!std::isfinite(v))
 					badOut[o] = true;
-				else if (std::fabs(v) > 20.f)
+				else if (std::fabs(v) > limit)
 					hugeOut[o] = true;
 			}
 		}
@@ -191,28 +224,81 @@ int fuzz(plugin::Model* model, engine::Module* module) {
 		if (badOut[o])
 			report("output " + name + " gave NaN/Inf from finite inputs");
 		if (hugeOut[o])
-			report("output " + name + " went past ±20 V");
+			report("output " + name + " went past ±20 V per patched voice");
 	}
 	// CPU: one module should use well under 1 % of a core per channel set (2 s of audio here)
 	const double load = seconds / 2.0 * 100.0;
 	INFO("DEV CHECK %s: DSP load %.2f %% of a core (random polyphony)", model->slug.c_str(), load);
-	if (load > 5.0)
+	// About 1 % of a core per voice of random input is fine (oversampled shapers, 7-voice unison VCO)
+	if (load > 2.0 + 1.0 * maxVoices)
 		report(string::f("heavy: %.1f %% of a core", load));
 
-	// A NaN burst, then finite inputs again: the outputs must be finite after a second
-	for (int n = 0; n < 480; ++n) {
-		randomize(true);
-		module->process(args);
+	// A NaN burst, then finite inputs again, with the default and four random knob settings. After a second the outputs must be finite, and
+	// not stuck at a rail once all inputs are 0 V (a NaN clamped to +12 V is finite, so the first test alone misses it)
+	bool stuck = false, railed = false;
+	// Round 0 with the default knobs (nothing muted), then random ones
+	for (int round = 0; round < 5 && !stuck && !railed; ++round) {
+		for (int i = 0; i < (int) module->params.size(); ++i)
+			if (engine::ParamQuantity* const pq = module->paramQuantities[i]) {
+				if (round == 0)
+					pq->reset();
+				else
+					pq->setScaledValue(unit(rng));
+			}
+		// The cables of this round, and which outputs sit at a rail with them at 0 V before any NaN (a voice count of
+		// 16 V, a clamped sum: by design, not stuck)
+		randomize(false);
+		std::vector<int> chans(nIn);
+		for (int i = 0; i < nIn; ++i) {
+			chans[i] = module->inputs[i].channels;
+			for (int c = 0; c < engine::PORT_MAX_CHANNELS; ++c)
+				module->inputs[i].voltages[c] = 0.f;
+		}
+		std::vector<bool> railBefore(nOut * engine::PORT_MAX_CHANNELS, true);
+		for (int n = 0; n < (int) fs / 2; ++n) {
+			module->process(args);
+			if (n > (int) fs / 4)
+				for (int o = 0; o < nOut; ++o)
+					for (int c = 0; c < module->outputs[o].getChannels(); ++c)
+						if (std::fabs(module->outputs[o].getVoltage(c)) < 11.9f)
+							railBefore[o * engine::PORT_MAX_CHANNELS + c] = false;
+		}
+		for (int n = 0; n < 480; ++n) {
+			randomize(true);
+			module->process(args);
+		}
+		// The same cables again, finite voltages
+		for (int i = 0; i < nIn; ++i) {
+			module->inputs[i].channels = chans[i];
+			for (int c = 0; c < engine::PORT_MAX_CHANNELS; ++c)
+				module->inputs[i].voltages[c] = c < chans[i] ? volts(rng) : 0.f;
+		}
+		for (int n = 0; n < (int) fs; ++n) {
+			module->process(args);
+			if (n > (int) fs / 2)
+				for (int o = 0; o < nOut; ++o)
+					for (int c = 0; c < module->outputs[o].getChannels(); ++c)
+						stuck = stuck || !std::isfinite(module->outputs[o].getVoltage(c));
+		}
+		// Then all inputs at 0 V for a second: an output that still sits at a rail the whole time is stuck there
+		for (int i = 0; i < nIn; ++i)
+			for (int c = 0; c < engine::PORT_MAX_CHANNELS; ++c)
+				module->inputs[i].voltages[c] = 0.f;
+		std::vector<bool> atRail(nOut * engine::PORT_MAX_CHANNELS, true);
+		for (int n = 0; n < (int) fs; ++n) {
+			module->process(args);
+			if (n > (int) fs / 2)
+				for (int o = 0; o < nOut; ++o)
+					for (int c = 0; c < module->outputs[o].getChannels(); ++c)
+						if (std::fabs(module->outputs[o].getVoltage(c)) < 11.9f)
+							atRail[o * engine::PORT_MAX_CHANNELS + c] = false;
+		}
+		for (int o = 0; o < nOut; ++o)
+			for (int c = 0; c < module->outputs[o].getChannels(); ++c)
+				railed = railed || (atRail[o * engine::PORT_MAX_CHANNELS + c] && !railBefore[o * engine::PORT_MAX_CHANNELS + c]);
 	}
-	randomize(false);
-	bool stuck = false;
-	for (int n = 0; n < (int) fs; ++n) {
-		module->process(args);
-		if (n > (int) fs / 2)
-			for (int o = 0; o < nOut; ++o)
-				for (int c = 0; c < module->outputs[o].getChannels(); ++c)
-					stuck = stuck || !std::isfinite(module->outputs[o].getVoltage(c));
-	}
+	if (railed)
+		report("a NaN at the inputs leaves an output stuck at a rail (±12 V), still there with all inputs at 0 V");
 	if (stuck)
 		report("a NaN at the inputs stays in the module (outputs still NaN a second later)");
 	return problems;
@@ -232,8 +318,10 @@ int checkModel(plugin::Model* model) {
 	// Every param and port has a widget, a name and a description
 	for (int i = 0; i < (int) module->params.size(); ++i) {
 		engine::ParamQuantity* const pq = module->paramQuantities[i];
-		// The consoles keep most controls in the Mixer view, not on the panel
-		if (mw->getParam(i) == nullptr && model->slug.compare(0, 7, "Console") != 0)
+		// The consoles keep most controls in the Mixer view, not on the panel; a param "kept for old patches" has
+		// left the panel on purpose
+		const bool kept = pq && pq->description.compare(0, 21, "Kept for old patches:") == 0;
+		if (mw->getParam(i) == nullptr && model->slug.compare(0, 7, "Console") != 0 && !kept)
 			report(string::f("param %d (%s) has no widget", i, pq ? pq->name.c_str() : "?"));
 		if (pq == nullptr || pq->name.empty())
 			report(string::f("param %d has no name", i));

@@ -50,7 +50,7 @@ flowchart LR
 | IN | Any, poly | 1 → 4: sent to the output of the current step. |
 | OUT 1–4 | Same as IN | 1 → 4: get IN on their step. |
 | CLOCK | Clock | Every rising edge moves one step. |
-| RESET | Trigger | Back to step 1. |
+| RESET | Trigger | Back to step 1: the next clock plays step 1 (in step with JX-SEQ and JX-EUC). |
 
 ## Patch ideas
 

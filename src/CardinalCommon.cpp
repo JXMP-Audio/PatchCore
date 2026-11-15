@@ -997,6 +997,15 @@ static void promptClear(const char* const message, const std::function<void()> a
 }
 #endif
 
+void quitDialog()
+{
+#ifndef HEADLESS_BEHAVIOUR
+    promptClear("The current patch is unsaved. Quit without saving?", []() {
+        APP->window->close();
+    });
+#endif
+}
+
 void loadDialog()
 {
 #ifndef HEADLESS_BEHAVIOUR

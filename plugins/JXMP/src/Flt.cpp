@@ -33,7 +33,7 @@ struct Flt : engine::Module {
 		const float maxFreq = (std::log2(8000.f / dsp::FREQ_C4) + 5) / 10;
 		configParam(FREQ_PARAM, minFreq, maxFreq, 0.5f, "Cutoff frequency", " Hz", std::pow(2, 10.f), dsp::FREQ_C4 / std::pow(2, 5.f));
 		configParam(RES_PARAM, 0.f, 1.f, 0.f, "Resonance", "%", 0.f, 100.f);
-		configParam(DRIVE_PARAM, -1.f, 1.f, 0.f, "Drive", "%", 0, 100, 100);
+		configParam(DRIVE_PARAM, -1.f, 1.f, 0.f, "Drive", "%", 0, 100);
 		configParam(FREQ_CV_PARAM, -1.f, 1.f, 0.f, "Cutoff CV", "%", 0.f, 100.f);
 		configParam(RES_CV_PARAM, -1.f, 1.f, 0.f, "Resonance CV", "%", 0.f, 100.f);
 		configParam(DRIVE_CV_PARAM, -1.f, 1.f, 0.f, "Drive CV", "%", 0, 100);

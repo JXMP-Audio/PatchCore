@@ -606,7 +606,7 @@ void ModuleWidget::onHoverKey(const HoverKeyEvent& e) {
 			e.consume(NULL);
 			return;
 		}
-		// PatchCore: a manual opens only from F1 with the module selected (Scene), not from hovering
+		// PatchCore: a manual opens from the module's menu (Info > User manual), not from a key
 		if (e.key == GLFW_KEY_F1 && (e.mods & RACK_MOD_MASK) == RACK_MOD_CTRL && !patchcore::enabled()) {
 			std::string manualUrl = model->getManualUrl();
 			if (!manualUrl.empty())

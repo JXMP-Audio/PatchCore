@@ -10,6 +10,16 @@
 
 namespace {
 
+/** At 0 the knob means no slew at all (not 1 ms): say so */
+struct SlewTimeQuantity : engine::ParamQuantity {
+	std::string getDisplayValueString() override {
+		return getValue() <= 0.f ? "0 (off)" : engine::ParamQuantity::getDisplayValueString();
+	}
+	std::string getUnit() override {
+		return getValue() <= 0.f ? "" : engine::ParamQuantity::getUnit();
+	}
+};
+
 struct Slw : engine::Module {
 	enum ParamIds { RISE_PARAM, FALL_PARAM, SHAPE_PARAM, NUM_PARAMS };
 	enum InputIds { IN_INPUT, RISE_INPUT, FALL_INPUT, NUM_INPUTS };
@@ -20,8 +30,8 @@ struct Slw : engine::Module {
 
 	Slw() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(RISE_PARAM, 0.f, 1.f, 0.f, "Rise time", " ms", 10000.f, 1.f);
-		configParam(FALL_PARAM, 0.f, 1.f, 0.f, "Fall time", " ms", 10000.f, 1.f);
+		configParam<SlewTimeQuantity>(RISE_PARAM, 0.f, 1.f, 0.f, "Rise time", " ms", 10000.f, 1.f);
+		configParam<SlewTimeQuantity>(FALL_PARAM, 0.f, 1.f, 0.f, "Fall time", " ms", 10000.f, 1.f);
 		configSwitch(SHAPE_PARAM, 0.f, 1.f, 0.f, "Shape", {"Linear", "Exponential"});
 		configInput(IN_INPUT, "In")->description = "Signal to slow down. On a pitch CV this makes a glide (portamento). Polyphonic.";
 		configInput(RISE_INPUT, "Rise CV")->description = "Rise time CV (10 V = full range).";
