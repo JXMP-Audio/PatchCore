@@ -58,6 +58,12 @@
 
 #endif
 
+// PatchCore development MCP bridge (patchcore/PatchCore.hpp; empty unless the local DevBridge.cpp is built in)
+namespace rack { namespace patchcore {
+void devBridgeDraw(NVGcontext* vg);
+void devBridgeFrameDone(int fbWidth, int fbHeight);
+} }
+
 #ifdef DISTRHO_OS_WASM
 # include <emscripten/html5.h>
 #endif
@@ -679,6 +685,7 @@ void Window::step() {
 			args.vg = vg;
 			args.clipBox = APP->scene->box.zeroPos();
 			APP->scene->draw(args);
+			patchcore::devBridgeDraw(vg);
 			// t3 = system::getTime();
 
 			glViewport(0, 0, fbWidth, fbHeight);
@@ -727,6 +734,7 @@ void Window::step() {
 				close();
 		}
 	}
+	patchcore::devBridgeFrameDone(winWidth, winHeight);
 
 	if (internal->generateScreenshotStep != kScreenshotStepNone) {
 		++internal->generateScreenshotStep;

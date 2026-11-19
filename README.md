@@ -17,7 +17,9 @@ It comes as a **standalone app** and as two **VST3 plugins**, **PatchCore** (ins
 - 25+ JXMP modules: oscillator, filter, envelopes, LFO, sequencers, quantizer, clock, Euclidean rhythms, drums, a 16-slot sampler,
   scope, delay, chorus, reverb, wavefolder, ring modulator, logic, switch, poly tools and a mixing console with a
   Mixer view
-- **Learn**: six interactive lessons that walk a beginner from the first sound to a song with drums and effects
+- **Learn**: interactive lessons in six categories, from the basics (the rack, cables and voltages, a first sound,
+  playing notes) to synthesis, rhythm, effects, the Editor and advanced patching; every step explains why and what
+  just happened
 - Quick search (right-click on the rack or `Enter`): `@jxmp` filters by brand, `#filter` by purpose
 - Standalone: sound card settings in **Engine → Audio Settings…** (PipeWire/JACK or ALSA on Linux, WASAPI or ASIO
   on Windows), its own transport and a master meter
@@ -32,7 +34,7 @@ It comes as a **standalone app** and as two **VST3 plugins**, **PatchCore** (ins
 | `F2` / `F3` | the back / the Mixer view |
 | `Enter`, right-click | find and add a module |
 | `Space` | play / pause (standalone): a pause freezes everything where it is; Space twice quickly (or ■) stops and goes back to the start |
-| Shift+click, Shift+drag | select / move a module; Shift+right-click opens its menu |
+| Shift+click, Shift+drag | add a module to the selection (again: take it out) / move it; Shift+right-click opens its menu |
 | Ctrl+drag | select an area |
 | mouse wheel | turn knobs: Ctrl+wheel finely (1/10), Ctrl+Shift+wheel very finely, Shift+wheel coarsely; Ctrl+wheel elsewhere zooms the rack |
 

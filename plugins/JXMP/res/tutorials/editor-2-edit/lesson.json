@@ -1,0 +1,109 @@
+{
+ "title": "Shape the notes",
+ "standalone": true,
+ "learned": [
+  "A note's length is how long the gate stays high: longer notes reach the envelope's sustain",
+  "QUANTIZE (Q) moves the notes onto the grid: tight timing from a loose take",
+  "Velocity is how hard a note is struck; Host MIDI sends it as a voltage you can patch anywhere",
+  "Copy and paste (Ctrl+C, Ctrl+V) at the playhead repeats a part"
+ ],
+ "steps": [
+  {
+   "why": "A melody you have drawn or played is a first draft. This lesson shapes one: length, timing, dynamics, repetition.",
+   "do": "A two-bar melody is in track 1, a little out of time, as if played by hand. Press F4 to open the Editor.",
+   "after": "Look at the notes against the grid lines: some start a little early, some a little late. LOOP is on, so bars 1 to 4 repeat (the second half is still empty).",
+   "done": {
+    "view": "editor"
+   }
+  },
+  {
+   "why": "How long a note is decides how long the gate stays high, and so how the envelope plays it.",
+   "do": "Drag the right end of a note to the right to make it longer.",
+   "after": "A longer gate lets the envelope sit at its sustain level, a short one lets it fall into the release sooner: the same melody played legato or staccato. The next note you draw gets this length.",
+   "done": {
+    "edited": true,
+    "track": 1
+   }
+  },
+  {
+   "why": "Hand-played timing drifts. Quantizing moves each note to the nearest line of the grid.",
+   "do": "With the mouse over the roll, press Q (or click QUANTIZE at the top). With no note selected it quantizes the whole track.",
+   "after": "Every note jumped onto a grid line: the melody now plays tight. GRID sets which lines: 1/16 is fine, 1/8 coarser, the T grids are triplets. Quantize once you have recorded or drawn a part.",
+   "try": "Ctrl+Z brings the loose timing back; listen to both.",
+   "done": {
+    "edited": true,
+    "track": 1
+   }
+  },
+  {
+   "why": "Every note also carries a velocity: how hard the key was struck (1 to 127). Host MIDI sends it from its VELOCITY output as 0 to 10 V, but nothing in this patch listens to it yet.",
+   "do": "Press Esc. Drag VELOCITY of Host MIDI to jack 5 of the patchbay, press Tab and drag jack 5 to FREQ CV of the filter.",
+   "after": "Now a harder note opens the filter further: velocity became brightness. Velocity is just a voltage: it could open an amplifier, change a decay, anything.",
+   "highlight": [
+    {
+     "module": "HostMIDI",
+     "output": "Velocity"
+    },
+    {
+     "module": "VCF",
+     "input": "Freq CV"
+    }
+   ],
+   "done": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "HostMIDI",
+        "output": "Velocity"
+       },
+       "to": {
+        "module": "Patchbay8",
+        "input": "Ch 5",
+        "side": "front"
+       }
+      }
+     },
+     {
+      "cable": {
+       "from": {
+        "module": "Patchbay8",
+        "output": "Ch 5",
+        "side": "back"
+       },
+       "to": {
+        "module": "VCF",
+        "input": "Freq CV"
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "why": "Now you can hear velocity: give the melody accents.",
+   "do": "Press F4. In the VEL lane at the bottom, drag the bars of some notes down.",
+   "after": "Softer notes sound darker, the loud ones stand out: accents make a line feel played rather than typed. Drag a bar up to make a note louder again.",
+   "done": {
+    "edited": true,
+    "track": 1
+   }
+  },
+  {
+   "why": "Music repeats: a part you like is copied and then varied.",
+   "do": "With the mouse over the roll, press Ctrl+A to select all notes and Ctrl+C to copy them. Press Space to pause, click bar 3 in the ruler above the roll (its upper half, with the numbers) to move the playhead there, press Ctrl+V and then Space.",
+   "after": "The copy landed at the playhead: bars 3 and 4 now repeat bars 1 and 2. Pasting again puts the next copy right after it.",
+   "try": "Change two or three notes of the copy, so the second half answers the first.",
+   "done": {
+    "notes": 20,
+    "track": 1
+   }
+  },
+  {
+   "do": "Length, timing, velocity and repetition shape a melody. Press Esc and then Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

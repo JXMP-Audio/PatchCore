@@ -1,0 +1,180 @@
+{
+ "title": "Drums and Euclid",
+ "startSide": "back",
+ "learned": [
+  "Drums are played by triggers: short pulses that say 'hit now'",
+  "A Euclidean pattern spreads HITS as evenly as possible over STEPS",
+  "ROTATE shifts a pattern in time without changing it",
+  "Each track of the sequencer plays one drum: kick, snare, hat"
+ ],
+ "steps": [
+  {
+   "why": "A drum does not need a pitch or a long gate, only a trigger: a short pulse that says 'hit now'. A Euclidean sequencer makes rhythms from two numbers: how many steps, and how many hits spread over them as evenly as possible. Many traditional rhythms from around the world come out this way.",
+   "do": "In the rack: a clock, a Euclidean sequencer (JX-EUC) with four tracks, and a drum module (JX-DRM) already wired to the console. Press Next.",
+   "highlight": [
+    {
+     "module": "Euclid"
+    },
+    {
+     "module": "Drums"
+    }
+   ],
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "Drum patterns usually run on sixteenth notes.",
+   "do": "Drag a cable from X4 of the clock to CLOCK of the Euclidean sequencer.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "Clock",
+     "output": "x4"
+    },
+    {
+     "module": "Euclid",
+     "input": "Clock"
+    }
+   ],
+   "after": "All four tracks now step on every sixteenth note. Its PATTERNS display on the front shows where each track hits.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "Clock",
+      "output": "x4"
+     },
+     "to": {
+      "module": "Euclid",
+      "input": "Clock"
+     }
+    }
+   }
+  },
+  {
+   "why": "Track 1 starts with 4 hits in 16 steps: one on every beat.",
+   "do": "Drag a cable from GATE 1 of the Euclidean sequencer to KICK TRIG of the drums.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "Euclid",
+     "output": "Gate 1"
+    },
+    {
+     "module": "Drums",
+     "input": "Kick trig"
+    }
+   ],
+   "after": "A kick drum on every beat: 'four on the floor', the base of house and techno.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "Euclid",
+      "output": "Gate 1"
+     },
+     "to": {
+      "module": "Drums",
+      "input": "Kick trig"
+     }
+    }
+   }
+  },
+  {
+   "why": "HITS changes how many hits are spread over the steps.",
+   "do": "Press F1 and turn HITS of track 1 to 3, then try other numbers.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Euclid",
+     "param": "Track 1 hits"
+    }
+   ],
+   "after": "3 hits in 16 steps cannot be spread evenly, so they fall at 1, 7 and 12: an off-kilter, rolling groove. Go back to 4 for the steady beat.",
+   "done": {
+    "param": {
+     "module": "Euclid",
+     "param": "Track 1 hits"
+    },
+    "moved": 0.06
+   }
+  },
+  {
+   "why": "Tracks 2 and 3 have patterns ready for a snare and a hi-hat.",
+   "do": "Press F2 and drag GATE 2 to SNARE TRIG and GATE 3 to HAT TRIG of the drums.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "Euclid",
+     "output": "Gate 2"
+    },
+    {
+     "module": "Drums",
+     "input": "Snare trig"
+    },
+    {
+     "module": "Euclid",
+     "output": "Gate 3"
+    },
+    {
+     "module": "Drums",
+     "input": "Hat trig"
+    }
+   ],
+   "after": "A whole beat: kick on every beat, snare on beats 2 and 4, hats on every eighth note.",
+   "done": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "Euclid",
+        "output": "Gate 2"
+       },
+       "to": {
+        "module": "Drums",
+        "input": "Snare trig"
+       }
+      }
+     },
+     {
+      "cable": {
+       "from": {
+        "module": "Euclid",
+        "output": "Gate 3"
+       },
+       "to": {
+        "module": "Drums",
+        "input": "Hat trig"
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "why": "ROTATE shifts a pattern later in time without changing its spacing.",
+   "do": "Press F1 and turn ROTATE of track 2.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Euclid",
+     "param": "Track 2 rotate"
+    }
+   ],
+   "after": "The snare moves away from 2 and 4 and the beat feels different, though it has the same hits. Turn it back to 4 for the classic backbeat.",
+   "try": "Shape the kit: KICK DECAY makes a short thump or a long boom, SNARE TONE goes from drum body to noise.",
+   "done": {
+    "param": {
+     "module": "Euclid",
+     "param": "Track 2 rotate"
+    },
+    "moved": 0.06
+   }
+  },
+  {
+   "do": "Steps, hits, rotate: three numbers per drum make a whole beat. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

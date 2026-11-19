@@ -1,0 +1,190 @@
+{
+ "title": "Oscillator colours",
+ "startSide": "back",
+ "learned": [
+  "Square and pulse waves sound hollow; the pulse width changes their colour",
+  "PWM moves the width all the time: a lively, chorus-like sound",
+  "The sub oscillator adds weight an octave (or two) below",
+  "Unison stacks slightly detuned copies: one oscillator sounds like many"
+ ],
+ "steps": [
+  {
+   "why": "Before any filter, the oscillator itself has a lot of colours to offer. This lesson tours the ones that change the most.",
+   "do": "The notes play from SAW of the oscillator, through an open filter. Press Next.",
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "The square wave has only every other overtone, so it sounds hollow, like a clarinet.",
+   "do": "Drag a cable from SQR of the oscillator to IN of the filter (it replaces the SAW cable).",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "VCO",
+     "output": "Sqr"
+    },
+    {
+     "module": "VCF",
+     "input": "In"
+    }
+   ],
+   "after": "Hollower and woodier than the saw.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "VCO",
+      "output": "Sqr"
+     },
+     "to": {
+      "module": "VCF",
+      "input": "In"
+     }
+    }
+   }
+  },
+  {
+   "why": "A square is high half the time. Make the high part shorter and you get a pulse wave: thinner and more nasal.",
+   "do": "Press F1 and turn PW of the oscillator.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "VCO",
+     "param": "Pulse width"
+    }
+   ],
+   "after": "Near 50 % it is the hollow square, toward the ends a thin, reedy pulse. Every width is its own colour.",
+   "done": {
+    "param": {
+     "module": "VCO",
+     "param": "Pulse width"
+    },
+    "moved": 0.15
+   }
+  },
+  {
+   "why": "Moving the width all the time makes the sound come alive: pulse width modulation (PWM).",
+   "do": "Press F2, drag a cable from TRI of the LFO to PWM of the oscillator, then press F1 and turn the PWM knob of the oscillator up.",
+   "highlight": [
+    {
+     "module": "LFO",
+     "output": "Tri"
+    },
+    {
+     "module": "VCO",
+     "input": "PWM"
+    },
+    {
+     "module": "VCO",
+     "param": "Pulse width modulation"
+    }
+   ],
+   "after": "The tone now shimmers as if several instruments played together: the LFO sweeps the width back and forth.",
+   "done": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "LFO",
+        "output": "Tri"
+       },
+       "to": {
+        "module": "VCO",
+        "input": "PWM"
+       }
+      }
+     },
+     {
+      "param": {
+       "module": "VCO",
+       "param": "Pulse width modulation"
+      },
+      "min": 30
+     }
+    ]
+   }
+  },
+  {
+   "why": "A sub oscillator plays a square one or two octaves lower. It goes into the MIX output together with the shape MORPH picks.",
+   "do": "Press F2 and drag a cable from MIX of the oscillator to IN of the filter. Then press F1 and turn SUB LEVEL up.",
+   "highlight": [
+    {
+     "module": "VCO",
+     "output": "Mix"
+    },
+    {
+     "module": "VCF",
+     "input": "In"
+    },
+    {
+     "module": "VCO",
+     "param": "Sub level in mix"
+    }
+   ],
+   "after": "MIX plays the shape set by MORPH (here a square), and SUB LEVEL adds the octave below: the sound gets heavier at the bottom. SUB OCT picks one or two octaves down.",
+   "done": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "VCO",
+        "output": "Mix"
+       },
+       "to": {
+        "module": "VCF",
+        "input": "In"
+       }
+      }
+     },
+     {
+      "param": {
+       "module": "VCO",
+       "param": "Sub level in mix"
+      },
+      "min": 40
+     }
+    ]
+   }
+  },
+  {
+   "why": "Unison runs several copies of the oscillator, each slightly out of tune with the others. Their tiny differences beat against each other and make the sound wide and thick.",
+   "do": "Turn VOICES of the oscillator up to 3 or more, then turn DETUNE.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "VCO",
+     "param": "Unison voices"
+    },
+    {
+     "module": "VCO",
+     "param": "Unison detune"
+    }
+   ],
+   "after": "One oscillator now sounds like a whole section. A little detune is warm, a lot is the big 'supersaw' of dance music (try it with MORPH at saw).",
+   "done": {
+    "all": [
+     {
+      "param": {
+       "module": "VCO",
+       "param": "Unison voices"
+      },
+      "min": 3
+     },
+     {
+      "param": {
+       "module": "VCO",
+       "param": "Unison detune"
+      },
+      "moved": 0.05
+     }
+    ]
+   }
+  },
+  {
+   "do": "Wave shape, width, sub and unison: colour starts in the oscillator. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

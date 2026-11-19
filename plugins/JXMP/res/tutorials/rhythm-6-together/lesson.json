@@ -1,0 +1,222 @@
+{
+ "title": "Melody and drums in time",
+ "startSide": "back",
+ "learned": [
+  "Sequencers count on their own; RESET from the clock starts them all on step 1 together",
+  "STOP and RUN: the clock sends RESET when it starts",
+  "SWING delays every second sixteenth: the groove shuffles",
+  "Logic combines gates: AND plays only where two patterns meet"
+ ],
+ "steps": [
+  {
+   "why": "A melody and a beat each have their own sequencer. Both follow the same clock, but each counts its own steps. If one of them starts counting at another moment, they play in time but not together: the melody's bar no longer starts with the drums' bar.",
+   "do": "The quantized melody (console channel 1) and the drums (channel 2) play together. Press Next.",
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "Let's break it on purpose.",
+   "do": "Press F1 and click the RESET button of the sequencer somewhere in the middle of the bar.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "SEQ",
+     "param": "Reset"
+    }
+   ],
+   "after": "The melody jumped back to its step 1 while the drums went on: the melody's start is now somewhere in the middle of the drums' bar. It still keeps time, but it sounds wrong.",
+   "done": {
+    "param": {
+     "module": "SEQ",
+     "param": "Reset"
+    },
+    "moved": 0.5
+   }
+  },
+  {
+   "why": "The clock's RESET output sends a trigger when the clock starts. Patched to every sequencer's RESET, it sends all of them to step 1 at the same moment.",
+   "do": "Press F2. Drag a cable from RESET of the clock to RESET of the sequencer, then hold Ctrl and drag a second one from RESET of the clock to RESET of the Euclidean sequencer.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "Clock",
+     "output": "Reset"
+    },
+    {
+     "module": "SEQ",
+     "input": "Reset"
+    },
+    {
+     "module": "Euclid",
+     "input": "Reset"
+    }
+   ],
+   "after": "Patching RESET also restarted the clock. Next, make sure both sequencers start together.",
+   "done": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "Clock",
+        "output": "Reset"
+       },
+       "to": {
+        "module": "SEQ",
+        "input": "Reset"
+       }
+      }
+     },
+     {
+      "cable": {
+       "from": {
+        "module": "Clock",
+        "output": "Reset"
+       },
+       "to": {
+        "module": "Euclid",
+        "input": "Reset"
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "why": "A clean start: stop the clock and start it again.",
+   "do": "Press F1 and flip the clock's switch down to STOP.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Clock",
+     "param": "Mode"
+    }
+   ],
+   "after": "Everything stands.",
+   "done": {
+    "param": {
+     "module": "Clock",
+     "param": "Mode"
+    },
+    "max": 0.5
+   }
+  },
+  {
+   "why": "When the clock starts, it sends RESET first.",
+   "do": "Flip the switch back up to RUN.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Clock",
+     "param": "Mode"
+    }
+   ],
+   "after": "Both sequencers start on step 1 together: the melody and the drums begin their bars at the same moment. Patch the clock's RESET to every sequencer in a song and they never drift apart.",
+   "done": {
+    "param": {
+     "module": "Clock",
+     "param": "Mode"
+    },
+    "min": 1.5
+   }
+  },
+  {
+   "why": "Straight sixteenths sound mechanical. Swing makes every second one a little late.",
+   "do": "Turn SWING of the clock up a bit.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Clock",
+     "param": "Swing"
+    }
+   ],
+   "after": "The hats and the melody start to shuffle: 50 % is straight, about 66 % a triplet feel, 75 % a hard shuffle. Swing applies to X4 and X2, so everything that follows them swings together.",
+   "try": "Balance the two sounds: the fader of channel 2 of the console sets how loud the drums are against the melody.",
+   "done": {
+    "param": {
+     "module": "Clock",
+     "param": "Swing"
+    },
+    "min": 57
+   }
+  },
+  {
+   "why": "A logic module combines gates. AND is on only while both of its inputs are on.",
+   "do": "Press F2. Hold Ctrl and drag a new cable from GATE 1 to A of the logic module (JX-LGC), and drag GATE 4 to B. Then drag AND of the logic module to CLAP TRIG of the drums.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "Euclid",
+     "output": "Gate 1"
+    },
+    {
+     "module": "Logic",
+     "input": "A"
+    },
+    {
+     "module": "Euclid",
+     "output": "Gate 4"
+    },
+    {
+     "module": "Logic",
+     "input": "B"
+    },
+    {
+     "module": "Logic",
+     "output": "And"
+    },
+    {
+     "module": "Drums",
+     "input": "Clap trig"
+    }
+   ],
+   "after": "A clap now plays only where the kick pattern and track 4 hit at the same time. With AND, OR and XOR two simple patterns make new ones.",
+   "done": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "Euclid",
+        "output": "Gate 1"
+       },
+       "to": {
+        "module": "Logic",
+        "input": "A"
+       }
+      }
+     },
+     {
+      "cable": {
+       "from": {
+        "module": "Euclid",
+        "output": "Gate 4"
+       },
+       "to": {
+        "module": "Logic",
+        "input": "B"
+       }
+      }
+     },
+     {
+      "cable": {
+       "from": {
+        "module": "Logic",
+        "output": "And"
+       },
+       "to": {
+        "module": "Drums",
+        "input": "Clap trig"
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "do": "One clock, reset to every sequencer, a little swing: a groove that holds together. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

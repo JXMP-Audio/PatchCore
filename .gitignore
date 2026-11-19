@@ -36,6 +36,8 @@ compile_flags.txt
 /patches/jxmp-*.vcv
 # Tests and dev tools (local only)
 /src/patchcore/tests/
+/src/patchcore/DevBridge.cpp
+/src/patchcore/DevBridgeLogic.hpp
 /plugins/JXMP/tests/
 # Upstream Cardinal docs (local only); docs/LICENSES.md, LICENSE-PERMISSIONS.md, manual/ and screenshots/ stay in git
 /docs/*

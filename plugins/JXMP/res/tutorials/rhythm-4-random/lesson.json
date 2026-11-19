@@ -1,0 +1,193 @@
+{
+ "title": "Chance and glide",
+ "startSide": "back",
+ "learned": [
+  "A random module gives a new voltage on every clock: through a quantizer, a melody nobody wrote",
+  "LEVEL sets the range of the random voltages: how wide the melody jumps",
+  "A slew limiter slows a voltage down: on pitch it makes notes glide"
+ ],
+ "steps": [
+  {
+   "why": "Instead of writing a melody, you can let chance write it and keep only the scale. Random voltages, quantized, give endless melodies that always fit.",
+   "do": "The quantized melody plays. In the rack there is a random module (JX-RND) and a slew limiter (JX-SLW). Press Next.",
+   "highlight": [
+    {
+     "module": "Random"
+    },
+    {
+     "module": "Slew"
+    }
+   ],
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "The random module picks a new value on every clock pulse.",
+   "do": "Hold Ctrl and drag a new cable from X2 of the clock to CLOCK of the random module (X2 already feeds the sequencer).",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "Clock",
+     "output": "x2"
+    },
+    {
+     "module": "Random",
+     "input": "Clock"
+    }
+   ],
+   "after": "It now draws a new random voltage on every eighth note, in step with the sequencer.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "Clock",
+      "output": "x2"
+     },
+     "to": {
+      "module": "Random",
+      "input": "Clock"
+     }
+    }
+   }
+  },
+  {
+   "why": "STEP holds each random value until the next pulse: a staircase of random notes.",
+   "do": "Drag a cable from STEP of the random module to the V/OCT input of the quantizer (it replaces the sequencer's CV).",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "Random",
+     "output": "Step"
+    },
+    {
+     "module": "Quantizer",
+     "input": "V/Oct"
+    }
+   ],
+   "after": "A melody nobody wrote, always in the scale. The sequencer still plays the gates, so its rests and rhythm stay; only the pitches are random now.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "Random",
+      "output": "Step"
+     },
+     "to": {
+      "module": "Quantizer",
+      "input": "V/Oct"
+     }
+    }
+   }
+  },
+  {
+   "why": "LEVEL sets how wide the random voltages spread, and so how far the melody jumps.",
+   "do": "Press F1 and turn LEVEL of the random module down and up.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Random",
+     "param": "Level"
+    }
+   ],
+   "after": "Low, the melody stays within a few notes; high, it leaps over octaves. At full level the random voltage spans ±5 V: ten octaves, mostly too much.",
+   "done": {
+    "param": {
+     "module": "Random",
+     "param": "Level"
+    },
+    "moved": 0.1
+   }
+  },
+  {
+   "why": "A slew limiter lets a voltage change only so fast. On pitch, the note slides to the next one instead of jumping: glide, or portamento.",
+   "do": "Press F2. Hold Ctrl and drag a new cable from the V/OCT output of the quantizer to IN of the slew limiter, then drag OUT of the slew limiter to V/OCT of the oscillator (it replaces the cable from the quantizer).",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "Quantizer",
+     "output": "V/Oct"
+    },
+    {
+     "module": "Slew",
+     "input": "In"
+    },
+    {
+     "module": "Slew",
+     "output": "Out"
+    },
+    {
+     "module": "VCO",
+     "input": "V/Oct"
+    }
+   ],
+   "after": "No change yet: RISE and FALL are at zero, so the voltage passes at full speed.",
+   "done": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "Quantizer",
+        "output": "V/Oct"
+       },
+       "to": {
+        "module": "Slew",
+        "input": "In"
+       }
+      }
+     },
+     {
+      "cable": {
+       "from": {
+        "module": "Slew",
+        "output": "Out"
+       },
+       "to": {
+        "module": "VCO",
+        "input": "V/Oct"
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "why": "RISE is how slowly the voltage may go up, FALL how slowly it may go down.",
+   "do": "Press F1 and turn RISE and FALL of the slew limiter up a little.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Slew",
+     "param": "Rise time"
+    },
+    {
+     "module": "Slew",
+     "param": "Fall time"
+    }
+   ],
+   "after": "The notes now slide into each other, like a singer or a trombone. With only RISE turned up, the notes glide up and jump down. The same module smooths any jumpy voltage, not only pitch.",
+   "done": {
+    "all": [
+     {
+      "param": {
+       "module": "Slew",
+       "param": "Rise time"
+      },
+      "moved": 0.15
+     },
+     {
+      "param": {
+       "module": "Slew",
+       "param": "Fall time"
+      },
+      "moved": 0.15
+     }
+    ]
+   }
+  },
+  {
+   "do": "Chance writes the notes, the quantizer keeps them in key, the slew makes them sing. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

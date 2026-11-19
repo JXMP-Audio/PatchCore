@@ -1,0 +1,96 @@
+{
+ "title": "Draw your first notes",
+ "standalone": true,
+ "learned": [
+  "JX-EDIT writes music down: notes on a timeline instead of keys you play live",
+  "Each track sends its notes on a MIDI channel; a Host MIDI on that channel plays them, like a keyboard",
+  "The Editor opens with F4 or a double-click on JX-EDIT; Esc goes back to the rack",
+  "Click draws a note, dragging moves it, right-click deletes it; LOOP repeats a part while you work"
+ ],
+ "steps": [
+  {
+   "why": "So far the notes came from your hands (a keyboard) or from a sequencer that repeats a few steps. A whole song needs its notes written down, on a timeline: that is what the Editor is for.",
+   "do": "The rack holds the voice from BASICS 6, already patched: Host MIDI (listening on MIDI channel 1) sends V/OCT and GATE through the patchbay to the oscillator and the envelope. Press Next.",
+   "highlight": [
+    {
+     "module": "HostMIDI"
+    }
+   ],
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "The Editor lives in a module: JX-EDIT. It holds the song and is saved with the patch.",
+   "do": "Right-click an empty place in the rack, type edit and press Enter.",
+   "after": "JX-EDIT lists eight tracks. Each track sends its notes on its own MIDI channel: track 1 on channel 1, track 2 on channel 2… Host MIDI listens on channel 1, so track 1 plays this voice.",
+   "done": {
+    "module": "Editor"
+   }
+  },
+  {
+   "why": "The module only shows the tracks. The notes are written in the Editor, a view that covers the rack.",
+   "do": "Press F4 (or double-click JX-EDIT).",
+   "after": "On the left the eight tracks, at the top the SONG overview of all tracks, in the middle the piano roll: time runs left to right (the ruler shows the bars), pitch bottom to top (the keyboard on the left). The VEL lane at the bottom shows how hard each note is played. If this panel covers something, drag it by its title.",
+   "done": {
+    "view": "editor"
+   }
+  },
+  {
+   "why": "A note in the roll is a key held down for a while: where it starts, how long it is and how high.",
+   "do": "Click in the roll four times in bars 1 and 2, each time at a different height. While the song is paused (Space), you hear each note as you draw it.",
+   "after": "Each click drew a note one grid step long (GRID at the top: 1/16 of a bar). Higher in the roll is a higher note: the keyboard on the left shows which.",
+   "try": "Drag the right end of a note to make it longer; the next note you draw gets the same length.",
+   "done": {
+    "notes": 4,
+    "track": 1
+   }
+  },
+  {
+   "why": "To hear your notes again and again while you work on them, loop them.",
+   "do": "Turn LOOP on: the button with the rounded rectangle in the transport bar at the bottom. If the song is paused, press Space.",
+   "after": "The playhead (the line moving across the roll) runs from the START flag to the STOP flag in the ruler and jumps back: bars 1 to 4 repeat. Each note goes out on MIDI channel 1 as note on and note off; Host MIDI turns them into V/OCT and GATE, exactly as if you played them on a keyboard.",
+   "done": {
+    "all": [
+     {
+      "transport": "loop"
+     },
+     {
+      "transport": "playing"
+     },
+     {
+      "signal": {
+       "module": "ADSR",
+       "output": "Env"
+      },
+      "above": 1
+     }
+    ]
+   }
+  },
+  {
+   "why": "Writing music is mostly changing it. In a loop you hear every change the next time round.",
+   "do": "While it plays, drag a note up or down to another pitch.",
+   "after": "The melody changed on the next pass. Right-click deletes a note, Ctrl+Z undoes the last change.",
+   "try": "Delete a note with a right-click, then bring it back with Ctrl+Z.",
+   "done": {
+    "edited": true,
+    "track": 1
+   }
+  },
+  {
+   "why": "The song goes on playing without the Editor in front of you.",
+   "do": "Press Esc to go back to the rack.",
+   "after": "The LED of track 1 on JX-EDIT lights with every note. The notes are part of the patch: saving the patch saves the song.",
+   "done": {
+    "view": "rack"
+   }
+  },
+  {
+   "do": "Notes on a timeline, sent on a MIDI channel to a Host MIDI: that is how the Editor plays your patch. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

@@ -1,0 +1,145 @@
+{
+ "title": "The filter",
+ "startSide": "back",
+ "learned": [
+  "Subtractive synthesis: start with a bright wave, take away what you do not want",
+  "CUTOFF sets where the filter starts to cut; lowpass keeps what is below it",
+  "RESONANCE boosts the frequencies right at the cutoff: the filter sings",
+  "A module is only heard if its output goes somewhere"
+ ],
+ "steps": [
+  {
+   "why": "A sawtooth sounds bright and buzzy because it is full of overtones: quieter, higher tones above the note you hear. Most classic synths make their sound by starting from such a rich wave and taking away what they do not want. That is subtractive synthesis, and the tool for taking away is the filter.",
+   "do": "You hear a sawtooth: oscillator → amplifier → console → speakers. Next to the oscillator is a filter (JX-FLT), not wired yet. Press Next.",
+   "highlight": [
+    {
+     "module": "VCF"
+    }
+   ],
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "The sound has to go through the filter on its way to the amplifier. First the way in.",
+   "do": "Hold Ctrl and drag a new cable from SAW of the oscillator to IN of the filter (SAW already has a cable: a plain drag would move it).",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "VCO",
+     "output": "Saw"
+    },
+    {
+     "module": "VCF",
+     "input": "In"
+    }
+   ],
+   "after": "Nothing changed: the filter gets the sawtooth, but its output goes nowhere, so you do not hear it. A module is only heard when its output reaches the speakers.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "VCO",
+      "output": "Saw"
+     },
+     "to": {
+      "module": "VCF",
+      "input": "In"
+     }
+    }
+   }
+  },
+  {
+   "why": "Now the way out: the filtered sound replaces the raw one in the amplifier.",
+   "do": "Drag a cable from OUT of the filter to IN 1 of the amplifier. IN 1 already has the cable from SAW: the new cable replaces it.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "VCF",
+     "output": "Out"
+    },
+    {
+     "module": "VCA",
+     "input": "In 1"
+    }
+   ],
+   "after": "The sound is softer and darker: the chain is now oscillator → filter → amplifier. The filter is a lowpass: it lets the low frequencies pass and turns the high ones down.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "VCF",
+      "output": "Out"
+     },
+     "to": {
+      "module": "VCA",
+      "input": "In 1"
+     }
+    }
+   }
+  },
+  {
+   "why": "The most important knob of a filter is CUTOFF: the frequency where it starts to cut.",
+   "do": "Press F1 and turn CUTOFF of the filter slowly all the way down, then up again.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "VCF",
+     "param": "Cutoff frequency"
+    }
+   ],
+   "after": "Going down, the overtones disappear one after another: the sound gets duller, then only a soft thump of the note is left, then nothing. Going up, it opens again. This sweep is the sound of almost every synth you have heard.",
+   "done": {
+    "param": {
+     "module": "VCF",
+     "param": "Cutoff frequency"
+    },
+    "moved": 0.3
+   }
+  },
+  {
+   "why": "RESONANCE feeds part of the output back into the filter, so the frequencies right at the cutoff get louder.",
+   "do": "Turn RESONANCE past the middle, then sweep CUTOFF again.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "VCF",
+     "param": "Resonance"
+    }
+   ],
+   "after": "The filter now sings: a peak whistles along as you move the cutoff, like a vowel 'eeoww'. A little resonance adds character; a lot makes the filter ring on its own.",
+   "try": "Turn RESONANCE almost fully up and move CUTOFF slowly: the filter whistles its own tone. Turn the level down on the amplifier first: it can get loud.",
+   "done": {
+    "param": {
+     "module": "VCF",
+     "param": "Resonance"
+    },
+    "min": 50
+   }
+  },
+  {
+   "why": "Lowpass is the classic, but a filter can also keep other parts of the sound.",
+   "do": "Turn the TYPE knob of the filter: its four positions are lowpass, bandpass, highpass and notch (the small pictures around the knob).",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "VCF",
+     "param": "Mode"
+    }
+   ],
+   "after": "Highpass keeps the highs and removes the lows: thin. Bandpass keeps only a band around the cutoff: like a telephone. Notch removes just that band: hollow. Each type shapes the same wave into a different colour.",
+   "try": "Turn TYPE back to the first position (lowpass) before you go on.",
+   "done": {
+    "param": {
+     "module": "VCF",
+     "param": "Mode"
+    },
+    "moved": 0.3
+   }
+  },
+  {
+   "do": "A rich wave and a filter that takes away: that is subtractive synthesis. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

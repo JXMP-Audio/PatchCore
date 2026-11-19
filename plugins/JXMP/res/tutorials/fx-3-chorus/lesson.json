@@ -1,0 +1,167 @@
+{
+ "title": "Chorus and stereo",
+ "startSide": "back",
+ "learned": [
+  "A chorus adds slightly detuned, swaying copies: one voice sounds like several",
+  "Stereo = a different signal for each side; a stereo effect makes two from one",
+  "A console channel is mono: a stereo sound takes two channels, panned left and right"
+ ],
+ "steps": [
+  {
+   "why": "A single oscillator sounds narrow, right in the middle. A chorus makes copies of the sound whose pitch sways slightly, each a little differently, and puts them left and right. The result is wide, like several instruments playing together.",
+   "do": "Slow, long notes play into channel 1 of the console. A chorus (JX-CHR) is in the rack. Press Next.",
+   "highlight": [
+    {
+     "module": "Chorus"
+    }
+   ],
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "The chorus has a mono input (IN L alone is enough) and a stereo output.",
+   "do": "Hold Ctrl and drag a new cable from OUT 1 of the amplifier to IN L of the chorus.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "VCA",
+     "output": "Out 1"
+    },
+    {
+     "module": "Chorus",
+     "input": "In L"
+    }
+   ],
+   "after": "The chorus gets the sound, but its outputs go nowhere yet.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "VCA",
+      "output": "Out 1"
+     },
+     "to": {
+      "module": "Chorus",
+      "input": "In L"
+     }
+    }
+   }
+  },
+  {
+   "why": "A console channel is mono, so the two sides of a stereo sound take two channels.",
+   "do": "Drag OUT L of the chorus to IN 1 of the console (it replaces the amplifier's cable) and OUT R to IN 2.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "Chorus",
+     "output": "Out L"
+    },
+    {
+     "module": "Console4",
+     "input": "In 1"
+    },
+    {
+     "module": "Chorus",
+     "output": "Out R"
+    },
+    {
+     "module": "Console4",
+     "input": "In 2"
+    }
+   ],
+   "after": "Richer, but still in the middle: both channels sit at the centre, so both speakers get both sides.",
+   "done": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "Chorus",
+        "output": "Out L"
+       },
+       "to": {
+        "module": "Console4",
+        "input": "In 1"
+       }
+      }
+     },
+     {
+      "cable": {
+       "from": {
+        "module": "Chorus",
+        "output": "Out R"
+       },
+       "to": {
+        "module": "Console4",
+        "input": "In 2"
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "why": "Pan the two sides apart.",
+   "do": "Press F3. Turn PAN of channel 1 fully left and PAN of channel 2 fully right.",
+   "after": "Now it is wide: the left speaker plays one set of swaying copies, the right another, and the sound seems to fill the room between them. That is stereo: two different signals, not the same one twice. Press Tab to go back to the rack.",
+   "done": {
+    "all": [
+     {
+      "param": {
+       "module": "Console4",
+       "param": "Ch 1 pan"
+      },
+      "max": -80
+     },
+     {
+      "param": {
+       "module": "Console4",
+       "param": "Ch 2 pan"
+      },
+      "min": 80
+     }
+    ]
+   }
+  },
+  {
+   "why": "DEPTH is how far the copies sway, RATE how fast.",
+   "do": "In the rack, press F1 and turn DEPTH of the chorus, then RATE.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Chorus",
+     "param": "Depth"
+    },
+    {
+     "module": "Chorus",
+     "param": "Rate"
+    }
+   ],
+   "after": "Little depth and a slow rate: a gentle shimmer. Much depth or a fast rate: a seasick wobble. The chorus is a short delay whose time moves; that is why the pitch of the copies sways.",
+   "try": "Flip MODE to ENSMBL: three voices at once, the lush string-machine sound of the 1970s.",
+   "done": {
+    "all": [
+     {
+      "param": {
+       "module": "Chorus",
+       "param": "Depth"
+      },
+      "moved": 0.1
+     },
+     {
+      "param": {
+       "module": "Chorus",
+       "param": "Rate"
+      },
+      "moved": 0.1
+     }
+    ]
+   }
+  },
+  {
+   "do": "One voice, a stereo effect, two channels panned apart: width. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

@@ -1,0 +1,176 @@
+{
+ "title": "Cables and voltages",
+ "startSide": "back",
+ "learned": [
+  "Every cable carries a voltage; what it means depends on where it goes",
+  "Audio swings fast (you hear it), CV moves slowly (it turns knobs for you)",
+  "A gate is on or off: it says WHEN; V/OCT says HOW HIGH: 1 V = one octave",
+  "One output can feed many inputs; an input takes one cable"
+ ],
+ "steps": [
+  {
+   "why": "In a modular synth everything runs on voltage. The sound itself is a fast-changing voltage, and a knob movement or a key press is sent on to other modules as a voltage too. Once you see that, patching starts to make sense.",
+   "do": "The rack is turned to the back. Press Next.",
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "Let's look at an audio signal first.",
+   "do": "Patch your first cable: press the left mouse button on the SAW socket of the oscillator, hold it, move to the IN 1 socket of the scope and let go. SAW is an output, IN 1 an input: a cable always goes from an output to an input.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "VCO",
+     "output": "Saw"
+    },
+    {
+     "module": "Scope",
+     "input": "In 1"
+    }
+   ],
+   "after": "The scope draws the voltage over time: the first line (trace) is a sawtooth swinging between -5 V and +5 V hundreds of times a second. A voltage that moves this fast is audio: if it reached a speaker you would hear a tone.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "VCO",
+      "output": "Saw"
+     },
+     "to": {
+      "module": "Scope",
+      "input": "In 1"
+     }
+    }
+   }
+  },
+  {
+   "why": "Now a slow voltage from the LFO (low-frequency oscillator).",
+   "do": "Drag a cable from SIN of the LFO to IN 2 of the scope.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "LFO",
+     "output": "Sin"
+    },
+    {
+     "module": "Scope",
+     "input": "In 2"
+    }
+   ],
+   "after": "The second trace is almost a flat line that slowly rises and falls, about once a second: too slow to hear. Slow voltages are control voltages (CV): they do not sound, they move things, like a hand turning a knob.",
+   "try": "Turn to the front (F1) and turn RATE on the LFO: drag the knob up or down (or turn the wheel over it). Trace 2 moves faster. Then F2.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "LFO",
+      "output": "Sin"
+     },
+     "to": {
+      "module": "Scope",
+      "input": "In 2"
+     }
+    }
+   }
+  },
+  {
+   "why": "Here is CV doing its job: the LFO will move the pitch of the oscillator.",
+   "do": "Add a second cable from SIN of the LFO to V/OCT of the oscillator. SIN already has a cable, and a plain drag from it would pick that cable up and move it. For a new one, hold Ctrl and drag from SIN to V/OCT. Or right-click SIN: the menu lists New cable in several colours; press the left mouse button on the colour you like, keep holding and drag to V/OCT.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "LFO",
+     "output": "Sin"
+    },
+    {
+     "module": "VCO",
+     "input": "V/Oct"
+    }
+   ],
+   "after": "The waves of trace 1 now bunch together and spread out: the pitch goes up and down with the LFO. V/OCT means volts per octave: +1 V is one octave up, so the LFO's ±5 V sweeps five octaves up and five down. One output fed two inputs: an output can feed as many as you like.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "LFO",
+      "output": "Sin"
+     },
+     "to": {
+      "module": "VCO",
+      "input": "V/Oct"
+     }
+    }
+   }
+  },
+  {
+   "why": "Taking a cable out is just as important as plugging one in.",
+   "do": "Remove the cable from the LFO to V/OCT: press the left mouse button on the V/OCT socket, drag the cable away and let go over an empty spot. (Shift+click on a socket also removes its top cable.)",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "VCO",
+     "input": "V/Oct"
+    }
+   ],
+   "after": "The pitch is steady again. An input takes only one cable; plugging a new one into a taken input replaces the old cable.",
+   "done": {
+    "uncabled": {
+     "from": {
+      "module": "LFO",
+      "output": "Sin"
+     },
+     "to": {
+      "module": "VCO",
+      "input": "V/Oct"
+     }
+    }
+   }
+  },
+  {
+   "why": "The last kind is the gate: on or off, like a key that is held or let go. The envelope turns a gate into a shape.",
+   "do": "Drag a cable from ENV of the envelope to IN 2 of the scope (it replaces the LFO cable there), turn to the front (F1) and press and hold the PUSH button of the envelope for a moment.",
+   "highlight": [
+    {
+     "module": "ADSR",
+     "output": "Env"
+    },
+    {
+     "module": "Scope",
+     "input": "In 2"
+    },
+    {
+     "module": "ADSR",
+     "param": "Push"
+    }
+   ],
+   "after": "While you held PUSH, the envelope got a gate: it rose (attack), fell to a level (decay, sustain) and faded when you let go (release). Gates say WHEN, envelopes say HOW a note moves.",
+   "done": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "ADSR",
+        "output": "Env"
+       },
+       "to": {
+        "module": "Scope",
+        "input": "In 2"
+       }
+      }
+     },
+     {
+      "signal": {
+       "module": "ADSR",
+       "output": "Env"
+      },
+      "above": 2
+     }
+    ]
+   }
+  },
+  {
+   "do": "Audio, CV, gates and pitch: all of them are voltages, each doing a different job. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

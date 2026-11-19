@@ -1,0 +1,71 @@
+{
+ "title": "Loop, tempo and click",
+ "standalone": true,
+ "learned": [
+  "LOOP repeats the part between the START and STOP flags: work on one part at a time",
+  "Notes are stored in beats, so a song keeps its shape at any tempo",
+  "CLICK is a metronome; REC records a MIDI keyboard into the selected track",
+  "Space pauses and plays on; Space twice stops and goes back to bar 1"
+ ],
+ "steps": [
+  {
+   "why": "A song is long, but you work on it a few bars at a time. The transport decides what plays: where, how fast and how often.",
+   "do": "Track 1 holds a four-bar melody and it is playing. Press F4 to open the Editor.",
+   "after": "The playhead runs through the song and on past its end into silence: without a loop the song just goes on.",
+   "done": {
+    "view": "editor"
+   }
+  },
+  {
+   "why": "LOOP keeps the playhead inside a part.",
+   "do": "Turn LOOP on (the rounded rectangle in the transport bar at the bottom).",
+   "after": "In the ruler, the START and STOP flags mark the loop: bars 1 to 4, the whole melody. The playhead jumps back from STOP to START.",
+   "done": {
+    "transport": "loop"
+   }
+  },
+  {
+   "why": "A shorter loop lets you listen to one phrase over and over.",
+   "do": "Drag the STOP flag (lower half of the ruler) to the left, to bar 3.",
+   "after": "Only bars 1 and 2 repeat now. The flags snap to the grid; the loop is at least 1/16 long.",
+   "try": "Drag the START flag to bar 2 too, then put both flags back around bars 1 to 4.",
+   "done": {
+    "transport": "loop",
+    "max": 8
+   }
+  },
+  {
+   "why": "The tempo is the speed of the beat, in beats per minute (BPM).",
+   "do": "In the transport bar, drag the tempo display (120) upward to 140 or more.",
+   "after": "The melody plays faster but keeps its shape: notes are stored in beats, not seconds. Clocks synced to the transport follow the same tempo.",
+   "try": "Drag the tempo down below 100: the same melody becomes calm.",
+   "done": {
+    "tempo": true,
+    "min": 140
+   }
+  },
+  {
+   "why": "To play along or record, you need to hear the beat.",
+   "do": "Turn CLICK on (the metronome button in the transport bar).",
+   "after": "A click on every beat, a higher one on the first beat of each bar. The number next to the tempo is the time signature: how many beats a bar has.",
+   "try": "With a MIDI keyboard: select a track, turn REC on and press Space. What you play is recorded into the track (one Ctrl+Z removes the whole take); Q tidies it up.",
+   "done": {
+    "transport": "click"
+   }
+  },
+  {
+   "why": "Pause and stop are not the same.",
+   "do": "Press Space twice quickly.",
+   "after": "Two presses stop and take the playhead back to bar 1; a single Space only pauses, and the next Space plays on from where it stood.",
+   "done": {
+    "transport": "stopped"
+   }
+  },
+  {
+   "do": "Loop, tempo, click, pause and stop: the transport serves the song. Press Space to play again, then Esc and Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

@@ -1,0 +1,150 @@
+{
+ "title": "Scale, flip and offset",
+ "startSide": "back",
+ "learned": [
+  "GAIN scales a voltage: below 1 smaller, above 1 bigger, at 0 nothing",
+  "Left of 0 the voltage is flipped upside down",
+  "OFFSET adds a fixed voltage; with nothing patched a row is a voltage knob",
+  "A square wave on pitch jumps between two notes: a trill"
+ ],
+ "steps": [
+  {
+   "why": "Outputs rarely give exactly the voltage an input needs: too much, too little, or the wrong way up. An attenuverter fixes that: it attenuates (makes smaller), inverts (flips) and offsets (shifts) a voltage. It works on any voltage, audio or CV.",
+   "do": "A drone with vibrato plays: SIN of the LFO goes to FM of the oscillator. The attenuverter (JX-ATT) has four rows, each with GAIN and OFFSET. Press Next.",
+   "highlight": [
+    {
+     "module": "Attenuverter"
+    }
+   ],
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "Put the attenuverter between the LFO and the oscillator.",
+   "do": "Hold Ctrl and drag a new cable from SIN of the LFO to IN 1 of the attenuverter (SIN already has a cable). Then drag a cable from OUT 1 of the attenuverter to FM of the oscillator: it replaces the direct cable there.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "LFO",
+     "output": "Sin"
+    },
+    {
+     "module": "Attenuverter",
+     "input": "In 1"
+    },
+    {
+     "module": "Attenuverter",
+     "output": "Out 1"
+    },
+    {
+     "module": "VCO",
+     "input": "FM"
+    }
+   ],
+   "after": "The vibrato sounds the same: GAIN of row 1 starts at 1×, which passes the voltage unchanged.",
+   "done": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "LFO",
+        "output": "Sin"
+       },
+       "to": {
+        "module": "Attenuverter",
+        "input": "In 1"
+       }
+      }
+     },
+     {
+      "cable": {
+       "from": {
+        "module": "Attenuverter",
+        "output": "Out 1"
+       },
+       "to": {
+        "module": "VCO",
+        "input": "FM"
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "why": "GAIN scales the voltage.",
+   "do": "Press F1 and turn GAIN of row 1 slowly from the right, through the middle, to the left.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Attenuverter",
+     "param": "Row 1 gain"
+    }
+   ],
+   "after": "Toward the middle the vibrato gets smaller and stops at 0. Left of the middle it comes back upside down: the pitch now goes down where it went up. You rarely hear the flip on a vibrato, but on an envelope it turns 'opens on each note' into 'closes on each note'.",
+   "done": {
+    "param": {
+     "module": "Attenuverter",
+     "param": "Row 1 gain"
+    },
+    "max": -0.3
+   }
+  },
+  {
+   "why": "OFFSET adds a fixed voltage to whatever comes through.",
+   "do": "Turn OFFSET of row 1 a bit away from 0.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Attenuverter",
+     "param": "Row 1 offset"
+    }
+   ],
+   "after": "The whole pitch moved: the vibrato now swings around a different note. With nothing patched into a row, it gives a steady voltage you set with GAIN and OFFSET: a knob you can patch anywhere.",
+   "try": "Double-click OFFSET to put it back to 0.",
+   "done": {
+    "param": {
+     "module": "Attenuverter",
+     "param": "Row 1 offset"
+    },
+    "moved": 0.05
+   }
+  },
+  {
+   "why": "A square wave has only two values. On pitch, that means two notes.",
+   "do": "Press F2 and drag a cable from SQR of the LFO to IN 1 of the attenuverter (it replaces the SIN cable).",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "LFO",
+     "output": "Sqr"
+    },
+    {
+     "module": "Attenuverter",
+     "input": "In 1"
+    }
+   ],
+   "after": "The pitch now jumps between two notes: a trill. GAIN sets how far apart they are, RATE of the LFO how fast it jumps.",
+   "try": "Press F1 and turn GAIN of row 1 until the two notes sound good together.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "LFO",
+      "output": "Sqr"
+     },
+     "to": {
+      "module": "Attenuverter",
+      "input": "In 1"
+     }
+    }
+   }
+  },
+  {
+   "do": "Scale, flip, shift: with an attenuverter any voltage fits any input. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

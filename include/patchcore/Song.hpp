@@ -21,6 +21,17 @@ namespace pcsong {
 constexpr int kTracks = 8;
 constexpr int64_t kPpq = 960;  // ticks per beat (a quarter note)
 
+/** The transport's tempo range */
+constexpr double kMinBpm = 20.0, kMaxBpm = 999.0;
+
+/** The tempo to use after loading a song: the saved one (kept in range), or `current` when the patch has none
+ *  (saved before the tempo was stored) or a broken one */
+inline double savedTempo(bool present, double saved, double current) {
+	if (!present || !(saved == saved))
+		return current;
+	return saved < kMinBpm ? kMinBpm : saved > kMaxBpm ? kMaxBpm : saved;
+}
+
 struct Note {
 	int64_t start;   // ticks from the song start
 	int64_t length;  // ticks, at least 1

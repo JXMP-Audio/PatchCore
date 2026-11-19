@@ -656,6 +656,37 @@ Initializer::Initializer(const CardinalBasePlugin* const plugin, const CardinalB
         }
     }
 
+   #if !defined(DISTRHO_OS_WASM)
+    // PatchCore development aid: PATCHCORE_USER_DIR=<dir> keeps settings, lesson progress and user files apart
+    // (config in <dir>/config); PATCHCORE_MCP=1 alone uses "PatchCore-claude" next to the normal folders.
+    if (asset::userDir.empty())
+    {
+        if (const char* const dir = std::getenv("PATCHCORE_USER_DIR"))
+        {
+            if (*dir != '\0')
+            {
+                asset::userDir = dir;
+                asset::configDir = system::join(dir, "config");
+            }
+        }
+        else if (const char* const mcp = std::getenv("PATCHCORE_MCP"))
+        {
+            if (std::string(mcp) == "1")
+            {
+                asset::userDir = system::join(getSpecialDir(kSpecialDirDocuments), "PatchCore-claude");
+                asset::configDir = system::join(getSpecialDir(kSpecialDirConfig), "PatchCore-claude");
+            }
+        }
+        if (! asset::userDir.empty() && isRealInstance)
+        {
+            system::createDirectories(asset::userDir);
+           #ifndef CARDINAL_COMMON_DSP_ONLY
+            system::createDirectories(asset::configDir);
+           #endif
+        }
+    }
+   #endif
+
     if (asset::userDir.empty())
     {
         asset::userDir = system::join(getSpecialDir(kSpecialDirDocuments), "PatchCore");

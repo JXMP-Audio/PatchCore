@@ -1,0 +1,205 @@
+{
+ "title": "First sound",
+ "startSide": "back",
+ "learned": [
+  "Signal flow: source (VCO) → level (VCA) → mixer (console) → speakers",
+  "The waveform is the timbre: sine is pure, saw and square are rich in overtones",
+  "Keep levels safe: start quiet, then turn up"
+ ],
+ "steps": [
+  {
+   "why": "A sound in a modular synth goes through a chain: something makes it, something sets its volume, a mixer collects everything and sends it out. You will build that chain now.",
+   "do": "The oscillator, amplifier, console and patchbay are in the rack, the patchbay is already wired to the speakers. Press Next.",
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "The oscillator is the source: it makes a steady tone.",
+   "do": "Drag a cable from SAW of the oscillator to IN 1 of the amplifier.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "VCO",
+     "output": "Saw"
+    },
+    {
+     "module": "VCA",
+     "input": "In 1"
+    }
+   ],
+   "after": "The sawtooth now goes into the amplifier, which sets how loud it is (its LEVEL knob).",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "VCO",
+      "output": "Saw"
+     },
+     "to": {
+      "module": "VCA",
+      "input": "In 1"
+     }
+    }
+   }
+  },
+  {
+   "why": "Every sound of a song ends in its own channel of the console, where you balance them.",
+   "do": "Drag a cable from OUT 1 of the amplifier to IN 1 of the console.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "VCA",
+     "output": "Out 1"
+    },
+    {
+     "module": "Console4",
+     "input": "In 1"
+    }
+   ],
+   "after": "Channel 1 of the console gets the sound. The console mixes all its channels to MAIN L and R.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "VCA",
+      "output": "Out 1"
+     },
+     "to": {
+      "module": "Console4",
+      "input": "In 1"
+     }
+    }
+   }
+  },
+  {
+   "why": "MAIN L / R is the stereo mix; it goes to the speakers through the patchbay.",
+   "do": "Drag MAIN L of the console to jack 1 of the patchbay, and MAIN R to jack 2.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "Console4",
+     "output": "Main L"
+    },
+    {
+     "module": "Patchbay4",
+     "input": "Ch 1",
+     "side": "back"
+    },
+    {
+     "module": "Console4",
+     "output": "Main R"
+    },
+    {
+     "module": "Patchbay4",
+     "input": "Ch 2",
+     "side": "back"
+    }
+   ],
+   "after": "You hear a buzzy sawtooth: your first patched sound. The chain is VCO → VCA → console → patchbay → Host Audio.",
+   "done": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "Console4",
+        "output": "Main L"
+       },
+       "to": {
+        "module": "Patchbay4",
+        "input": "Ch 1",
+        "side": "back"
+       }
+      }
+     },
+     {
+      "cable": {
+       "from": {
+        "module": "Console4",
+        "output": "Main R"
+       },
+       "to": {
+        "module": "Patchbay4",
+        "input": "Ch 2",
+        "side": "back"
+       }
+      }
+     },
+     {
+      "signal": {
+       "module": "HostAudio2",
+       "input": "#1"
+      },
+      "above": 0.05
+     }
+    ]
+   }
+  },
+  {
+   "why": "Loud sounds come fast in a modular. Get used to setting the level on the amplifier.",
+   "do": "Press F1 and turn the LEVEL knob of channel 1 (CH 1) on the amplifier: drag it up or down, or turn the mouse wheel over it.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "VCA",
+     "param": "Channel 1 level"
+    }
+   ],
+   "after": "The amplifier scales the voltage: half the level, half the swing. Start quiet when you try something new. A double-click puts a knob back to its default.",
+   "done": {
+    "param": {
+     "module": "VCA",
+     "param": "Channel 1 level"
+    },
+    "moved": 0.2
+   }
+  },
+  {
+   "why": "Pitch and timbre are the first two things you shape.",
+   "do": "Turn the FREQ knob of the oscillator.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "VCO",
+     "param": "Frequency"
+    }
+   ],
+   "after": "Frequency is how many times the wave repeats per second: faster is higher.",
+   "try": "The oscillator has an output for each wave shape: SIN, TRI, SAW and SQR always give that one shape. MIX is the one you can change with the MORPH knob. Press F2 and move the cable from SAW to MIX: press the left mouse button on SAW, drag the cable end to MIX and let go. Then F1 and turn MORPH: sine → triangle → saw → square. Same pitch, different shape, different colour: the shape of the wave is the timbre.",
+   "tryDone": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "VCO",
+        "output": "Mix"
+       },
+       "to": {
+        "module": "VCA",
+        "input": "In 1"
+       }
+      }
+     },
+     {
+      "param": {
+       "module": "VCO",
+       "param": "Morph (sine, triangle, saw, square)"
+      },
+      "moved": 0.3
+     }
+    ]
+   },
+   "done": {
+    "param": {
+     "module": "VCO",
+     "param": "Frequency"
+    },
+    "moved": 0.1
+   }
+  },
+  {
+   "do": "You built a complete voice path from source to speakers. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

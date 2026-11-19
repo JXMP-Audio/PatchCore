@@ -1,0 +1,239 @@
+{
+ "title": "Folding and ring modulation",
+ "startSide": "back",
+ "learned": [
+  "A wavefolder adds overtones by folding the wave back when it gets too big",
+  "An envelope on FOLD CV makes the colour grow and fade with each note",
+  "A ring modulator multiplies two signals: slow B = tremolo, audio-rate B = bells",
+  "An LFO fast enough to hear is an oscillator: audio and CV are the same voltages"
+ ],
+ "steps": [
+  {
+   "why": "Subtractive synthesis starts bright and takes away. The opposite approach starts with a pure sine, which has no overtones at all, and adds them. This is how many 'West Coast' synths work.",
+   "do": "Notes play from SIN of the oscillator: a pure, soft tone. In the rack there is a wavefolder (JX-FLD) and a ring modulator (JX-RNG). Press Next.",
+   "highlight": [
+    {
+     "module": "Folder"
+    },
+    {
+     "module": "Ring"
+    }
+   ],
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "A wavefolder turns the wave back down whenever it would go too high, again and again. Every fold adds a corner, and corners are overtones.",
+   "do": "Hold Ctrl and drag a new cable from SIN of the oscillator to IN of the wavefolder, then drag OUT of the wavefolder to IN 1 of the amplifier (it replaces the cable from SIN there).",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "VCO",
+     "output": "Sin"
+    },
+    {
+     "module": "Folder",
+     "input": "In"
+    },
+    {
+     "module": "Folder",
+     "output": "Out"
+    },
+    {
+     "module": "VCA",
+     "input": "In 1"
+    }
+   ],
+   "after": "The sine got brighter and buzzier: FOLD starts at 30 %, already a few folds.",
+   "done": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "VCO",
+        "output": "Sin"
+       },
+       "to": {
+        "module": "Folder",
+        "input": "In"
+       }
+      }
+     },
+     {
+      "cable": {
+       "from": {
+        "module": "Folder",
+        "output": "Out"
+       },
+       "to": {
+        "module": "VCA",
+        "input": "In 1"
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "why": "FOLD sets how many times the wave is folded.",
+   "do": "Press F1 and turn FOLD of the wavefolder up and down.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Folder",
+     "param": "Fold"
+    }
+   ],
+   "after": "More folds, more overtones: from soft to brassy to metallic. Unlike a filter sweep, the tone changes character, not just brightness.",
+   "try": "Turn SYMMETRY: uneven folds sound hollower.",
+   "done": {
+    "param": {
+     "module": "Folder",
+     "param": "Fold"
+    },
+    "moved": 0.2
+   }
+  },
+  {
+   "why": "Like the filter, the folder gets more alive when an envelope moves it.",
+   "do": "Press F2, hold Ctrl and drag a second cable from ENV of the envelope to FOLD CV of the wavefolder. Then press F1 and turn the FOLD CV knob up.",
+   "highlight": [
+    {
+     "module": "ADSR",
+     "output": "Env"
+    },
+    {
+     "module": "Folder",
+     "input": "Fold CV"
+    },
+    {
+     "module": "Folder",
+     "param": "Fold CV amount"
+    }
+   ],
+   "after": "Each note starts rich and settles to a softer tone: the envelope adds folds at the start of the note. Turn FOLD down a little to hear the movement better.",
+   "done": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "ADSR",
+        "output": "Env"
+       },
+       "to": {
+        "module": "Folder",
+        "input": "Fold CV"
+       }
+      }
+     },
+     {
+      "param": {
+       "module": "Folder",
+       "param": "Fold CV amount"
+      },
+      "min": 30
+     }
+    ]
+   }
+  },
+  {
+   "why": "A ring modulator multiplies two signals, A × B. Where B is 0 the sound is silent, where B is negative it is flipped.",
+   "do": "Press F2. Hold Ctrl and drag a new cable from OUT of the wavefolder to IN A of the ring modulator. Drag OUT of the ring modulator to IN 1 of the amplifier (it replaces the wavefolder's cable there), and SIN of the LFO to IN B.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "Folder",
+     "output": "Out"
+    },
+    {
+     "module": "Ring",
+     "input": "In A"
+    },
+    {
+     "module": "Ring",
+     "output": "Out"
+    },
+    {
+     "module": "VCA",
+     "input": "In 1"
+    },
+    {
+     "module": "LFO",
+     "output": "Sin"
+    },
+    {
+     "module": "Ring",
+     "input": "In B"
+    }
+   ],
+   "after": "The notes now pulse in volume: a slow B makes A louder and quieter, a tremolo. The panel says it too: LFO ON B = TREMOLO.",
+   "done": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "Folder",
+        "output": "Out"
+       },
+       "to": {
+        "module": "Ring",
+        "input": "In A"
+       }
+      }
+     },
+     {
+      "cable": {
+       "from": {
+        "module": "Ring",
+        "output": "Out"
+       },
+       "to": {
+        "module": "VCA",
+        "input": "In 1"
+       }
+      }
+     },
+     {
+      "cable": {
+       "from": {
+        "module": "LFO",
+        "output": "Sin"
+       },
+       "to": {
+        "module": "Ring",
+        "input": "In B"
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "why": "What if B is fast enough to hear?",
+   "do": "Press F1 and turn RATE of the LFO all the way up.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "LFO",
+     "param": "Rate"
+    }
+   ],
+   "after": "The tremolo turned into a clanging, bell-like tone. Multiplying two audible frequencies makes new ones at their sum and difference, which do not fit the note: metal, bells, robot voices. The LFO is now an oscillator: CV and audio are the same voltages, only at different speeds.",
+   "try": "Turn MIX of the ring modulator: to the left you get A back unchanged, so you can blend in just a bit of the metal.",
+   "done": {
+    "param": {
+     "module": "LFO",
+     "param": "Rate"
+    },
+    "min": 200
+   }
+  },
+  {
+   "do": "Two ways to make a sound rich: take away from a bright wave, or add to a pure one. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

@@ -1,0 +1,461 @@
+{
+ "version": "2.6.0",
+ "zoom": 1.0,
+ "gridOffset": [
+  -1,
+  0
+ ],
+ "modules": [
+  {
+   "id": 7800000001,
+   "plugin": "Cardinal",
+   "model": "HostMIDI",
+   "version": "2.0.0",
+   "pos": [
+    0,
+    0
+   ],
+   "params": [],
+   "data": {
+    "pwRange": 0.0,
+    "smooth": false,
+    "forceGateGaps": false,
+    "channels": 1,
+    "polyMode": 0,
+    "lastPitch": 8192,
+    "lastMod": 0,
+    "inputChannel": 1,
+    "outputChannel": 0
+   }
+  },
+  {
+   "id": 7800000002,
+   "plugin": "JXMP",
+   "model": "Patchbay8",
+   "version": "2.0.0",
+   "pos": [
+    10,
+    0
+   ],
+   "params": []
+  },
+  {
+   "id": 7800000003,
+   "plugin": "Cardinal",
+   "model": "HostAudio2",
+   "version": "2.0.0",
+   "pos": [
+    15,
+    0
+   ],
+   "params": []
+  },
+  {
+   "id": 7800000004,
+   "plugin": "JXMP",
+   "model": "VCO",
+   "version": "2.0.0",
+   "pos": [
+    26,
+    0
+   ],
+   "params": []
+  },
+  {
+   "id": 7800000005,
+   "plugin": "JXMP",
+   "model": "VCF",
+   "version": "2.0.0",
+   "pos": [
+    45,
+    0
+   ],
+   "params": [
+    {
+     "id": 0,
+     "value": 0.6
+    },
+    {
+     "id": 1,
+     "value": 0.3
+    },
+    {
+     "id": 9,
+     "value": 0.3
+    }
+   ]
+  },
+  {
+   "id": 7800000006,
+   "plugin": "JXMP",
+   "model": "ADSR",
+   "version": "2.0.0",
+   "pos": [
+    60,
+    0
+   ],
+   "params": [
+    {
+     "id": 0,
+     "value": 0.1
+    },
+    {
+     "id": 1,
+     "value": 0.5
+    },
+    {
+     "id": 2,
+     "value": 0.5
+    },
+    {
+     "id": 3,
+     "value": 0.45
+    }
+   ]
+  },
+  {
+   "id": 7800000007,
+   "plugin": "JXMP",
+   "model": "VCA",
+   "version": "2.0.0",
+   "pos": [
+    75,
+    0
+   ],
+   "params": [
+    {
+     "id": 0,
+     "value": 1.0
+    },
+    {
+     "id": 2,
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "id": 7800000008,
+   "plugin": "JXMP",
+   "model": "Console4",
+   "version": "2.0.0",
+   "pos": [
+    84,
+    0
+   ],
+   "params": []
+  },
+  {
+   "id": 7800000009,
+   "plugin": "JXMP",
+   "model": "Editor",
+   "version": "2.0.0",
+   "pos": [
+    103,
+    0
+   ],
+   "params": [],
+   "data": {
+    "tracks": [
+     {
+      "name": "TRACK 1",
+      "mute": false,
+      "solo": false,
+      "channel": 1,
+      "notes": [
+       0,
+       408,
+       60,
+       100,
+       480,
+       408,
+       63,
+       100,
+       960,
+       408,
+       67,
+       100,
+       1440,
+       408,
+       65,
+       100,
+       1920,
+       816,
+       63,
+       100,
+       2880,
+       408,
+       62,
+       100,
+       3360,
+       408,
+       58,
+       100,
+       3840,
+       816,
+       60,
+       100,
+       4800,
+       408,
+       67,
+       100,
+       5280,
+       408,
+       70,
+       100,
+       5760,
+       1224,
+       72,
+       100,
+       7200,
+       408,
+       70,
+       100,
+       7680,
+       408,
+       60,
+       100,
+       8160,
+       408,
+       63,
+       100,
+       8640,
+       408,
+       67,
+       100,
+       9120,
+       408,
+       65,
+       100,
+       9600,
+       816,
+       63,
+       100,
+       10560,
+       408,
+       62,
+       100,
+       11040,
+       408,
+       65,
+       100,
+       11520,
+       1632,
+       63,
+       100,
+       13440,
+       816,
+       62,
+       100,
+       14400,
+       816,
+       58,
+       100
+      ]
+     },
+     {
+      "name": "TRACK 2",
+      "mute": false,
+      "solo": false,
+      "channel": 2,
+      "notes": []
+     },
+     {
+      "name": "TRACK 3",
+      "mute": false,
+      "solo": false,
+      "channel": 3,
+      "notes": []
+     },
+     {
+      "name": "TRACK 4",
+      "mute": false,
+      "solo": false,
+      "channel": 4,
+      "notes": []
+     },
+     {
+      "name": "TRACK 5",
+      "mute": false,
+      "solo": false,
+      "channel": 5,
+      "notes": []
+     },
+     {
+      "name": "TRACK 6",
+      "mute": false,
+      "solo": false,
+      "channel": 6,
+      "notes": []
+     },
+     {
+      "name": "TRACK 7",
+      "mute": false,
+      "solo": false,
+      "channel": 7,
+      "notes": []
+     },
+     {
+      "name": "TRACK 8",
+      "mute": false,
+      "solo": false,
+      "channel": 8,
+      "notes": []
+     }
+    ],
+    "poly": [
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "polyMode": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "selected": 0,
+    "zoom": 0.045,
+    "scroll": 0.0,
+    "topPitch": 79,
+    "overviewBars": 32,
+    "drawLength": 480,
+    "grid": 240,
+    "loop": false,
+    "loopStart": 0.0,
+    "loopEnd": 16.0,
+    "click": false
+   }
+  }
+ ],
+ "cables": [
+  {
+   "id": 1,
+   "outputModuleId": 7800000001,
+   "outputId": 0,
+   "inputModuleId": 7800000002,
+   "inputId": 2,
+   "color": "#f0a030"
+  },
+  {
+   "id": 2,
+   "outputModuleId": 7800000001,
+   "outputId": 1,
+   "inputModuleId": 7800000002,
+   "inputId": 3,
+   "color": "#5b6ee1"
+  },
+  {
+   "id": 3,
+   "outputModuleId": 7800000002,
+   "outputId": 10,
+   "inputModuleId": 7800000004,
+   "inputId": 0,
+   "color": "#3cb46e"
+  },
+  {
+   "id": 4,
+   "outputModuleId": 7800000002,
+   "outputId": 11,
+   "inputModuleId": 7800000006,
+   "inputId": 0,
+   "color": "#e04e4e"
+  },
+  {
+   "id": 5,
+   "outputModuleId": 7800000004,
+   "outputId": 2,
+   "inputModuleId": 7800000005,
+   "inputId": 0,
+   "color": "#9a6bd6"
+  },
+  {
+   "id": 6,
+   "outputModuleId": 7800000005,
+   "outputId": 0,
+   "inputModuleId": 7800000007,
+   "inputId": 0,
+   "color": "#ee7b1f"
+  },
+  {
+   "id": 7,
+   "outputModuleId": 7800000006,
+   "outputId": 0,
+   "inputModuleId": 7800000007,
+   "inputId": 1,
+   "color": "#3a8dde"
+  },
+  {
+   "id": 8,
+   "outputModuleId": 7800000006,
+   "outputId": 0,
+   "inputModuleId": 7800000005,
+   "inputId": 2,
+   "color": "#f2c230"
+  },
+  {
+   "id": 9,
+   "outputModuleId": 7800000007,
+   "outputId": 0,
+   "inputModuleId": 7800000008,
+   "inputId": 0,
+   "color": "#f0a030"
+  },
+  {
+   "id": 10,
+   "outputModuleId": 7800000008,
+   "outputId": 0,
+   "inputModuleId": 7800000002,
+   "inputId": 8,
+   "color": "#5b6ee1"
+  },
+  {
+   "id": 11,
+   "outputModuleId": 7800000008,
+   "outputId": 1,
+   "inputModuleId": 7800000002,
+   "inputId": 9,
+   "color": "#3cb46e"
+  },
+  {
+   "id": 12,
+   "outputModuleId": 7800000002,
+   "outputId": 0,
+   "inputModuleId": 7800000003,
+   "inputId": 0,
+   "color": "#e04e4e"
+  },
+  {
+   "id": 13,
+   "outputModuleId": 7800000002,
+   "outputId": 1,
+   "inputModuleId": 7800000003,
+   "inputId": 1,
+   "color": "#9a6bd6"
+  }
+ ]
+}

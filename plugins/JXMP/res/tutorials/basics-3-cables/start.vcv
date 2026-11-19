@@ -1,0 +1,60 @@
+{
+ "version": "2.6.0",
+ "zoom": 1.0,
+ "gridOffset": [
+  -1,
+  0
+ ],
+ "modules": [
+  {
+   "id": 7400000001,
+   "plugin": "JXMP",
+   "model": "VCO",
+   "version": "2.0.0",
+   "pos": [
+    0,
+    0
+   ],
+   "params": []
+  },
+  {
+   "id": 7400000002,
+   "plugin": "JXMP",
+   "model": "LFO",
+   "version": "2.0.0",
+   "pos": [
+    19,
+    0
+   ],
+   "params": [
+    {
+     "id": 0,
+     "value": 0.3
+    }
+   ]
+  },
+  {
+   "id": 7400000003,
+   "plugin": "JXMP",
+   "model": "ADSR",
+   "version": "2.0.0",
+   "pos": [
+    30,
+    0
+   ],
+   "params": []
+  },
+  {
+   "id": 7400000004,
+   "plugin": "JXMP",
+   "model": "Scope",
+   "version": "2.0.0",
+   "pos": [
+    45,
+    0
+   ],
+   "params": []
+  }
+ ],
+ "cables": []
+}

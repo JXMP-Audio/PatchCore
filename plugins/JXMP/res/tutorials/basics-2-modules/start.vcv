@@ -1,0 +1,42 @@
+{
+ "version": "2.6.0",
+ "zoom": 1.0,
+ "gridOffset": [
+  -1,
+  0
+ ],
+ "modules": [
+  {
+   "id": 7400000001,
+   "plugin": "JXMP",
+   "model": "Patchbay4",
+   "version": "2.0.0",
+   "pos": [
+    0,
+    0
+   ],
+   "params": []
+  },
+  {
+   "id": 7400000002,
+   "plugin": "Cardinal",
+   "model": "HostAudio2",
+   "version": "2.0.0",
+   "pos": [
+    5,
+    0
+   ],
+   "params": []
+  }
+ ],
+ "cables": [
+  {
+   "id": 1,
+   "outputModuleId": 7400000001,
+   "outputId": 0,
+   "inputModuleId": 7400000002,
+   "inputId": 0,
+   "color": "#f0a030"
+  }
+ ]
+}

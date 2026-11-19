@@ -354,6 +354,7 @@ json_t* Edit::dataToJson() {
 		json_object_set_new(rootJ, "loopStart", json_real(c->internalTransportLoopStart));
 		json_object_set_new(rootJ, "loopEnd", json_real(c->internalTransportLoopEnd));
 		json_object_set_new(rootJ, "click", json_boolean(c->internalTransportMetronome));
+		json_object_set_new(rootJ, "bpm", json_real(c->internalTransportBeatsPerMinute));
 	}
 	return rootJ;
 }
@@ -421,6 +422,9 @@ void Edit::dataFromJson(json_t* const rootJ) {
 			c->internalTransportLoopEnd = std::max(c->internalTransportLoopStart + 0.25, json_number_value(j));
 		c->internalTransportLoop = json_is_true(json_object_get(rootJ, "loop"));
 		c->internalTransportMetronome = json_is_true(json_object_get(rootJ, "click"));
+		json_t* const bpmJ = json_object_get(rootJ, "bpm");
+		c->internalTransportBeatsPerMinute =
+		    sg::savedTempo(json_is_number(bpmJ), json_number_value(bpmJ), c->internalTransportBeatsPerMinute);
 	}
 	publish();
 }

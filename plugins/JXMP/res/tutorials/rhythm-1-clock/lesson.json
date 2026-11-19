@@ -1,0 +1,144 @@
+{
+ "title": "The clock",
+ "startSide": "back",
+ "learned": [
+  "A clock sends gates in time: everything rhythmic in a patch listens to it",
+  "TEMPO sets the beats per minute; all outputs follow it together",
+  "x4, x2 are faster than the beat, /2, /4 slower: one tempo, many note lengths",
+  "RUN plays on its own tempo, SYNC follows the transport, STOP stands"
+ ],
+ "steps": [
+  {
+   "why": "Music happens in time, and in a modular synth time comes from a clock: a module that sends a short gate on every beat, like a metronome you can patch. Sequencers, drums and envelopes listen to it.",
+   "do": "A voice is ready (oscillator → filter → amplifier, opened by the envelope) but silent: nothing triggers its envelope. The clock (JX-CLK) is on the left. Press Next.",
+   "highlight": [
+    {
+     "module": "Clock"
+    }
+   ],
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "Each clock output is a gate. Sent to the envelope, every gate becomes a note.",
+   "do": "Drag a cable from BEAT of the clock to GATE of the envelope.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "Clock",
+     "output": "Beat"
+    },
+    {
+     "module": "ADSR",
+     "input": "Gate"
+    }
+   ],
+   "after": "A note on every beat. The BEAT lamp on the front of the clock blinks with it.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "Clock",
+      "output": "Beat"
+     },
+     "to": {
+      "module": "ADSR",
+      "input": "Gate"
+     }
+    }
+   }
+  },
+  {
+   "why": "TEMPO is the speed in beats per minute (BPM).",
+   "do": "Press F1 and turn TEMPO of the clock. The display shows the BPM.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Clock",
+     "param": "Tempo"
+    }
+   ],
+   "after": "60 BPM is one beat a second; most pop and dance music sits between 90 and 130.",
+   "done": {
+    "param": {
+     "module": "Clock",
+     "param": "Tempo"
+    },
+    "moved": 0.05
+   }
+  },
+  {
+   "why": "One tempo gives you many note lengths. The outputs on the back divide or multiply the beat.",
+   "do": "Press F2 and drag the cable end from BEAT to X4: press the left mouse button on the BEAT socket, drag the cable to X4 and let go.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "Clock",
+     "output": "x4"
+    },
+    {
+     "module": "ADSR",
+     "input": "Gate"
+    }
+   ],
+   "after": "Four notes per beat: sixteenth notes. X2 gives eighths, /2 a note every two beats, /4 one per bar (four beats). Change TEMPO and all of them change together, always in step.",
+   "try": "Try /4 too: a long note once a bar. Then go back to X4.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "Clock",
+      "output": "x4"
+     },
+     "to": {
+      "module": "ADSR",
+      "input": "Gate"
+     }
+    }
+   }
+  },
+  {
+   "why": "The switch next to TEMPO decides whether the clock runs.",
+   "do": "Press F1 and flip the switch of the clock down to STOP.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Clock",
+     "param": "Mode"
+    }
+   ],
+   "after": "Silence: no gates, no notes. A stopped clock stops everything that listens to it.",
+   "done": {
+    "param": {
+     "module": "Clock",
+     "param": "Mode"
+    },
+    "max": 0.5
+   }
+  },
+  {
+   "why": "RUN plays on the clock's own tempo. SYNC follows the transport instead: the play button of PatchCore, or of your DAW when PatchCore is a plugin.",
+   "do": "Flip the switch back up to RUN.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Clock",
+     "param": "Mode"
+    }
+   ],
+   "after": "The notes are back. In a song inside a DAW you would pick SYNC, so the patch plays when the DAW plays and at its tempo.",
+   "done": {
+    "param": {
+     "module": "Clock",
+     "param": "Mode"
+    },
+    "min": 1.5
+   }
+  },
+  {
+   "do": "The clock is the heartbeat; everything rhythmic follows it. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

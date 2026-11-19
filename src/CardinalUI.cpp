@@ -73,6 +73,9 @@ namespace engine {
 void Engine_setAboutToClose(Engine*);
 void Engine_setRemoteDetails(Engine*, remoteUtils::RemoteDetails*);
 }
+namespace patchcore {
+    bool devBridgeHoldsMouse();
+}
 namespace window {
     void WindowSetPluginUI(Window* window, CardinalBaseUI* ui);
     void WindowSetMods(Window* window, int mods);
@@ -1029,6 +1032,10 @@ protected:
         }
        #endif
 
+        // PatchCore: while the development bridge (Claude) holds a button, the real mouse waits (always false otherwise)
+        if (rack::patchcore::devBridgeHoldsMouse())
+            return true;
+
         const ScopedContext sc(this, mods);
         return context->event->handleButton(lastMousePos, button, action, mods);
     }
@@ -1044,6 +1051,10 @@ protected:
 
         lastMousePos = mousePos;
 
+        // PatchCore: the position is followed, but the move would add to the bridge's (Claude's) held drag
+        if (rack::patchcore::devBridgeHoldsMouse())
+            return true;
+
         const ScopedContext sc(this, glfwMods(ev.mod));
         return context->event->handleHover(mousePos, mouseDelta);
     }
@@ -1057,6 +1068,8 @@ protected:
         const rack::math::Vec scrollDelta = rack::math::Vec(-ev.delta.getX(), ev.delta.getY()) * 50 ;
 
         const int mods = glfwMods(ev.mod);
+        if (rack::patchcore::devBridgeHoldsMouse())
+            return true;
         const ScopedContext sc(this, mods);
         return context->event->handleScroll(lastMousePos, scrollDelta);
     }

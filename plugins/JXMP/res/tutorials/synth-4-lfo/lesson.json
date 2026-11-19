@@ -1,0 +1,145 @@
+{
+ "title": "LFO: movement",
+ "startSide": "back",
+ "learned": [
+  "Control voltage (CV) turns a knob for you; an LFO turns it back and forth",
+  "The CV amount knob next to an input sets how far the CV moves",
+  "RATE: slow is a sweep, fast a wobble; very fast becomes a sound of its own",
+  "LFO on the filter = movement in colour, on FM = vibrato"
+ ],
+ "steps": [
+  {
+   "why": "A sound that never changes gets boring fast. You could keep turning a knob by hand, or let a voltage do it. A low-frequency oscillator (LFO) is an oscillator too slow to hear: it makes a voltage that rises and falls by itself.",
+   "do": "The pluck from the last lesson plays. An LFO (JX-LFO) is in the rack. Press Next.",
+   "highlight": [
+    {
+     "module": "LFO"
+    }
+   ],
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "First let the LFO move the filter cutoff.",
+   "do": "Drag a cable from TRI of the LFO to FREQ CV of the filter.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "LFO",
+     "output": "Tri"
+    },
+    {
+     "module": "VCF",
+     "input": "Freq CV"
+    }
+   ],
+   "after": "No change yet: the FREQ CV knob of the filter is in the middle, so the voltage moves nothing.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "LFO",
+      "output": "Tri"
+     },
+     "to": {
+      "module": "VCF",
+      "input": "Freq CV"
+     }
+    }
+   }
+  },
+  {
+   "why": "FREQ CV on the front is the amount knob for that input.",
+   "do": "Press F1 and turn FREQ CV of the filter (MODULATION row) to the right.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "VCF",
+     "param": "Cutoff CV"
+    }
+   ],
+   "after": "The notes now get brighter and darker in a slow wave: the LFO turns CUTOFF for you. Its triangle goes from -5 V to +5 V; at full FREQ CV that is five octaves up and five down.",
+   "done": {
+    "param": {
+     "module": "VCF",
+     "param": "Cutoff CV"
+    },
+    "min": 25
+   }
+  },
+  {
+   "why": "RATE sets how fast the LFO goes.",
+   "do": "Turn RATE of the LFO up and down.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "LFO",
+     "param": "Rate"
+    }
+   ],
+   "after": "Slow, it is a sweep over many notes. Fast, it becomes a wobble. Near the top of the knob the LFO runs hundreds of times a second: that is no longer movement but a new sound, because CV and audio are the same thing at different speeds.",
+   "done": {
+    "param": {
+     "module": "LFO",
+     "param": "Rate"
+    },
+    "moved": 0.2
+   }
+  },
+  {
+   "why": "Now the pitch. The oscillator's FM input moves its pitch, scaled by its FM knob.",
+   "do": "Press F2 and drag a cable from SIN of the LFO to FM of the oscillator.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "LFO",
+     "output": "Sin"
+    },
+    {
+     "module": "VCO",
+     "input": "FM"
+    }
+   ],
+   "after": "No change yet: the FM knob of the oscillator is in the middle.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "LFO",
+      "output": "Sin"
+     },
+     "to": {
+      "module": "VCO",
+      "input": "FM"
+     }
+    }
+   }
+  },
+  {
+   "why": "Pitch is sensitive: a little goes a long way.",
+   "do": "Press F1 and turn FM of the oscillator just a little to the right.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "VCO",
+     "param": "Frequency modulation"
+    }
+   ],
+   "after": "The pitch now wavers gently: vibrato, like a singer. Turn FM further and it becomes a siren: at 10 % the LFO's ±5 V moves the pitch half an octave up and down.",
+   "try": "Turn RATE of the LFO: a slow vibrato sounds lazy, a fast one nervous. About 5 per second sounds most natural.",
+   "done": {
+    "param": {
+     "module": "VCO",
+     "param": "Frequency modulation"
+    },
+    "min": 2,
+    "max": 20
+   }
+  },
+  {
+   "do": "An LFO is a hand that turns knobs for you. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

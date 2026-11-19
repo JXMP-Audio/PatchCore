@@ -1,0 +1,69 @@
+{
+ "version": "2.6.0",
+ "zoom": 1.0,
+ "gridOffset": [
+  -1,
+  0
+ ],
+ "modules": [
+  {
+   "id": 7400000001,
+   "plugin": "JXMP",
+   "model": "VCO",
+   "version": "2.0.0",
+   "pos": [
+    0,
+    0
+   ],
+   "params": []
+  },
+  {
+   "id": 7400000002,
+   "plugin": "JXMP",
+   "model": "VCA",
+   "version": "2.0.0",
+   "pos": [
+    19,
+    0
+   ],
+   "params": [
+    {
+     "id": 0,
+     "value": 0.3
+    }
+   ]
+  },
+  {
+   "id": 7400000003,
+   "plugin": "JXMP",
+   "model": "Patchbay4",
+   "version": "2.0.0",
+   "pos": [
+    28,
+    0
+   ],
+   "params": []
+  },
+  {
+   "id": 7400000004,
+   "plugin": "Cardinal",
+   "model": "HostAudio2",
+   "version": "2.0.0",
+   "pos": [
+    33,
+    0
+   ],
+   "params": []
+  }
+ ],
+ "cables": [
+  {
+   "id": 1,
+   "outputModuleId": 7400000001,
+   "outputId": 0,
+   "inputModuleId": 7400000002,
+   "inputId": 0,
+   "color": "#f0a030"
+  }
+ ]
+}

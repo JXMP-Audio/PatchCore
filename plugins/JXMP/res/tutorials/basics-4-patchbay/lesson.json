@@ -1,0 +1,126 @@
+{
+ "title": "The patchbay",
+ "startSide": "back",
+ "learned": [
+  "Host Audio is the way to your speakers; its sockets are on the front",
+  "A patchbay passes each channel from one side of the rack to the other",
+  "The first cable on a channel sets its direction; the LED shows it"
+ ],
+ "steps": [
+  {
+   "why": "The oscillator and amplifier are wired, but the sound stays inside the rack. Your speakers are reached through Host Audio, whose sockets are on the front. The patchbay brings the sound there.",
+   "do": "Press Next.",
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "First the back side of the bridge.",
+   "do": "Drag a cable from OUT 1 of the amplifier to jack 1 of the patchbay.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "VCA",
+     "output": "Out 1"
+    },
+    {
+     "module": "Patchbay4",
+     "input": "Ch 1",
+     "side": "back"
+    }
+   ],
+   "after": "The sound now enters channel 1 of the patchbay from the back. Its LED lights: yellow means back → front.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "VCA",
+      "output": "Out 1"
+     },
+     "to": {
+      "module": "Patchbay4",
+      "input": "Ch 1",
+      "side": "back"
+     }
+    }
+   }
+  },
+  {
+   "why": "Every patchbay channel is one wire through the rack: what goes in on one side comes out of the same number on the other.",
+   "do": "Press F1, then drag a cable from jack 1 of the patchbay to the LEFT/M input of Host Audio.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Patchbay4",
+     "output": "Ch 1",
+     "side": "front"
+    },
+    {
+     "module": "HostAudio2",
+     "input": "#1"
+    }
+   ],
+   "after": "You should hear a soft sine in both speakers. Back → patchbay → front → Host Audio → speakers. One oscillator with nothing that spreads it to the sides makes a mono sound: one signal, the same for left and right. For mono, one cable into LEFT/M is enough: M means mono, and when RIGHT is empty, Host Audio sends the left signal to both speakers.",
+   "done": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "Patchbay4",
+        "output": "Ch 1",
+        "side": "front"
+       },
+       "to": {
+        "module": "HostAudio2",
+        "input": "#1"
+       }
+      }
+     },
+     {
+      "signal": {
+       "module": "HostAudio2",
+       "input": "#1"
+      },
+      "above": 0.05
+     }
+    ]
+   }
+  },
+  {
+   "why": "Stereo is a different signal for each speaker. It comes from modules with two outputs, L and R: a stereo effect (a reverb or delay that spreads the sound to the sides) or a console mix with panned channels. Then L goes to LEFT/M and R to RIGHT, each on its own cable. Here you practise the wiring with the mono signal.",
+   "do": "Add a second cable from jack 1 of the patchbay to the RIGHT input of Host Audio. Jack 1 already has a cable, so hold Ctrl while you drag (or right-click jack 1 and drag a New cable in the colour you like): a plain drag would move the first cable instead.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Patchbay4",
+     "output": "Ch 1",
+     "side": "front"
+    },
+    {
+     "module": "HostAudio2",
+     "input": "#2"
+    }
+   ],
+   "after": "The sound did not change: both speakers get the same mono signal as before. You learned that one output can feed several inputs. In the next lesson the console's MAIN L and MAIN R go to the speakers on two cables: that is real stereo.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "Patchbay4",
+      "output": "Ch 1",
+      "side": "front"
+     },
+     "to": {
+      "module": "HostAudio2",
+      "input": "#2"
+     }
+    }
+   }
+  },
+  {
+   "why": "It works the other way too: a front signal (for example from Host MIDI) goes into a front jack and comes out at the back, ready for JXMP modules.",
+   "do": "The first cable on a channel decides its direction; remove all its cables to change it. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

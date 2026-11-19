@@ -1,0 +1,69 @@
+{
+ "title": "Save and open",
+ "startSide": "front",
+ "learned": [
+  "Ctrl+S (or Ctrl+Shift+S, Save as) saves the patch: modules, cables, every knob and the Editor song",
+  "File > Open (Ctrl+O) and File > Open recent bring a patch back",
+  "Save often; Ctrl+Z only remembers this session"
+ ],
+ "steps": [
+  {
+   "why": "A patch can take a while to build. Saving it keeps everything exactly as it is.",
+   "do": "This is the patch from the first-sound lesson, with one change: the oscillator plays from its MIX output, so the MORPH knob changes the wave shape. Press Next.",
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "Let's make it yours first.",
+   "do": "Turn FREQ or MORPH of the oscillator to a sound you like.",
+   "highlight": [
+    {
+     "module": "VCO",
+     "param": "Frequency"
+    }
+   ],
+   "after": "Next to the patch name in the top bar you now see * edited: the patch has changes that are not saved.",
+   "done": {
+    "any": [
+     {
+      "param": {
+       "module": "VCO",
+       "param": "Frequency"
+      },
+      "moved": 0.05
+     },
+     {
+      "param": {
+       "module": "VCO",
+       "param": "Morph (sine, triangle, saw, square)"
+      },
+      "moved": 0.05
+     }
+    ]
+   }
+  },
+  {
+   "why": "A saved patch is one .vcv file.",
+   "do": "Press Ctrl+Shift+S (File > Save as / Export), pick a folder and a name, and save. In the standalone app, Ctrl+S does the same for a patch that has no file yet; in a DAW, Ctrl+S only saves a patch that already has a file, so use Ctrl+Shift+S the first time.",
+   "after": "The file holds every module, cable and knob position, and the song of the Editor if there is one. Copy it to another computer and it opens the same. In a DAW the patch is also kept inside the DAW project, but a file lets you open it anywhere: in another project or in the standalone app.",
+   "done": {
+    "saved": true
+   }
+  },
+  {
+   "why": "Opening a patch replaces the one in the rack, so this lesson only shows you where.",
+   "do": "Open the File menu in the top bar and look: Open (Ctrl+O), Open recent, Save as / Export (Ctrl+Shift+S). Press Next.",
+   "after": "Open recent is the quickest way back to what you worked on last.",
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "do": "You finished the basics. The next categories build real instruments, rhythms and songs. Press Next.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

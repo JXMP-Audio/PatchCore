@@ -1,0 +1,62 @@
+{
+ "title": "The rack",
+ "startSide": "front",
+ "learned": [
+  "A patch is a rack of modules; each module does one job",
+  "Knobs are on the front, sockets on the back: Tab turns the rack, F1 / F2 pick a side",
+  "The back is where you decide how sound and control voltages flow"
+ ],
+ "steps": [
+  {
+   "why": "Every sound in PatchCore comes from small modules in a rack, the way hardware synths were built before everything fitted in one box. Each module does one job: makes a tone, filters it, sets the volume. The power comes from how you connect them.",
+   "do": "Look at the four modules in front of you: an oscillator (makes the tone), an amplifier (sets the volume), a scope (shows voltages) and a patchbay. Press Next.",
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "A rack soon gets wider than the window, so you need to move around it.",
+   "do": "Move around: drag with the middle mouse button, or turn the mouse wheel over an empty spot (up and down; Shift+wheel sideways), or use the arrow keys. Zoom with Ctrl+wheel over an empty spot. The Navigator on the right shows the whole rack and where you are. Press Next when you are comfortable.",
+   "after": "The rack never ends: you can always make room for one more module.",
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "JXMP modules keep their knobs on the front and their sockets on the back, like rack gear in a studio. The front stays clean for playing, the back is for wiring.",
+   "do": "Press Tab to turn the rack around.",
+   "highlight": [
+    {
+     "module": "VCO",
+     "output": "Saw"
+    }
+   ],
+   "after": "You see the back now: every round socket is an input or an output. Outputs send a voltage, inputs receive one. Nothing is wired yet, so nothing sounds.",
+   "try": "Hover a socket: the tooltip says what it carries.",
+   "done": {
+    "side": "back"
+   }
+  },
+  {
+   "why": "Tab always flips. When you want a known side, use F1 for the front and F2 for the back.",
+   "do": "Press F1 to come back to the front.",
+   "after": "Front for playing, back for patching. Most lessons will ask you to switch between them: the panel tells you which side a step needs.",
+   "try": "Press F2 and F1 a few times; the rack turns each time.",
+   "done": {
+    "side": "front"
+   }
+  },
+  {
+   "why": "Basic modules from other makers (and the Host Audio / Host MIDI modules that talk to your sound card and keyboard) have their sockets on the front. The patchbay is the bridge between the two sides.",
+   "do": "Find the patchbay (JX-PB4) in the rack. You will use it in a later lesson. Press Next to finish.",
+   "highlight": [
+    {
+     "module": "Patchbay4"
+    }
+   ],
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

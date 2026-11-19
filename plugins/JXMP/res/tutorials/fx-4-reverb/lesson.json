@@ -1,0 +1,154 @@
+{
+ "title": "Reverb on a send",
+ "startSide": "back",
+ "learned": [
+  "A send effect is shared: each channel's SEND decides how much of it goes in",
+  "SEND A out of the console → effect → RET A back into the console",
+  "On a send the effect plays only wet (MIX fully up): the dry sound is already in the mix",
+  "Reverb is the room around the sound: more send = further away"
+ ],
+ "steps": [
+  {
+   "why": "Reverb puts sounds in a room. In a real room everything shares the same space, so instead of one reverb per sound, the console sends a bit of each channel to one shared reverb and mixes its output back in. That is a send effect, and each channel decides how much it sends.",
+   "do": "The melody (channel 1) and the drums (channel 2) play. A reverb (JX-REV) is in the rack. Press Next.",
+   "highlight": [
+    {
+     "module": "Reverb"
+    }
+   ],
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "SEND A of the console carries the sum of every channel times its SEND A knob.",
+   "do": "Drag a cable from SEND A of the console to IN L of the reverb.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "Console4",
+     "output": "Send A"
+    },
+    {
+     "module": "Reverb",
+     "input": "In L"
+    }
+   ],
+   "after": "Nothing yet: all SEND A knobs start at zero, and the reverb's output goes nowhere.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "Console4",
+      "output": "Send A"
+     },
+     "to": {
+      "module": "Reverb",
+      "input": "In L"
+     }
+    }
+   }
+  },
+  {
+   "why": "The reverb's stereo output comes back into the console's RETURN A, which goes into the master.",
+   "do": "Drag OUT L of the reverb to RET A L of the console, and OUT R to RET A R.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "Reverb",
+     "output": "Out L"
+    },
+    {
+     "module": "Console4",
+     "input": "Ret A L"
+    },
+    {
+     "module": "Reverb",
+     "output": "Out R"
+    },
+    {
+     "module": "Console4",
+     "input": "Ret A R"
+    }
+   ],
+   "after": "The loop is closed: console → SEND A → reverb → RET A → console.",
+   "done": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "Reverb",
+        "output": "Out L"
+       },
+       "to": {
+        "module": "Console4",
+        "input": "Ret A L"
+       }
+      }
+     },
+     {
+      "cable": {
+       "from": {
+        "module": "Reverb",
+        "output": "Out R"
+       },
+       "to": {
+        "module": "Console4",
+        "input": "Ret A R"
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "why": "The dry sound already reaches the master through the channels. On a send, the reverb should give only its tail.",
+   "do": "Press F1 and turn MIX of the reverb fully up.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Reverb",
+     "param": "Mix"
+    }
+   ],
+   "after": "MIX at 100 % means only wet. If you left it lower, the reverb would add the dry sound a second time.",
+   "done": {
+    "param": {
+     "module": "Reverb",
+     "param": "Mix"
+    },
+    "min": 95
+   }
+  },
+  {
+   "why": "Now each channel chooses how much room it gets.",
+   "do": "Press F3 and turn SEND A of channel 1 (the melody) up.",
+   "after": "The melody now sits in a hall, the drums stay dry and close. More send sounds further away.",
+   "done": {
+    "param": {
+     "module": "Console4",
+     "param": "Ch 1 send A"
+    },
+    "min": 30
+   }
+  },
+  {
+   "why": "Different amounts of the same room give a mix depth.",
+   "do": "Turn SEND A of channel 2 (the drums) up just a little, then press Tab.",
+   "after": "Both sounds share one room now, the melody further back than the drums: front to back, like on a stage. One reverb serves every channel; adding a channel costs only a knob.",
+   "try": "In the rack, turn DECAY of the reverb for a longer tail, and flip ROOM / HALL / PLATE for other spaces.",
+   "done": {
+    "param": {
+     "module": "Console4",
+     "param": "Ch 2 send A"
+    },
+    "min": 5
+   }
+  },
+  {
+   "do": "Insert for one sound, send for a shared space: that is how effects meet in a mix. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

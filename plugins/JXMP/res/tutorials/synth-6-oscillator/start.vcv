@@ -1,0 +1,237 @@
+{
+ "version": "2.6.0",
+ "zoom": 1.0,
+ "gridOffset": [
+  -1,
+  0
+ ],
+ "modules": [
+  {
+   "id": 7500000001,
+   "plugin": "JXMP",
+   "model": "Clock",
+   "version": "2.0.0",
+   "pos": [
+    0,
+    0
+   ],
+   "params": [
+    {
+     "id": 0,
+     "value": 110.0
+    }
+   ]
+  },
+  {
+   "id": 7500000002,
+   "plugin": "JXMP",
+   "model": "LFO",
+   "version": "2.0.0",
+   "pos": [
+    13,
+    0
+   ],
+   "params": [
+    {
+     "id": 0,
+     "value": -0.5
+    }
+   ]
+  },
+  {
+   "id": 7500000003,
+   "plugin": "JXMP",
+   "model": "VCO",
+   "version": "2.0.0",
+   "pos": [
+    24,
+    0
+   ],
+   "params": [
+    {
+     "id": 6,
+     "value": -1.0
+    },
+    {
+     "id": 7,
+     "value": 3.0
+    }
+   ]
+  },
+  {
+   "id": 7500000004,
+   "plugin": "JXMP",
+   "model": "VCF",
+   "version": "2.0.0",
+   "pos": [
+    43,
+    0
+   ],
+   "params": [
+    {
+     "id": 0,
+     "value": 0.85
+    },
+    {
+     "id": 1,
+     "value": 0.1
+    }
+   ]
+  },
+  {
+   "id": 7500000005,
+   "plugin": "JXMP",
+   "model": "VCA",
+   "version": "2.0.0",
+   "pos": [
+    58,
+    0
+   ],
+   "params": [
+    {
+     "id": 0,
+     "value": 1.0
+    },
+    {
+     "id": 2,
+     "value": 0.0
+    }
+   ]
+  },
+  {
+   "id": 7500000006,
+   "plugin": "JXMP",
+   "model": "ADSR",
+   "version": "2.0.0",
+   "pos": [
+    67,
+    0
+   ],
+   "params": [
+    {
+     "id": 0,
+     "value": 0.1
+    },
+    {
+     "id": 1,
+     "value": 0.6
+    },
+    {
+     "id": 2,
+     "value": 0.6
+    },
+    {
+     "id": 3,
+     "value": 0.45
+    }
+   ]
+  },
+  {
+   "id": 7500000007,
+   "plugin": "JXMP",
+   "model": "Console4",
+   "version": "2.0.0",
+   "pos": [
+    82,
+    0
+   ],
+   "params": []
+  },
+  {
+   "id": 7500000008,
+   "plugin": "JXMP",
+   "model": "Patchbay4",
+   "version": "2.0.0",
+   "pos": [
+    101,
+    0
+   ],
+   "params": []
+  },
+  {
+   "id": 7500000009,
+   "plugin": "Cardinal",
+   "model": "HostAudio2",
+   "version": "2.0.0",
+   "pos": [
+    106,
+    0
+   ],
+   "params": []
+  }
+ ],
+ "cables": [
+  {
+   "id": 1,
+   "outputModuleId": 7500000003,
+   "outputId": 2,
+   "inputModuleId": 7500000004,
+   "inputId": 0,
+   "color": "#f0a030"
+  },
+  {
+   "id": 2,
+   "outputModuleId": 7500000004,
+   "outputId": 0,
+   "inputModuleId": 7500000005,
+   "inputId": 0,
+   "color": "#5b6ee1"
+  },
+  {
+   "id": 3,
+   "outputModuleId": 7500000001,
+   "outputId": 1,
+   "inputModuleId": 7500000006,
+   "inputId": 0,
+   "color": "#3cb46e"
+  },
+  {
+   "id": 4,
+   "outputModuleId": 7500000006,
+   "outputId": 0,
+   "inputModuleId": 7500000005,
+   "inputId": 1,
+   "color": "#e04e4e"
+  },
+  {
+   "id": 5,
+   "outputModuleId": 7500000005,
+   "outputId": 0,
+   "inputModuleId": 7500000007,
+   "inputId": 0,
+   "color": "#9a6bd6"
+  },
+  {
+   "id": 6,
+   "outputModuleId": 7500000007,
+   "outputId": 0,
+   "inputModuleId": 7500000008,
+   "inputId": 4,
+   "color": "#ee7b1f"
+  },
+  {
+   "id": 7,
+   "outputModuleId": 7500000007,
+   "outputId": 1,
+   "inputModuleId": 7500000008,
+   "inputId": 5,
+   "color": "#3a8dde"
+  },
+  {
+   "id": 8,
+   "outputModuleId": 7500000008,
+   "outputId": 0,
+   "inputModuleId": 7500000009,
+   "inputId": 0,
+   "color": "#f2c230"
+  },
+  {
+   "id": 9,
+   "outputModuleId": 7500000008,
+   "outputId": 1,
+   "inputModuleId": 7500000009,
+   "inputId": 1,
+   "color": "#f0a030"
+  }
+ ]
+}

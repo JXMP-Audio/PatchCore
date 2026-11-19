@@ -1,0 +1,139 @@
+{
+ "title": "Delay: echoes",
+ "startSide": "back",
+ "learned": [
+  "An insert effect goes into the chain of one sound: out of the voice, into the effect, on to the console",
+  "TIME is the gap between the echoes, FEEDBACK how many come back",
+  "MIX sets dry (the original) against wet (the effect)"
+ ],
+ "steps": [
+  {
+   "why": "An effect changes a sound that already exists. The simplest way to use one is as an insert: put it in the chain of a single sound, between the voice and the console.",
+   "do": "A sparse melody plays into channel 1 of the console. A delay (JX-DLY) is in the rack. Press Next.",
+   "highlight": [
+    {
+     "module": "Delay"
+    }
+   ],
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "The sound goes out of the amplifier, into the delay, and from the delay to the console.",
+   "do": "Hold Ctrl and drag a new cable from OUT 1 of the amplifier to IN of the delay. Then drag OUT of the delay to IN 1 of the console (it replaces the amplifier's cable there).",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "VCA",
+     "output": "Out 1"
+    },
+    {
+     "module": "Delay",
+     "input": "In"
+    },
+    {
+     "module": "Delay",
+     "output": "Out"
+    },
+    {
+     "module": "Console4",
+     "input": "In 1"
+    }
+   ],
+   "after": "Every note now comes back as a row of fading echoes. The delay records the sound and plays it again a moment later, and feeds part of the repeat back in, so it repeats again.",
+   "done": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "VCA",
+        "output": "Out 1"
+       },
+       "to": {
+        "module": "Delay",
+        "input": "In"
+       }
+      }
+     },
+     {
+      "cable": {
+       "from": {
+        "module": "Delay",
+        "output": "Out"
+       },
+       "to": {
+        "module": "Console4",
+        "input": "In 1"
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "why": "TIME is the gap between the echoes.",
+   "do": "Press F1 and turn TIME of the delay.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Delay",
+     "param": "Time"
+    }
+   ],
+   "after": "Short times (under 50 ms) thicken the sound or make it ring metallic; a few hundred milliseconds give clear echoes. Echoes that land on the beat sound musical: at 110 BPM an eighth note is about 270 ms. Turning TIME while notes ring bends their pitch, like tape.",
+   "done": {
+    "param": {
+     "module": "Delay",
+     "param": "Time"
+    },
+    "moved": 0.08
+   }
+  },
+  {
+   "why": "FEEDBACK is how much of each echo goes back in.",
+   "do": "Turn FEEDBACK up, then down again.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Delay",
+     "param": "Feedback"
+    }
+   ],
+   "after": "Low feedback: one or two echoes. High: a long trail. Near the top the echoes keep building into a warm drone; the delay holds them back softly so they never blow up.",
+   "done": {
+    "param": {
+     "module": "Delay",
+     "param": "Feedback"
+    },
+    "moved": 0.2
+   }
+  },
+  {
+   "why": "MIX sets the original (dry) against the echoes (wet).",
+   "do": "Turn MIX of the delay.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Delay",
+     "param": "Mix (dry ← → wet)"
+    }
+   ],
+   "after": "Left: only the original. Right: only the echoes. In between: both. An insert effect usually sits somewhere in the middle.",
+   "try": "Turn TONE: left makes every repeat darker (like an old tape echo), right thinner.",
+   "done": {
+    "param": {
+     "module": "Delay",
+     "param": "Mix (dry ← → wet)"
+    },
+    "moved": 0.1
+   }
+  },
+  {
+   "do": "Voice → effect → console: an insert changes one sound. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

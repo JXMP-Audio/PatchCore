@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <math.hpp>
@@ -63,6 +64,8 @@ struct Settings {
 	std::vector<std::string> tutorialsDone;
 	/** The "New to modular?" offer was shown once */
 	bool tutorialOffered = false;
+	/** Language of the PatchCore UI: "en" or the code of a file in the JXMP plugin's res/lang */
+	std::string language = "en";
 };
 
 extern Settings settings;
@@ -218,10 +221,16 @@ struct TutorialInfo {
 	/** lesson.json parses */
 	bool available;
 	bool done;
+	/** Needs the standalone app (Editor, transport buttons); unavailable in a plugin */
+	bool standaloneOnly = false;
 };
 std::vector<TutorialInfo> tutorialList();
 /** Asks to save unsaved work, opens the lesson's start patch untitled and starts the lesson */
 void openTutorial(const std::string& id);
+/** "en" plus every language in res/lang: (code, name in that language) */
+std::vector<std::pair<std::string, std::string>> languages();
+/** Loads settings.language if it changed */
+void applyLanguage();
 /** Full-scene layer: step panel, highlight, first-start offer */
 widget::Widget* createTutorialLayer();
 /** PATCHCORE_DEV_CHECK: checks every JXMP module panel and logs the problems, then closes the app (DevCheck.cpp) */
@@ -249,6 +258,17 @@ Mixer view), PATCHCORE_DEV_AUDIO_DIALOG (open Audio Settings). After restartApp(
 PATCHCORE_RESTORE_MODIFIED bring back the patch's own path and unsaved state. */
 void devStep();
 
+/** MCP bridge for development (DevBridge.cpp: local, not in git; built in only when the file exists, active only
+with PATCHCORE_MCP=1). Without the file these are empty defaults in PatchCore.cpp. */
+/** Each frame, first thing in devStep(): runs queued commands on the UI thread */
+void devBridgeStep();
+/** After the scene is drawn (scene units, pixel ratio applied): the Claude cursor above everything */
+void devBridgeDraw(NVGcontext* vg);
+/** After the frame (framebuffer size in pixels): screenshots */
+void devBridgeFrameDone(int fbWidth, int fbHeight);
+/** True while Claude holds a mouse button down: the real mouse is then ignored (it would add to Claude's drag) */
+bool devBridgeHoldsMouse();
+
 /** Draws the 19" rack frame (ears, rails, recesses) around the occupied rack rows.
 Inserted into RackWidget below the module container. Hides the stock RailWidget while PatchCore is enabled. */
 widget::Widget* createRackFrame(app::RackWidget* rack);
@@ -260,4 +280,15 @@ namespace app {
 void ModuleWidget_syncPatchCoreView(ModuleWidget* mw);
 }
 
+} // namespace rack
+
+// Tutorial internals for the development MCP bridge (Tutorial.cpp). TutorialLogic.hpp defines the types.
+namespace patchcore_tutorial {
+struct RackState;
+}
+namespace rack {
+namespace patchcore {
+/** The rack as the lessons see it (modules, ports, params, cables, view, transport, song) */
+patchcore_tutorial::RackState tutorialSnapshot();
+} // namespace patchcore
 } // namespace rack

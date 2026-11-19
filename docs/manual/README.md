@@ -10,6 +10,10 @@ rack (or `F1` front and `F2` back). Basic modules (Host MIDI, Host Audio, other 
 a [patchbay](jx-pb.md) connects the two sides. `F3` opens the Mixer view of [JX-CONSOLE](jx-console.md), `F4` the
 [Editor](jx-edit.md). All keys are in the top bar under **Shortcuts**.
 
+**Learning.** **Learn** in the top bar holds interactive lessons in six categories: 1 Basics, 2 Sound synthesis,
+3 Rhythm and sequences, 4 Effects and mix, 5 Editor and song, 6 Advanced. Each step says why, what to do, and what
+just happened; PatchCore checks your patch as you go. **View → Language** switches the lessons to Czech (more of the UI will follow).
+
 ## Sound sources
 
 | | Module | What it is |

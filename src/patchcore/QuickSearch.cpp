@@ -184,10 +184,17 @@ struct QuickSearch : widget::OpaqueWidget {
 			}
 		}
 		else {
+			std::vector<plugin::Model*> found;
+			std::vector<qs::Hit> hits;
 			for (plugin::Model* const m : searchModels(q.text)) {
 				const int i = indexOf(m);
-				if (i >= 0 && qs::passes(entries[i], q.tag, q.brand))
-					rows.push_back({m, qs::SECTION_ALL, false});
+				if (i >= 0 && qs::passes(entries[i], q.tag, q.brand)) {
+					found.push_back(m);
+					hits.push_back({m->name, m->slug, entries[i].ours});
+				}
+			}
+			for (const int k : qs::rankHits(hits, q.text)) {
+				rows.push_back({found[k], qs::SECTION_ALL, false});
 				if (rows.size() >= 200)
 					break;
 			}

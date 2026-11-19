@@ -1,0 +1,72 @@
+{
+ "title": "A second track",
+ "standalone": true,
+ "learned": [
+  "A song is several parts at once; each part gets its own track",
+  "A track plays the voice whose Host MIDI listens on the track's MIDI channel",
+  "M (mute) silences a track, S (solo) lets you hear it alone; the notes stay",
+  "The SONG overview shows all tracks at once"
+ ],
+ "steps": [
+  {
+   "why": "A melody alone is thin. Under it goes a bass, maybe drums: parts that play together, each on its own track.",
+   "do": "The top row is the melody voice: Host MIDI on channel 1. The second row is a bass voice, whose own Host MIDI listens on channel 2 (Shift+right-click a Host MIDI: PLAYS MIDI channel). Press Next.",
+   "highlight": [
+    {
+     "module": "HostMIDI"
+    }
+   ],
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "Track 2 sends on channel 2: that is where the bass listens.",
+   "do": "Press F4 and click TRACK 2 in the list on the left.",
+   "after": "The roll shows track 2, still empty. Under the list, MIDI CH says 2 and the status line confirms a Host MIDI on channel 2 is in the rack. The melody of track 1 stays visible in the SONG overview at the top.",
+   "done": {
+    "view": "editor"
+   }
+  },
+  {
+   "why": "A bass plays few notes, mostly on the beat, low under the melody.",
+   "do": "In track 2, draw at least four notes in the lower part of the roll (around C3), one at the start of each bar. Longer notes suit a bass: drag their ends.",
+   "after": "The bass plays under the melody. Its oscillator is set an octave down, so C3 in the roll sounds as C2. In the SONG overview each track has its own colour.",
+   "try": "Turn the mouse wheel over the roll to see higher or lower notes.",
+   "done": {
+    "notes": 4,
+    "track": 2
+   }
+  },
+  {
+   "why": "To judge one part, take the others out for a moment.",
+   "do": "In the track list, press M of track 1.",
+   "after": "The melody went silent, the bass plays alone. Mute only stops the track from sending notes: the notes stay.",
+   "done": {
+    "muted": 1
+   }
+  },
+  {
+   "why": "Solo is the other way round: hear one track and silence all the others.",
+   "do": "Press S of track 1.",
+   "after": "S switched M of track 1 off: now only the melody plays, and M of the other tracks blinks to show a solo silences them. Press S again to hear both parts.",
+   "done": {
+    "solo": 1
+   }
+  },
+  {
+   "why": "The rack shows the tracks too.",
+   "do": "Press Esc to go back to the rack.",
+   "after": "On JX-EDIT the LEDs of tracks 1 and 2 light with their notes; M and S work here too. Each track could also move to another MIDI channel (MIDI CH − / + in the Editor), and several tracks can share one voice.",
+   "done": {
+    "view": "rack"
+   }
+  },
+  {
+   "do": "One track per part, one MIDI channel per voice: that is how a song is arranged. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

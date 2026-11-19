@@ -1,0 +1,126 @@
+{
+ "title": "Envelope on the filter",
+ "startSide": "back",
+ "learned": [
+  "One output can drive many inputs: one envelope shapes volume and colour",
+  "The ENV knob of the filter sets how far the envelope opens it",
+  "CUTOFF is where the sweep starts; the envelope adds on top",
+  "Short decay, low sustain and a filter envelope: the classic pluck and bass"
+ ],
+ "steps": [
+  {
+   "why": "A plucked string is brightest at the moment it is hit and gets darker as it rings. A synth copies that by letting the envelope move the filter too, not only the volume.",
+   "do": "The notes from the last lesson play: clock → envelope → amplifier, through a filter that is set quite dark. Press Next.",
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "The filter has its own input for an envelope.",
+   "do": "Hold Ctrl and drag a second cable from ENV of the envelope to ENV of the filter.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "ADSR",
+     "output": "Env"
+    },
+    {
+     "module": "VCF",
+     "input": "Env"
+    }
+   ],
+   "after": "No change yet: the filter's ENV knob decides how much the envelope moves the cutoff, and it is in the middle, which means no change.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "ADSR",
+      "output": "Env"
+     },
+     "to": {
+      "module": "VCF",
+      "input": "Env"
+     }
+    }
+   }
+  },
+  {
+   "why": "Most inputs that change a knob have a small amount knob next to them. Here it is ENV in the MODULATION row of the filter.",
+   "do": "Press F1 and turn ENV of the filter to the right, more than halfway to the end.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "VCF",
+     "param": "Envelope amount"
+    }
+   ],
+   "after": "Every note now opens the filter and closes it again: a 'pew' or 'wow'. The envelope's 10 V moves the cutoff up by up to five octaves at full ENV.",
+   "done": {
+    "param": {
+     "module": "VCF",
+     "param": "Envelope amount"
+    },
+    "min": 40
+   }
+  },
+  {
+   "why": "CUTOFF is where the filter rests; the envelope adds on top of it.",
+   "do": "Turn CUTOFF of the filter down a little and listen.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "VCF",
+     "param": "Cutoff frequency"
+    }
+   ],
+   "after": "The lower the cutoff, the darker the end of each note and the more the sweep stands out. Cutoff and envelope amount together set where each note starts and ends.",
+   "done": {
+    "param": {
+     "module": "VCF",
+     "param": "Cutoff frequency"
+    },
+    "moved": 0.08
+   }
+  },
+  {
+   "why": "Now make it a pluck: a short bright hit that dies away.",
+   "do": "On the envelope, turn SUSTAIN down near zero and DECAY short (to the left).",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "ADSR",
+     "param": "Sustain"
+    },
+    {
+     "module": "ADSR",
+     "param": "Decay"
+    }
+   ],
+   "after": "Each note is a bright snap that turns dark and quiet at once: volume and colour fall together. This is the sound of countless synth basses and plucks.",
+   "try": "Turn ENV of the filter left of the middle: the envelope now closes the filter on each note instead of opening it. Then turn RESONANCE up for a squelchy bass.",
+   "done": {
+    "all": [
+     {
+      "param": {
+       "module": "ADSR",
+       "param": "Sustain"
+      },
+      "max": 20
+     },
+     {
+      "param": {
+       "module": "ADSR",
+       "param": "Decay"
+      },
+      "max": 300
+     }
+    ]
+   }
+  },
+  {
+   "do": "One envelope can drive as many things as you like. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

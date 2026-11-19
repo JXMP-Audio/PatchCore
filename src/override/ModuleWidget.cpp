@@ -82,6 +82,8 @@ struct ModuleWidget::Internal {
 	bool patchcoreCapsComputed = false;
 	/** PatchCore: a drag moves the module only when it started with Shift. */
 	bool patchcoreDrag = false;
+	/** Shift+click on a module that was already selected: it leaves the selection on release, unless it was dragged */
+	bool patchcoreUnselect = false;
 };
 
 
@@ -624,8 +626,9 @@ void ModuleWidget::onButton(const ButtonEvent& e) {
 	bool selected = APP->scene->rack->isSelected(this);
 
 	// PatchCore: the module itself only reacts with Shift held, so its knobs and jacks always work, even when
-	// it is selected. Shift+click selects it, Shift+drag moves it (or the selection), Shift+right-click selects
-	// it and opens its menu (the selection menu when several modules are selected and this is one of them).
+	// it is selected. Shift+click adds it to the selection (on a selected module: takes it out), Shift+drag moves
+	// it (or the selection), Shift+right-click selects it and opens its menu (the selection menu when several
+	// modules are selected and this is one of them).
 	// Without Shift a click on the bare panel goes on to the rack (right-click: quick search, drag: selection box).
 	if (patchcore::enabled()) {
 		if ((e.mods & RACK_MOD_MASK) != GLFW_MOD_SHIFT) {
@@ -642,7 +645,14 @@ void ModuleWidget::onButton(const ButtonEvent& e) {
 			return;
 		}
 		if (e.action == GLFW_PRESS && (e.button == GLFW_MOUSE_BUTTON_LEFT || e.button == GLFW_MOUSE_BUTTON_RIGHT)) {
-			if (!selected) {
+			internal->patchcoreUnselect = false;
+			if (e.button == GLFW_MOUSE_BUTTON_LEFT) {
+				if (!selected)
+					APP->scene->rack->select(this);
+				else
+					internal->patchcoreUnselect = true;
+			}
+			else if (!selected) {
 				APP->scene->rack->deselectAll();
 				APP->scene->rack->select(this);
 			}
@@ -750,10 +760,15 @@ void ModuleWidget::onDragEnd(const DragEndEvent& e) {
 		internal->dragEnabled = true;
 
 		history::ComplexAction* h = APP->scene->rack->getModuleDragAction();
-		if (!h->isEmpty())
+		const bool moved = !h->isEmpty();
+		if (moved)
 			APP->history->push(h);
 		else
 			delete h;
+		// PatchCore: a Shift+click (no move) on a selected module takes it out of the selection
+		if (internal->patchcoreUnselect && !moved)
+			APP->scene->rack->select(this, false);
+		internal->patchcoreUnselect = false;
 	}
 }
 

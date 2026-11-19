@@ -1,0 +1,94 @@
+--- ../Rack/src/app/PortWidget.cpp	2026-10-28 23:11:03.964573611 +0100
++++ PortWidget.cpp	2026-11-16 18:34:42.303306168 +0100
+@@ -1,3 +1,18 @@
++/*
++ * DISTRHO Cardinal Plugin
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++/**
++ * This file is an edited version of VCVRack's app/PortWidget.cpp
++ * Copyright (C) 2016-2023 VCV.
++ *
++ * This program is free software: you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 3 of
++ * the License, or (at your option) any later version.
++ */
++
+ #include <app/PortWidget.hpp>
+ #include <app/Scene.hpp>
+ #include <ui/MenuItem.hpp>
+@@ -470,12 +485,31 @@
+ 		return;
+ 
+ 	if (cw->isComplete()) {
++		// PatchCore: dropping on a taken input replaces its cable (one undo step for both)
++		history::ComplexAction* complex = NULL;
++		if (CableWidget* old = APP->scene->rack->getTopCable(cw->inputPort)) {
++			complex = new history::ComplexAction;
++			complex->name = "replace cable";
++			history::CableRemove* hr = new history::CableRemove;
++			hr->setCable(old);
++			complex->push(hr);
++			APP->scene->rack->removeCable(old);
++			delete old;
++			cw->updateCable();
++		}
++
+ 		APP->scene->rack->addCable(cw);
+ 
+ 		// history::CableAdd
+ 		history::CableAdd* h = new history::CableAdd;
+ 		h->setCable(cw);
+-		APP->history->push(h);
++		if (complex) {
++			complex->push(h);
++			APP->history->push(complex);
++		}
++		else {
++			APP->history->push(h);
++		}
+ 	}
+ 	else {
+ 		delete cw;
+@@ -491,20 +525,20 @@
+ 	if (e.button != GLFW_MOUSE_BUTTON_LEFT)
+ 		return;
+ 
+-	// Reject ports if this is an input port and something is already plugged into it
+-	if (type == engine::Port::INPUT) {
+-		if (APP->scene->rack->getTopCable(this))
+-			return;
+-	}
++	// PatchCore: an input that already has a cable takes the new one too; the old cable is replaced in onDragEnd
+ 
+ 	CableWidget* cw = APP->scene->rack->getIncompleteCable();
+ 	if (cw) {
++		// PatchCore: on a taken input the engine refuses a second cable; onDragEnd makes it after the old one goes.
++		// Asked before this cable is attached, or it would find itself.
++		const bool taken = type == engine::Port::INPUT && APP->scene->rack->getTopCable(this);
+ 		cw->hoveredOutputPort = cw->hoveredInputPort = NULL;
+ 		if (type == engine::Port::OUTPUT)
+ 			cw->outputPort = this;
+ 		else
+ 			cw->inputPort = this;
+-		cw->updateCable();
++		if (!taken)
++			cw->updateCable();
+ 	}
+ }
+ 
+@@ -518,11 +552,7 @@
+ 	if (e.button != GLFW_MOUSE_BUTTON_LEFT)
+ 		return;
+ 
+-	// Reject ports if this is an input port and something is already plugged into it
+-	if (type == engine::Port::INPUT) {
+-		if (APP->scene->rack->getTopCable(this))
+-			return;
+-	}
++	// PatchCore: an input that already has a cable takes the new one too; the old cable is replaced in onDragEnd
+ 
+ 	CableWidget* cw = APP->scene->rack->getIncompleteCable();
+ 	if (cw) {

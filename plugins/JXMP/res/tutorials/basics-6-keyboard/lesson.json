@@ -1,0 +1,188 @@
+{
+ "title": "Playing notes",
+ "startSide": "front",
+ "learned": [
+  "Host MIDI turns key presses into voltages: V/OCT (which note) and GATE (when)",
+  "An envelope turns the gate into a shape; on the VCA it makes notes start and stop",
+  "Pitch goes to the oscillator, gate goes to the envelope, the envelope opens the VCA"
+ ],
+ "steps": [
+  {
+   "why": "A droning oscillator is not an instrument yet. To play notes you need two voltages from the keyboard: which note (pitch) and when (gate). Host MIDI makes them from your MIDI keyboard.",
+   "do": "In the rack: Host MIDI, a patchbay, and the voice from the last lesson with an envelope. Notes reach Host MIDI in one of three ways. A MIDI keyboard plugged in before PatchCore started plays into Host MIDI by itself (with JACK or PipeWire, connect it to PatchCore in your patchbay tool). In a DAW, create a MIDI track whose output goes to PatchCore (PatchCore loaded as an instrument): notes you play on that track, record into it or draw in its piano roll all arrive at Host MIDI. No keyboard and no DAW? You can follow with the PUSH button of the envelope. Press Next.",
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "Host MIDI is on the front, the voice is on the back, so pitch and gate cross the patchbay.",
+   "do": "Drag the V/OCT output of Host MIDI (its right-hand column of sockets holds the outputs) to jack 3 of the patchbay, and the GATE output to jack 4.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "HostMIDI",
+     "output": "1V/octave pitch"
+    },
+    {
+     "module": "Patchbay8",
+     "input": "Ch 3",
+     "side": "front"
+    },
+    {
+     "module": "HostMIDI",
+     "output": "Gate"
+    },
+    {
+     "module": "Patchbay8",
+     "input": "Ch 4",
+     "side": "front"
+    }
+   ],
+   "after": "Channels 3 and 4 now carry pitch and gate from front to back (green LEDs: front → back).",
+   "done": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "HostMIDI",
+        "output": "1V/octave pitch"
+       },
+       "to": {
+        "module": "Patchbay8",
+        "input": "Ch 3",
+        "side": "front"
+       }
+      }
+     },
+     {
+      "cable": {
+       "from": {
+        "module": "HostMIDI",
+        "output": "Gate"
+       },
+       "to": {
+        "module": "Patchbay8",
+        "input": "Ch 4",
+        "side": "front"
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "why": "Pitch belongs to the oscillator: each key sends a different voltage, 1 V per octave.",
+   "do": "Press Tab and drag jack 3 of the patchbay to V/OCT of the oscillator.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "Patchbay8",
+     "output": "Ch 3",
+     "side": "back"
+    },
+    {
+     "module": "VCO",
+     "input": "V/Oct"
+    }
+   ],
+   "after": "Keys now change the pitch, but the tone still never stops: nothing uses the gate yet.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "Patchbay8",
+      "output": "Ch 3",
+      "side": "back"
+     },
+     "to": {
+      "module": "VCO",
+      "input": "V/Oct"
+     }
+    }
+   }
+  },
+  {
+   "why": "The gate goes to the envelope, which makes a shape for every note.",
+   "do": "Drag jack 4 of the patchbay to GATE of the envelope.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "Patchbay8",
+     "output": "Ch 4",
+     "side": "back"
+    },
+    {
+     "module": "ADSR",
+     "input": "Gate"
+    }
+   ],
+   "after": "Each key press now starts the envelope; letting go starts its release.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "Patchbay8",
+      "output": "Ch 4",
+      "side": "back"
+     },
+     "to": {
+      "module": "ADSR",
+      "input": "Gate"
+     }
+    }
+   }
+  },
+  {
+   "why": "The envelope must control the volume, so the sound starts and stops with the keys.",
+   "do": "Drag ENV of the envelope to CV 1 of the amplifier.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "ADSR",
+     "output": "Env"
+    },
+    {
+     "module": "VCA",
+     "input": "CV 1"
+    }
+   ],
+   "after": "Silence: with a cable in CV 1 the amplifier is closed until the envelope opens it. That is what VCA means: voltage-controlled amplifier.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "ADSR",
+      "output": "Env"
+     },
+     "to": {
+      "module": "VCA",
+      "input": "CV 1"
+     }
+    }
+   }
+  },
+  {
+   "why": "Time to play.",
+   "do": "Play a few notes: on your MIDI keyboard, from the MIDI track in your DAW (play or start a clip with notes), or press F1 and hold PUSH on the envelope.",
+   "after": "Every note: Host MIDI sends pitch and gate, the oscillator follows the pitch, the envelope follows the gate and opens the amplifier. That is a complete synth voice.",
+   "try": "On the front, turn ATTACK and RELEASE of the envelope: slow attack swells in, long release rings out.",
+   "tryDone": {
+    "param": {
+     "module": "ADSR",
+     "param": "Release"
+    },
+    "moved": 0.2
+   },
+   "done": {
+    "signal": {
+     "module": "ADSR",
+     "output": "Env"
+    },
+    "above": 1
+   }
+  },
+  {
+   "do": "You can play your patch. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

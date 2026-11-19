@@ -1,0 +1,58 @@
+{
+ "title": "Modules",
+ "startSide": "front",
+ "learned": [
+  "The quick search finds every module: right-click empty space or press Enter",
+  "@jxmp filters by brand, #vca, #filter… filter by what a module does",
+  "Delete or Backspace removes a selected module; Ctrl+Z brings it back"
+ ],
+ "steps": [
+  {
+   "why": "You build a patch by adding modules one by one. The quick search lists every module and is the fastest way to get one.",
+   "do": "Right-click an empty spot in the rack (or press Enter), type VCO @jxmp and press Enter.",
+   "after": "An oscillator appeared. '@jxmp' showed only our modules: other makers also have modules called VCO, and this course uses ours.",
+   "done": {
+    "module": "VCO"
+   }
+  },
+  {
+   "why": "Often you know what you need, not its name. Modules have tags for what they do.",
+   "do": "Open the quick search again and type #vca @jxmp, then click VCA in the list (or press Enter).",
+   "after": "'#vca' found modules tagged as amplifiers. Try #filter, #envelope or #reverb later: tags are the way to explore what is available.",
+   "done": {
+    "module": "VCA"
+   }
+  },
+  {
+   "why": "Where a module sits does not change the sound, but a tidy rack is easier to read.",
+   "do": "Hold Shift, press the left mouse button on an empty spot of the VCA's panel (not on a knob), move the mouse and let go. Press Next.",
+   "after": "With Shift you hold the module itself; without it, clicks go to its knobs and sockets, so a module never moves by accident while you play. Modules push each other aside, they never overlap: put modules that work together side by side.",
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "Removing what you do not need keeps a patch clear.",
+   "do": "Delete the VCA, one of two ways: leave the mouse over the VCA and press Delete (or Backspace); or Shift+click the VCA to select it (it gets an outline) and press Delete with the mouse anywhere.",
+   "after": "The VCA is gone, with any cables it had. To delete several modules at once, select them first: Shift+click each one (Shift+click a selected module again to take it out), or Ctrl+drag a box across them. Then press Delete. A click on an empty spot of the rack clears the selection.",
+   "done": {
+    "removed": "VCA"
+   }
+  },
+  {
+   "why": "Everything you do can be undone, so experimenting is safe.",
+   "do": "Press Ctrl+Z.",
+   "after": "The VCA is back where it was. Ctrl+Shift+Z redoes what you undid.",
+   "try": "Add a module you do not know yet with the quick search and look at its panel, then undo it.",
+   "done": {
+    "module": "VCA"
+   }
+  },
+  {
+   "do": "That is all you need to build any patch from modules. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

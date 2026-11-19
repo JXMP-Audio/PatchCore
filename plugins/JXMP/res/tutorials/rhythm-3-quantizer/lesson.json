@@ -1,0 +1,161 @@
+{
+ "title": "Notes in a scale",
+ "startSide": "back",
+ "learned": [
+  "A quantizer moves any voltage to the nearest note of a scale",
+  "SCALE picks the notes allowed, ROOT the key",
+  "Put the quantizer between a CV source and V/OCT: any knob position is now in tune"
+ ],
+ "steps": [
+  {
+   "why": "The melody from the last lesson plays, a bit out of tune: its step voltages fall between notes. A quantizer snaps any voltage to the nearest note of a scale you choose.",
+   "do": "The quantizer (JX-QNT) is next to the sequencer. Press Next.",
+   "highlight": [
+    {
+     "module": "Quantizer"
+    }
+   ],
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "The quantizer goes between the sequencer's CV and the oscillator's pitch.",
+   "do": "Hold Ctrl and drag a new cable from CV of the sequencer to the V/OCT input of the quantizer (on its left; CV already has a cable). Then drag a cable from the V/OCT output of the quantizer (on its right) to V/OCT of the oscillator. The second cable replaces the old one there.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "SEQ",
+     "output": "CV"
+    },
+    {
+     "module": "Quantizer",
+     "input": "V/Oct"
+    },
+    {
+     "module": "Quantizer",
+     "output": "V/Oct"
+    },
+    {
+     "module": "VCO",
+     "input": "V/Oct"
+    }
+   ],
+   "after": "The same melody, now in tune: every step lands on a note of C major, the quantizer's starting scale.",
+   "done": {
+    "all": [
+     {
+      "cable": {
+       "from": {
+        "module": "SEQ",
+        "output": "CV"
+       },
+       "to": {
+        "module": "Quantizer",
+        "input": "V/Oct"
+       }
+      }
+     },
+     {
+      "cable": {
+       "from": {
+        "module": "Quantizer",
+        "output": "V/Oct"
+       },
+       "to": {
+        "module": "VCO",
+        "input": "V/Oct"
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "why": "The scale decides the mood: which notes are allowed.",
+   "do": "Press F1 and turn SCALE of the quantizer. Its NOTES display shows which notes the scale uses.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Quantizer",
+     "param": "Scale"
+    }
+   ],
+   "after": "Major sounds bright, minor darker, pentatonic can never sound wrong, chromatic allows all twelve notes (and quantizes only to the nearest semitone).",
+   "done": {
+    "param": {
+     "module": "Quantizer",
+     "param": "Scale"
+    },
+    "moved": 0.1
+   }
+  },
+  {
+   "why": "ROOT moves the whole scale to another key.",
+   "do": "Turn ROOT of the quantizer.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "Quantizer",
+     "param": "Root"
+    }
+   ],
+   "after": "The melody moved to a new key and kept its shape. To play along with other music, set ROOT and SCALE to its key.",
+   "done": {
+    "param": {
+     "module": "Quantizer",
+     "param": "Root"
+    },
+    "moved": 0.08
+   }
+  },
+  {
+   "why": "Now the sequencer knobs are safe to play with.",
+   "do": "Turn a few step knobs of the sequencer, in small moves.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "SEQ",
+     "param": "Step 4 CV"
+    },
+    {
+     "module": "SEQ",
+     "param": "Step 6 CV"
+    }
+   ],
+   "after": "Every position is a note of the scale: you can compose by ear without knowing which voltage is which note.",
+   "try": "Turn OCTAVE of the quantizer: the whole melody jumps an octave up or down.",
+   "done": {
+    "any": [
+     {
+      "param": {
+       "module": "SEQ",
+       "param": "Step 4 CV"
+      },
+      "moved": 0.02
+     },
+     {
+      "param": {
+       "module": "SEQ",
+       "param": "Step 6 CV"
+      },
+      "moved": 0.02
+     },
+     {
+      "param": {
+       "module": "SEQ",
+       "param": "Step 7 CV"
+      },
+      "moved": 0.02
+     }
+    ]
+   }
+  },
+  {
+   "do": "Any voltage, quantized, becomes a melody in key. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

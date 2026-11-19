@@ -45,6 +45,7 @@ RACK_FILES += override/Knob.cpp
 RACK_FILES += override/context.cpp
 RACK_FILES += override/minblep.cpp
 RACK_FILES += override/plugin.cpp
+RACK_FILES += override/PortWidget.cpp
 RACK_FILES += override/Engine.cpp
 RACK_FILES += override/Model.cpp
 RACK_FILES += override/ModuleWidget.cpp
@@ -61,6 +62,14 @@ RACK_FILES += patchcore/RackFrame.cpp
 RACK_FILES += patchcore/TopBar.cpp
 RACK_FILES += patchcore/Tutorial.cpp
 RACK_FILES += patchcore/DevCheck.cpp
+# Local development bridge (not in git): built in only when the file exists. After adding or removing the file,
+# touch patchcore/PatchCore.cpp so its empty defaults are rebuilt to match.
+ifeq ($(LINUX),true)
+ifneq ($(wildcard patchcore/DevBridge.cpp),)
+RACK_FILES += patchcore/DevBridge.cpp
+BUILD_CXX_FLAGS += -DPATCHCORE_DEV_BRIDGE
+endif
+endif
 
 RACK_FILES += Rack/dep/pffft/pffft.c
 RACK_FILES += Rack/dep/pffft/fftpack.c
@@ -84,6 +93,7 @@ IGNORED_FILES += Rack/src/rtmidi.cpp
 IGNORED_FILES += Rack/src/app/AudioDisplay.cpp
 IGNORED_FILES += Rack/src/app/Browser.cpp
 IGNORED_FILES += Rack/src/app/CableWidget.cpp
+IGNORED_FILES += Rack/src/app/PortWidget.cpp
 IGNORED_FILES += Rack/src/app/Knob.cpp
 IGNORED_FILES += Rack/src/app/MenuBar.cpp
 IGNORED_FILES += Rack/src/app/MidiDisplay.cpp

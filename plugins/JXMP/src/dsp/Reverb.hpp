@@ -132,6 +132,8 @@ struct Fdn {
 
 	/** Depth of the line length modulation (the length moves between +0 and +2 × this) */
 	static constexpr float kModSeconds = 0.0006f;
+	/** Line gains aim at this × the set decay: the loop damping takes the rest (measured, tests/test_reverb.cpp) */
+	static constexpr float kDecayTrim = 1.135f;
 	/** Wet level: four lines per side summed; brings a signal out about as loud as it went in */
 	static float outputGain(Algo a) {
 		return a == PLATE ? 0.105f : a == HALL ? 0.16f : 0.23f;
@@ -158,8 +160,10 @@ struct Fdn {
 			const float* ms = baseMs(algo);
 			for (int i = 0; i < kLines; ++i) {
 				lengths[i] = std::max(8.f, fs * ms[i] * size / 1000.f);
-				// −60 dB after rt60 seconds, whatever the line length
-				gains[i] = std::pow(10.f, -3.f * lengths[i] / fs / std::max(rt60, 0.05f));
+				// −60 dB after rt60 seconds, whatever the line length. The damping in the loop shortens the broadband
+				// tail by ~12 % (measured T30 = 0.88 × the set time in every mode, size and tone), so the line gains
+				// aim at a longer time and the heard decay matches DECAY.
+				gains[i] = std::pow(10.f, -3.f * lengths[i] / fs / (kDecayTrim * std::max(rt60, 0.05f)));
 				inject[i] = std::sqrt(std::max(0.f, 1.f - gains[i] * gains[i]));
 			}
 		}

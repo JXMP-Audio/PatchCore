@@ -8,6 +8,9 @@
 
 #include <jansson.h>
 
+#include "Translate.hpp"
+
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -18,6 +21,9 @@
 #include <vector>
 
 namespace patchcore_tutorial {
+
+/** Tracks of the Editor's song (pcsong::kTracks) */
+constexpr int kSongTracks = 8;
 
 enum Side { SIDE_ANY = -1, SIDE_FRONT = 0, SIDE_BACK = 1 };
 
@@ -30,7 +36,11 @@ struct Ref {
 	int side = SIDE_ANY;
 };
 
-enum class Cond { Next, Module, Cable, Param, Side, Signal, Wait, All, Any };
+enum class Cond {
+	Next, Module, Cable, Param, Side, Signal, Wait, All, Any, Removed, Uncabled, Saved, View,
+	// The Editor (JX-EDIT) and the transport
+	Notes, Edited, Transport, Tempo, Muted, Solo
+};
 
 struct Condition {
 	Cond type = Cond::Next;
@@ -45,13 +55,24 @@ struct Condition {
 	double moved = 0.0;
 	/** side condition */
 	int side = SIDE_ANY;
+	/** view: "rack", "mixer" or "editor"; transport: "playing", "stopped", "loop", "click" or "rec" */
+	std::string name;
+	/** notes / edited: the Editor track 1..8, 0 = any track; muted / solo: the track */
+	int track = 0;
+	/** notes: at least this many */
+	int count = 0;
 	/** signal: volts; wait: seconds */
 	double value = 0.0;
 	std::vector<Condition> parts;
 };
 
+/** A step explains: WHY (shown at once), DO (the checked task), AFTER (what happened, shown when the check passes),
+TRY (an optional experiment with its own check, never blocking) */
 struct Step {
-	std::string text;
+	std::string why, doText, after, tryText;
+	bool hasTry = false;
+	/** Next type = no check (only the text) */
+	Condition tryDone;
 	std::vector<Ref> highlight;
 	int side = SIDE_ANY;
 	Condition done;
@@ -63,6 +84,8 @@ struct Lesson {
 	int startSide = SIDE_FRONT;
 	std::vector<std::string> learned;
 	std::vector<Step> steps;
+	/** Uses the Editor or the transport buttons, which only the standalone app has */
+	bool standaloneOnly = false;
 };
 
 struct IndexEntry {
@@ -145,6 +168,30 @@ inline bool parseNumber(json_t* j, double* out) {
 	return true;
 }
 
+/** "track": 1..8 next to a condition; left out = any track (0) */
+inline bool parseTrack(json_t* j, bool required, int* out, std::string* error) {
+	json_t* const t = json_object_get(j, "track");
+	if (!t)
+		return required ? fail(error, "\"track\" is missing") : true;
+	if (!json_is_integer(t) || json_integer_value(t) < 1 || json_integer_value(t) > kSongTracks)
+		return fail(error, "\"track\" must be 1..8");
+	*out = (int) json_integer_value(t);
+	return true;
+}
+
+/** Optional "min" / "max" next to a condition */
+inline bool parseRange(json_t* j, Condition* c, std::string* error) {
+	json_t* const mn = json_object_get(j, "min");
+	json_t* const mx = json_object_get(j, "max");
+	if (mn && !(c->hasMin = parseNumber(mn, &c->min)))
+		return fail(error, "\"min\" must be a number");
+	if (mx && !(c->hasMax = parseNumber(mx, &c->max)))
+		return fail(error, "\"max\" must be a number");
+	if (c->hasMin && c->hasMax && c->min > c->max)
+		return fail(error, "\"min\" is above \"max\"");
+	return true;
+}
+
 inline bool parseCondition(json_t* j, Condition* c, std::string* error) {
 	if (!json_is_object(j))
 		return fail(error, "a condition must be an object");
@@ -157,12 +204,72 @@ inline bool parseCondition(json_t* j, Condition* c, std::string* error) {
 		c->type = Cond::Module;
 		return parseRef(v, NEED_MODULE, &c->ref, error);
 	}
-	if ((v = json_object_get(j, "cable"))) {
-		c->type = Cond::Cable;
+	if ((v = json_object_get(j, "removed"))) {
+		c->type = Cond::Removed;
+		if (!json_is_string(v) || std::string(json_string_value(v)).empty())
+			return fail(error, "\"removed\" must be a module name");
+		c->ref.module = json_string_value(v);
+		return true;
+	}
+	if ((v = json_object_get(j, "saved"))) {
+		c->type = Cond::Saved;
+		return json_is_true(v) ? true : fail(error, "\"saved\" must be true");
+	}
+	if ((v = json_object_get(j, "view"))) {
+		c->type = Cond::View;
+		c->name = json_is_string(v) ? json_string_value(v) : "";
+		if (c->name != "rack" && c->name != "mixer" && c->name != "editor")
+			return fail(error, "\"view\" must be \"rack\", \"mixer\" or \"editor\"");
+		return true;
+	}
+	if ((v = json_object_get(j, "notes"))) {
+		c->type = Cond::Notes;
+		if (!json_is_integer(v) || json_integer_value(v) < 1)
+			return fail(error, "\"notes\" must be a number of notes, 1 or more");
+		c->count = (int) json_integer_value(v);
+		return parseTrack(j, false, &c->track, error);
+	}
+	if ((v = json_object_get(j, "edited"))) {
+		c->type = Cond::Edited;
+		if (!json_is_true(v))
+			return fail(error, "\"edited\" must be true");
+		return parseTrack(j, false, &c->track, error);
+	}
+	const bool muted = (v = json_object_get(j, "muted")) != nullptr;
+	if (muted || (v = json_object_get(j, "solo"))) {
+		c->type = muted ? Cond::Muted : Cond::Solo;
+		if (!json_is_integer(v) || json_integer_value(v) < 1 || json_integer_value(v) > kSongTracks)
+			return fail(error, std::string("\"") + (muted ? "muted" : "solo") + "\" must be a track number 1..8");
+		c->track = (int) json_integer_value(v);
+		return true;
+	}
+	if ((v = json_object_get(j, "transport"))) {
+		c->type = Cond::Transport;
+		c->name = json_is_string(v) ? json_string_value(v) : "";
+		if (c->name != "playing" && c->name != "stopped" && c->name != "loop" && c->name != "click" && c->name != "rec")
+			return fail(error, "\"transport\" must be \"playing\", \"stopped\", \"loop\", \"click\" or \"rec\"");
+		// loop: "min" / "max" = its length in beats
+		if (!parseRange(j, c, error))
+			return false;
+		if ((c->hasMin || c->hasMax) && c->name != "loop")
+			return fail(error, "only \"transport\": \"loop\" takes \"min\" / \"max\" (its length in beats)");
+		return true;
+	}
+	if ((v = json_object_get(j, "tempo"))) {
+		c->type = Cond::Tempo;
+		if (!json_is_true(v))
+			return fail(error, "\"tempo\" must be true (with \"min\" / \"max\" in BPM)");
+		if (!parseRange(j, c, error))
+			return false;
+		return c->hasMin || c->hasMax ? true : fail(error, "\"tempo\" needs \"min\" or \"max\"");
+	}
+	const bool uncabled = (v = json_object_get(j, "uncabled")) != nullptr;
+	if (uncabled || (v = json_object_get(j, "cable"))) {
+		c->type = uncabled ? Cond::Uncabled : Cond::Cable;
 		json_t* const from = json_is_object(v) ? json_object_get(v, "from") : nullptr;
 		json_t* const to = json_is_object(v) ? json_object_get(v, "to") : nullptr;
 		if (!from && !to)
-			return fail(error, "\"cable\" needs \"from\" or \"to\"");
+			return fail(error, std::string("\"") + (uncabled ? "uncabled" : "cable") + "\" needs \"from\" or \"to\"");
 		if (from) {
 			c->hasFrom = true;
 			if (!parseRef(from, NEED_PORT, &c->ref, error))
@@ -239,9 +346,22 @@ inline bool parseCondition(json_t* j, Condition* c, std::string* error) {
 inline bool parseStep(json_t* j, Step* s, std::string* error) {
 	if (!json_is_object(j))
 		return fail(error, "a step must be an object");
-	s->text = str(j, "text");
-	if (s->text.empty())
-		return fail(error, "\"text\" is missing");
+	s->why = str(j, "why");
+	s->doText = str(j, "do");
+	// Lessons from before the WHY / DO / AFTER / TRY format
+	if (s->doText.empty())
+		s->doText = str(j, "text");
+	if (s->doText.empty())
+		return fail(error, "\"do\" is missing");
+	s->after = str(j, "after");
+	s->tryText = str(j, "try");
+	s->hasTry = !s->tryText.empty();
+	if (json_t* const td = json_object_get(j, "tryDone")) {
+		if (!s->hasTry)
+			return fail(error, "\"tryDone\" needs \"try\"");
+		if (!parseCondition(td, &s->tryDone, error))
+			return false;
+	}
 	if (json_t* const h = json_object_get(j, "highlight")) {
 		if (!json_is_array(h))
 			return fail(error, "\"highlight\" must be a list");
@@ -280,6 +400,7 @@ inline bool parseLesson(const std::string& text, Lesson* out, std::string* error
 	bool ok = true;
 	std::string e;
 	l.title = detail::str(root, "title");
+	l.standaloneOnly = json_is_true(json_object_get(root, "standalone"));
 	json_t* const steps = json_object_get(root, "steps");
 	if (l.title.empty())
 		ok = detail::fail(&e, "\"title\" is missing");
@@ -320,34 +441,142 @@ inline bool validLessonId(const std::string& id) {
 	return true;
 }
 
-inline bool parseIndex(const std::string& text, std::vector<IndexEntry>* out, std::string* error) {
+struct Category {
+	std::string id, title, description;
+	std::vector<IndexEntry> lessons;
+};
+
+namespace detail {
+
+inline bool parseEntries(json_t* lessons, std::set<std::string>* ids, std::vector<IndexEntry>* out, std::string* e) {
+	if (!json_is_array(lessons))
+		return fail(e, "\"lessons\" must be a list");
+	for (size_t i = 0; i < json_array_size(lessons); ++i) {
+		json_t* const j = json_array_get(lessons, i);
+		IndexEntry entry;
+		entry.id = str(j, "id");
+		entry.title = str(j, "title");
+		entry.description = str(j, "description");
+		if (!validLessonId(entry.id))
+			return fail(e, "lesson " + std::to_string(i + 1) + ": bad \"id\"");
+		if (entry.title.empty())
+			return fail(e, "lesson " + entry.id + ": \"title\" is missing");
+		if (!ids->insert(entry.id).second)
+			return fail(e, "lesson " + entry.id + " is listed twice");
+		out->push_back(entry);
+	}
+	return true;
+}
+
+} // namespace detail
+
+/** index.json: {"categories": [{id, title, description, lessons: [{id, title, description}]}]}; the older
+{"lessons": [...]} is one category "Lessons". A category may have no lessons yet. */
+inline bool parseCategories(const std::string& text, std::vector<Category>* out, std::string* error) {
 	json_error_t jerr;
 	json_t* const root = json_loads(text.c_str(), 0, &jerr);
 	if (!root)
 		return detail::fail(error, std::string("not valid JSON: ") + jerr.text);
-	std::vector<IndexEntry> list;
-	bool ok = true;
+	std::vector<Category> list;
+	std::set<std::string> ids;
 	std::string e;
-	json_t* const lessons = json_object_get(root, "lessons");
-	if (!json_is_array(lessons))
-		ok = detail::fail(&e, "\"lessons\" must be a list");
-	for (size_t i = 0; ok && i < json_array_size(lessons); ++i) {
-		json_t* const j = json_array_get(lessons, i);
-		IndexEntry entry;
-		entry.id = detail::str(j, "id");
-		entry.title = detail::str(j, "title");
-		entry.description = detail::str(j, "description");
-		if (!validLessonId(entry.id))
-			ok = detail::fail(&e, "lesson " + std::to_string(i + 1) + ": bad \"id\"");
-		else if (entry.title.empty())
-			ok = detail::fail(&e, "lesson " + std::to_string(i + 1) + ": \"title\" is missing");
+	bool ok = true;
+	json_t* const cats = json_object_get(root, "categories");
+	if (cats == nullptr) {
+		Category c;
+		c.id = "lessons";
+		c.title = "Lessons";
+		ok = detail::parseEntries(json_object_get(root, "lessons"), &ids, &c.lessons, &e);
+		list.push_back(c);
+	}
+	else if (!json_is_array(cats))
+		ok = detail::fail(&e, "\"categories\" must be a list");
+	for (size_t i = 0; ok && json_is_array(cats) && i < json_array_size(cats); ++i) {
+		json_t* const j = json_array_get(cats, i);
+		Category c;
+		c.id = detail::str(j, "id");
+		c.title = detail::str(j, "title");
+		c.description = detail::str(j, "description");
+		if (!validLessonId(c.id))
+			ok = detail::fail(&e, "category " + std::to_string(i + 1) + ": bad \"id\"");
+		else if (c.title.empty())
+			ok = detail::fail(&e, "category " + c.id + ": \"title\" is missing");
 		else
-			list.push_back(entry);
+			ok = detail::parseEntries(json_object_get(j, "lessons"), &ids, &c.lessons, &e);
+		if (ok)
+			list.push_back(c);
 	}
 	json_decref(root);
 	if (!ok)
 		return detail::fail(error, e);
 	*out = list;
+	return true;
+}
+
+/** Every lesson of every category, in order */
+inline bool parseIndex(const std::string& text, std::vector<IndexEntry>* out, std::string* error) {
+	std::vector<Category> cats;
+	if (!parseCategories(text, &cats, error))
+		return false;
+	out->clear();
+	for (const Category& c : cats)
+		out->insert(out->end(), c.lessons.begin(), c.lessons.end());
+	return true;
+}
+
+/** A translation of a lesson (lesson.<lang>.json): the same steps in order, only their texts. A missing step or
+field stays English; a field the step does not have (a TRY) is not added. */
+inline bool applyLessonOverlay(const std::string& text, Lesson* l, std::string* error) {
+	json_error_t jerr;
+	json_t* const root = json_loads(text.c_str(), 0, &jerr);
+	if (!root)
+		return detail::fail(error, std::string("not valid JSON: ") + jerr.text);
+	auto take = [](json_t* o, const char* key, std::string* into) {
+		json_t* const v = json_object_get(o, key);
+		if (json_is_string(v) && !into->empty() && json_string_length(v) > 0)
+			*into = json_string_value(v);
+	};
+	take(root, "title", &l->title);
+	json_t* const learned = json_object_get(root, "learned");
+	for (size_t i = 0; json_is_array(learned) && i < json_array_size(learned) && i < l->learned.size(); ++i)
+		if (json_is_string(json_array_get(learned, i)) && json_string_length(json_array_get(learned, i)) > 0)
+			l->learned[i] = json_string_value(json_array_get(learned, i));
+	json_t* const steps = json_object_get(root, "steps");
+	for (size_t i = 0; json_is_array(steps) && i < json_array_size(steps) && i < l->steps.size(); ++i) {
+		json_t* const j = json_array_get(steps, i);
+		Step& s = l->steps[i];
+		take(j, "why", &s.why);
+		take(j, "do", &s.doText);
+		take(j, "after", &s.after);
+		take(j, "try", &s.tryText);
+	}
+	json_decref(root);
+	return true;
+}
+
+/** A translation of index.json (index.<lang>.json): {"categories": {id: {title, description}}, "lessons": {...}} */
+inline bool applyIndexOverlay(const std::string& text, std::vector<Category>* cats, std::string* error) {
+	json_error_t jerr;
+	json_t* const root = json_loads(text.c_str(), 0, &jerr);
+	if (!root)
+		return detail::fail(error, std::string("not valid JSON: ") + jerr.text);
+	auto apply = [](json_t* group, const std::string& id, std::string* title, std::string* description) {
+		json_t* const o = json_object_get(group, id.c_str());
+		json_t* const t = json_object_get(o, "title");
+		json_t* const d = json_object_get(o, "description");
+		if (json_is_string(t) && json_string_length(t) > 0)
+			*title = json_string_value(t);
+		if (json_is_string(d) && json_string_length(d) > 0)
+			*description = json_string_value(d);
+	};
+	json_t* const c = json_object_get(root, "categories");
+	json_t* const l = json_object_get(root, "lessons");
+	for (Category& cat : *cats) {
+		apply(c, cat.id, &cat.title, &cat.description);
+		for (IndexEntry& e : cat.lessons)
+			apply(l, e.id, &e.title, &e.description);
+	}
+	json_decref(root);
 	return true;
 }
 
@@ -394,12 +623,35 @@ struct RackState {
 	std::vector<ParamState> params;
 	std::vector<CableState> cables;
 	int side = SIDE_FRONT;
+	/** Times the patch was saved since PatchCore started */
+	int saveCount = 0;
+	/** "rack", "mixer" (F3) or "editor" (F4) */
+	std::string view = "rack";
+	/** The Editor's song (an active JX-EDIT in the rack): notes, a fingerprint of the notes, mute and solo per track */
+	bool editor = false;
+	int notes[kSongTracks] = {};
+	uint64_t trackHash[kSongTracks] = {};
+	bool mute[kSongTracks] = {}, solo[kSongTracks] = {};
+	/** Standalone transport: rolling (a pause counts as stopped), LOOP, CLICK, REC, tempo, loop length in beats */
+	bool playing = false, loop = false, click = false, rec = false;
+	double bpm = 120.0, loopBeats = 0.0;
+};
+
+/** A fingerprint of a track's notes for "edited" (FNV-1a over start, length, pitch, velocity) */
+struct NoteHash {
+	uint64_t h = 1469598103934665603ULL;
+	void add(int64_t v) {
+		for (int b = 0; b < 8; ++b) {
+			h ^= (uint64_t) ((v >> (8 * b)) & 0xff);
+			h *= 1099511628211ULL;
+		}
+	}
 };
 
 /** Lessons teach JXMP modules; Host Audio is Cardinal's. Same-named modules of other brands (Fundamental VCO…)
 do not count. */
 inline std::string pluginFor(const std::string& slug) {
-	return slug == "HostAudio2" ? "Cardinal" : "JXMP";
+	return slug == "HostAudio2" || slug == "HostMIDI" ? "Cardinal" : "JXMP";
 }
 
 /** The first module of that model (lowest id) */
@@ -449,10 +701,39 @@ struct StepContext {
 	double stepStart = 0.0;
 	bool nextPressed = false;
 	std::map<std::string, float> baseline;
+	/** removed / uncabled / saved: the count when the condition was first looked at in this step */
+	std::map<const Condition*, int> start;
+	/** edited: the notes' fingerprint at the first look */
+	std::map<const Condition*, uint64_t> startHash;
 };
+
+/** The fingerprint of one track (1..8) or of all of them (0) */
+inline uint64_t songHash(const RackState& s, int track) {
+	NoteHash h;
+	for (int k = 0; k < kSongTracks; ++k)
+		if (track == 0 || track == k + 1)
+			h.add((int64_t) s.trackHash[k]);
+	return h.h;
+}
 
 inline std::string paramKey(const ParamState& p) {
 	return std::to_string(p.moduleId) + "/" + std::to_string(p.index);
+}
+
+/** A cable matching the condition's from / to (either may be left out) */
+inline bool cableThere(const Condition& c, const RackState& s) {
+	const PortState* const from = c.hasFrom ? findPort(s, c.ref) : nullptr;
+	const PortState* const to = c.hasTo ? findPort(s, c.to) : nullptr;
+	if ((c.hasFrom && from == nullptr) || (c.hasTo && to == nullptr))
+		return false;
+	for (const CableState& k : s.cables) {
+		if (from != nullptr && (k.outModule != from->moduleId || k.outIndex != from->index))
+			continue;
+		if (to != nullptr && (k.inModule != to->moduleId || k.inIndex != to->index))
+			continue;
+		return true;
+	}
+	return false;
 }
 
 inline bool holds(const Condition& c, const RackState& s, StepContext& ctx, double t) {
@@ -484,20 +765,61 @@ inline bool holds(const Condition& c, const RackState& s, StepContext& ctx, doub
 			}
 			return (!c.hasMin || p->display >= c.min) && (!c.hasMax || p->display <= c.max);
 		}
-		case Cond::Cable: {
-			const PortState* const from = c.hasFrom ? findPort(s, c.ref) : nullptr;
-			const PortState* const to = c.hasTo ? findPort(s, c.to) : nullptr;
-			if ((c.hasFrom && from == nullptr) || (c.hasTo && to == nullptr))
-				return false;
-			for (const CableState& k : s.cables) {
-				if (from != nullptr && (k.outModule != from->moduleId || k.outIndex != from->index))
-					continue;
-				if (to != nullptr && (k.inModule != to->moduleId || k.inIndex != to->index))
-					continue;
-				return true;
-			}
-			return false;
+		case Cond::Cable:
+			return cableThere(c, s);
+		case Cond::Removed: {
+			const std::string plugin = pluginFor(c.ref.module);
+			int n = 0;
+			for (const ModuleState& m : s.modules)
+				n += m.slug == c.ref.module && m.plugin == plugin ? 1 : 0;
+			// None left when the step began: it was deleted already (an earlier step had it)
+			if (!ctx.start.count(&c))
+				ctx.start[&c] = std::max(n, 1);
+			return n < ctx.start[&c];
 		}
+		// Gone, also when it was unplugged before the step began (an earlier step had it plugged)
+		case Cond::Uncabled:
+			return !cableThere(c, s);
+		case Cond::Saved:
+			if (!ctx.start.count(&c))
+				ctx.start[&c] = s.saveCount;
+			return s.saveCount > ctx.start[&c];
+		case Cond::View:
+			return s.view == c.name;
+		case Cond::Notes: {
+			if (!s.editor)
+				return false;
+			int n = 0;
+			for (int k = 0; k < kSongTracks; ++k)
+				if (c.track == 0 || c.track == k + 1)
+					n += s.notes[k];
+			return n >= c.count;
+		}
+		case Cond::Edited: {
+			if (!s.editor)
+				return false;
+			const uint64_t h = songHash(s, c.track);
+			if (!ctx.startHash.count(&c))
+				ctx.startHash[&c] = h;
+			return h != ctx.startHash[&c];
+		}
+		case Cond::Muted:
+			return s.editor && s.mute[c.track - 1];
+		case Cond::Solo:
+			return s.editor && s.solo[c.track - 1];
+		case Cond::Transport: {
+			if (c.name == "playing")
+				return s.playing;
+			if (c.name == "stopped")
+				return !s.playing;
+			if (c.name == "click")
+				return s.click;
+			if (c.name == "rec")
+				return s.rec;
+			return s.loop && (!c.hasMin || s.loopBeats >= c.min - 1e-9) && (!c.hasMax || s.loopBeats <= c.max + 1e-9);
+		}
+		case Cond::Tempo:
+			return (!c.hasMin || s.bpm >= c.min - 1e-9) && (!c.hasMax || s.bpm <= c.max + 1e-9);
 		case Cond::All: {
 			// every part is evaluated, so "moved" parts record their baselines from the start
 			bool ok = true;
@@ -519,7 +841,8 @@ inline bool holds(const Condition& c, const RackState& s, StepContext& ctx, doub
 // Step runner
 
 struct Runner {
-	enum Phase { ACTIVE, DONE, FINISHED };
+	/** EXPLAIN: the task is done and the step shows what happened (and TRY) until Next */
+	enum Phase { ACTIVE, DONE, EXPLAIN, FINISHED };
 	static constexpr double kHold = 0.3;
 	static constexpr double kAdvance = 0.8;
 
@@ -537,6 +860,10 @@ struct Runner {
 	int finishCount = 0;
 	/** The furthest step reached: steps before it are only shown again (reviewing) when Next passes them */
 	int furthest = 0;
+	/** The TRY of the current step was done (only a checkmark) */
+	bool tryPassed = false;
+	StepContext tryCtx;
+	double tryHoldSince = -1.0;
 
 	void start(const Lesson& l, double t) {
 		lesson = &l;
@@ -557,8 +884,13 @@ struct Runner {
 		return current().done.type != Cond::Next;
 	}
 
+	/** The step has something to show after its task: it waits for Next instead of moving on by itself */
+	bool explains() const {
+		return !current().after.empty() || current().hasTry;
+	}
+
 	bool nextEnabled() const {
-		return lesson != nullptr && phase == ACTIVE && (!isTask() || reviewing);
+		return lesson != nullptr && (phase == EXPLAIN || (phase == ACTIVE && (!isTask() || reviewing)));
 	}
 
 	/** The step wants the other side of the rack first */
@@ -577,7 +909,11 @@ struct Runner {
 				advance(s, t);
 			return;
 		}
-		if (reviewing || !isTask())
+		if (phase == EXPLAIN || (phase == ACTIVE && !isTask())) {
+			updateTry(s, t);
+			return;
+		}
+		if (reviewing)
 			return;
 		const Condition& c = current().done;
 		if (!holds(c, s, ctx, t)) {
@@ -587,8 +923,12 @@ struct Runner {
 		if (holdSince < 0.0)
 			holdSince = t;
 		if (c.type == Cond::Wait || t - holdSince >= kHold - 1e-9) {
-			phase = DONE;
-			doneAt = t;
+			if (explains())
+				explain(t);
+			else {
+				phase = DONE;
+				doneAt = t;
+			}
 		}
 	}
 
@@ -601,17 +941,17 @@ struct Runner {
 		if (lesson == nullptr)
 			return;
 		if (phase == FINISHED) {
-			phase = ACTIVE;
 			reviewing = true;
 			enter(t);
+			review(t);
 			return;
 		}
 		if (step == 0)
 			return;
 		--step;
-		phase = ACTIVE;
 		reviewing = true;
 		enter(t);
+		review(t);
 	}
 
 private:
@@ -619,6 +959,41 @@ private:
 		ctx = StepContext();
 		ctx.stepStart = t;
 		holdSince = -1.0;
+		tryPassed = false;
+		tryCtx = StepContext();
+		tryCtx.stepStart = t;
+		tryHoldSince = -1.0;
+	}
+
+	/** The task is done: show what happened; TRY starts from here */
+	void explain(double t) {
+		phase = EXPLAIN;
+		// Done: Back and Next later only show it again
+		furthest = std::max(furthest, step + 1);
+		tryCtx = StepContext();
+		tryCtx.stepStart = t;
+		tryHoldSince = -1.0;
+	}
+
+	/** A step shown again: a done task shows its explanation */
+	void review(double t) {
+		phase = ACTIVE;
+		if (isTask() && explains())
+			explain(t);
+	}
+
+	void updateTry(const RackState& s, double t) {
+		const Step& st = current();
+		if (!st.hasTry || st.tryDone.type == Cond::Next || tryPassed)
+			return;
+		if (!holds(st.tryDone, s, tryCtx, t)) {
+			tryHoldSince = -1.0;
+			return;
+		}
+		if (tryHoldSince < 0.0)
+			tryHoldSince = t;
+		if (st.tryDone.type == Cond::Wait || t - tryHoldSince >= kHold - 1e-9)
+			tryPassed = true;
 	}
 
 	/** To the next step; a task that already holds is skipped */
@@ -635,12 +1010,19 @@ private:
 			enter(t);
 			if (step < furthest) {
 				reviewing = true;
+				review(t);
 				return;
 			}
 			furthest = step;
 			const Condition& c = current().done;
-			if (c.type != Cond::Next && c.type != Cond::Wait && holds(c, s, ctx, t))
+			if (c.type != Cond::Next && c.type != Cond::Wait && holds(c, s, ctx, t)) {
+				// Already done: an explaining step still shows what it means (Review Focus 2)
+				if (explains()) {
+					explain(t);
+					return;
+				}
 				continue;
+			}
 			return;
 		}
 	}
@@ -831,33 +1213,74 @@ inline std::string refText(const Ref& r) {
 	return t;
 }
 
+inline std::string article(const std::string& word) {
+	const char first = word.empty() ? 'x' : word[0];
+	return std::string("AEFHILMNORSX").find(first) != std::string::npos ? "an" : "a";
+}
+
+/** What a condition waits for, in the chosen language */
 inline std::string describe(const Condition& c) {
+	using patchcore_lang::tr;
+	using patchcore_lang::trf;
 	switch (c.type) {
 		case Cond::Next:
-			return "Next";
+			return tr("Next");
 		case Cond::Wait:
-			return "a few seconds";
-		case Cond::Module: {
-			const char first = c.ref.module.empty() ? 'x' : c.ref.module[0];
-			const bool vowel = std::string("AEFHILMNORSX").find(first) != std::string::npos;
-			return std::string(vowel ? "an " : "a ") + c.ref.module + " in the rack";
-		}
+			return tr("a few seconds");
+		case Cond::Module:
+			return trf(article(c.ref.module) + " %s in the rack", {c.ref.module});
 		case Cond::Side:
-			return c.side == SIDE_BACK ? "the back of the rack" : "the front of the rack";
+			return c.side == SIDE_BACK ? tr("the back of the rack") : tr("the front of the rack");
 		case Cond::Signal:
-			return c.ref.module == "HostAudio2" ? "sound from the speakers" : "a signal at " + refText(c.ref);
+			return c.ref.module == "HostAudio2" ? tr("sound from the speakers") : trf("a signal at %s", {refText(c.ref)});
 		case Cond::Param: {
 			const std::string p = c.ref.module + " " + c.ref.name;
 			if (c.moved > 0.0)
-				return "a turn of " + p;
+				return trf("a turn of %s", {p});
 			if (c.hasMin && c.hasMax)
-				return p + " between " + numberText(c.min) + " and " + numberText(c.max);
-			return p + (c.hasMin ? " at " + numberText(c.min) + " or more" : " at " + numberText(c.max) + " or less");
+				return trf("%s between %s and %s", {p, numberText(c.min), numberText(c.max)});
+			return c.hasMin ? trf("%s at %s or more", {p, numberText(c.min)}) : trf("%s at %s or less", {p, numberText(c.max)});
 		}
 		case Cond::Cable:
 			if (c.hasFrom && c.hasTo)
-				return "a cable " + refText(c.ref) + " \xE2\x86\x92 " + refText(c.to);
-			return c.hasFrom ? "a cable from " + refText(c.ref) : "a cable into " + refText(c.to);
+				return trf("a cable %s \xE2\x86\x92 %s", {refText(c.ref), refText(c.to)});
+			return c.hasFrom ? trf("a cable from %s", {refText(c.ref)}) : trf("a cable into %s", {refText(c.to)});
+		case Cond::Removed:
+			return trf(article(c.ref.module) + " %s removed", {c.ref.module});
+		case Cond::Uncabled:
+			if (c.hasFrom && c.hasTo)
+				return trf("the cable %s \xE2\x86\x92 %s unplugged", {refText(c.ref), refText(c.to)});
+			return c.hasFrom ? trf("the cable from %s unplugged", {refText(c.ref)}) :
+				trf("the cable into %s unplugged", {refText(c.to)});
+		case Cond::Saved:
+			return tr("the patch saved");
+		case Cond::View:
+			return c.name == "mixer" ? tr("the Mixer view (F3)") : c.name == "editor" ? tr("the Editor (F4)") : tr("the rack");
+		case Cond::Notes:
+			return c.track == 0 ? trf("%s notes in the Editor", {numberText(c.count)}) :
+				trf("%s notes in track %s", {numberText(c.count), numberText(c.track)});
+		case Cond::Edited:
+			return c.track == 0 ? tr("a change of the notes") : trf("a change of the notes in track %s", {numberText(c.track)});
+		case Cond::Muted:
+			return trf("track %s muted (M)", {numberText(c.track)});
+		case Cond::Solo:
+			return trf("track %s on solo (S)", {numberText(c.track)});
+		case Cond::Transport:
+			if (c.name == "playing")
+				return tr("the song playing (Space)");
+			if (c.name == "stopped")
+				return tr("the song stopped (Space)");
+			if (c.name == "click")
+				return tr("CLICK on");
+			if (c.name == "rec")
+				return tr("REC on");
+			if (c.hasMax)
+				return trf("LOOP on, %s beats long or less", {numberText(c.max)});
+			return c.hasMin ? trf("LOOP on, %s beats long or more", {numberText(c.min)}) : tr("LOOP on");
+		case Cond::Tempo:
+			if (c.hasMin && c.hasMax)
+				return trf("the tempo between %s and %s BPM", {numberText(c.min), numberText(c.max)});
+			return c.hasMin ? trf("the tempo at %s BPM or more", {numberText(c.min)}) : trf("the tempo at %s BPM or less", {numberText(c.max)});
 		case Cond::All:
 		case Cond::Any:
 			return c.parts.empty() ? "" : describe(c.parts[0]);

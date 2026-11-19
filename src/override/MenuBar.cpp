@@ -684,6 +684,23 @@ struct ViewButton : MenuButton {
 					}
 				}, !patchcore::settings.wheelKnobs));
 			}
+			{
+				// The language of the PatchCore texts (lessons now, the rest of the UI later)
+				const std::vector<std::pair<std::string, std::string>> langs = patchcore::languages();
+				std::string currentName = patchcore::settings.language;
+				for (const std::pair<std::string, std::string>& l : langs)
+					if (l.first == patchcore::settings.language)
+						currentName = l.second;
+				menu->addChild(createSubmenuItem("Language", currentName, [langs](ui::Menu* menu) {
+					for (const std::pair<std::string, std::string>& l : langs) {
+						const std::string code = l.first;
+						menu->addChild(createCheckMenuItem(l.second, "",
+							[=]() {return patchcore::settings.language == code;},
+							[=]() {patchcore::settings.language = code; patchcore::saveSettings(); patchcore::applyLanguage();}
+						));
+					}
+				}));
+			}
 			menu->addChild(createCheckMenuItem("Navigator", "",
 				[]() {return patchcore::settings.navigatorVisible;},
 				[]() {patchcore::settings.navigatorVisible ^= true; patchcore::saveSettings();},

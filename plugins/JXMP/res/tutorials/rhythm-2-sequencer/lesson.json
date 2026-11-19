@@ -1,0 +1,187 @@
+{
+ "title": "The sequencer",
+ "startSide": "back",
+ "learned": [
+  "A sequencer plays a row of steps, one per clock pulse",
+  "CV says how high each step is, GATE says whether it plays",
+  "The step knobs cover 0 to 10 V: ten octaves, so small moves are big jumps",
+  "LENGTH sets after how many steps the row repeats"
+ ],
+ "steps": [
+  {
+   "why": "A sequencer is a row of knobs played one after another, in time with a clock. Each step gives a voltage (CV) for the pitch and a gate for the note. It is how a modular plays a melody by itself.",
+   "do": "The voice and the clock from the last lesson are in the rack, with a sequencer (JX-SEQ) between them. Nothing plays yet. Press Next.",
+   "highlight": [
+    {
+     "module": "SEQ"
+    }
+   ],
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "The sequencer moves one step on every clock pulse.",
+   "do": "Drag a cable from X2 of the clock to CLOCK of the sequencer.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "Clock",
+     "output": "x2"
+    },
+    {
+     "module": "SEQ",
+     "input": "Clock"
+    }
+   ],
+   "after": "The sequencer now steps on every eighth note (watch its step lamps on the front), still in silence: its outputs go nowhere.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "Clock",
+      "output": "x2"
+     },
+     "to": {
+      "module": "SEQ",
+      "input": "Clock"
+     }
+    }
+   }
+  },
+  {
+   "why": "GATE of the sequencer is on while a step plays.",
+   "do": "Drag a cable from GATE of the sequencer to GATE of the envelope.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "SEQ",
+     "output": "Gate"
+    },
+    {
+     "module": "ADSR",
+     "input": "Gate"
+    }
+   ],
+   "after": "One note per step, all on the same pitch: the steps' voltages are not used yet.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "SEQ",
+      "output": "Gate"
+     },
+     "to": {
+      "module": "ADSR",
+      "input": "Gate"
+     }
+    }
+   }
+  },
+  {
+   "why": "CV of the sequencer is the voltage of the current step. Into V/OCT it becomes the pitch.",
+   "do": "Drag a cable from CV of the sequencer to V/OCT of the oscillator.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "SEQ",
+     "output": "CV"
+    },
+    {
+     "module": "VCO",
+     "input": "V/Oct"
+    }
+   ],
+   "after": "Nothing changes yet: every step knob is at 0 V, so every step plays the same note.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "SEQ",
+      "output": "CV"
+     },
+     "to": {
+      "module": "VCO",
+      "input": "V/Oct"
+     }
+    }
+   }
+  },
+  {
+   "why": "Each step knob sets its step's voltage.",
+   "do": "Press F1 and turn the knobs of steps 1 and 3 a little.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "SEQ",
+     "param": "Step 1 CV"
+    },
+    {
+     "module": "SEQ",
+     "param": "Step 3 CV"
+    }
+   ],
+   "after": "A melody! But it jumps wildly and sounds out of tune. The knobs go from 0 to 10 V, and 1 V is an octave, so a tenth of a turn is a whole octave, and most positions fall between the notes of a scale. The next lesson fixes that.",
+   "try": "Hold Ctrl while you turn a knob: it moves much more finely.",
+   "done": {
+    "all": [
+     {
+      "param": {
+       "module": "SEQ",
+       "param": "Step 1 CV"
+      },
+      "moved": 0.02
+     },
+     {
+      "param": {
+       "module": "SEQ",
+       "param": "Step 3 CV"
+      },
+      "moved": 0.02
+     }
+    ]
+   }
+  },
+  {
+   "why": "Every step has a gate button under its knob.",
+   "do": "Click the gate button of step 2 to switch it off.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "SEQ",
+     "param": "Step 2 gate"
+    }
+   ],
+   "after": "Step 2 is now a rest: the sequencer still passes it, but sends no gate. Rests are what turn a row of notes into a rhythm.",
+   "done": {
+    "param": {
+     "module": "SEQ",
+     "param": "Step 2 gate"
+    },
+    "max": 0.5
+   }
+  },
+  {
+   "why": "LENGTH sets how many steps the sequence uses before it starts over.",
+   "do": "Turn LENGTH of the sequencer.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "SEQ",
+     "param": "Length"
+    }
+   ],
+   "after": "With 8 steps on eighth notes the melody repeats every bar. With 5, 6 or 7 it repeats at odd places and shifts against the beat: a simple way to make a short melody sound longer.",
+   "done": {
+    "param": {
+     "module": "SEQ",
+     "param": "Length"
+    },
+    "moved": 0.1
+   }
+  },
+  {
+   "do": "Clock moves the steps, CV is the pitch, GATE the note. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

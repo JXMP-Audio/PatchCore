@@ -399,7 +399,7 @@ void Scene::onHover(const HoverEvent& e) {
 void Scene::onDragHover(const DragHoverEvent& e) {
 	mousePos = e.pos;
 
-	// PatchCore: the rack's selection box only with Ctrl+drag (Shift+click selects a single module). A plain
+	// PatchCore: the rack's selection box only with Ctrl+drag (Shift+click adds a single module). A plain
 	// drag on the rack or on a module panel draws and selects nothing; the rack is not told about the movement,
 	// so its box stays empty. With Ctrl the box selects only after a real drag (6 px), not on a click.
 	const bool rackBox = patchcore::enabled() && e.origin == rack && e.button == GLFW_MOUSE_BUTTON_LEFT;
@@ -673,6 +673,13 @@ void Scene::onHoverKey(const HoverKeyEvent& e) {
 			else if (e.key == GLFW_KEY_TAB) {
 				patchcore::setViewSide(patchcore::targetViewSide() == patchcore::VIEW_FRONT ? patchcore::VIEW_BACK
 				                                                                           : patchcore::VIEW_FRONT);
+				e.consume(this);
+			}
+			// Esc leaves the Mixer / Editor wherever the mouse is (over the transport bar, the menu bar or a lesson
+			// panel too, not only over the view); in the rack it keeps its usual meaning
+			if (e.key == GLFW_KEY_ESCAPE && fresh && (patchcore::mixerShown() || patchcore::editorShown())) {
+				patchcore::showMixer(false);
+				patchcore::showEditor(false);
 				e.consume(this);
 			}
 			// One Space plays / pauses, a double Space stops and goes back to the start. Only fresh presses count:

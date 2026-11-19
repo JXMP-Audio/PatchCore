@@ -1,0 +1,185 @@
+{
+ "title": "The envelope",
+ "startSide": "back",
+ "learned": [
+  "A gate says when a note starts and ends; the envelope turns it into a shape",
+  "Attack, decay and release are times; sustain is a level held while the gate is on",
+  "Envelope into the amplifier's CV: the volume follows the shape of every note"
+ ],
+ "steps": [
+  {
+   "why": "A real note changes over time: a piano hits hard and fades, a violin swells in. The shape of that change is the envelope. It needs a gate: a voltage that is on while a key is held. Here a clock plays the part of the finger: it sends a gate on every eighth note (you will meet clocks in the Rhythm lessons).",
+   "do": "You hear the filtered sawtooth from the last lesson, droning. In the rack there is also a clock (JX-CLK), an envelope (JX-ENV) and a scope. Press Next.",
+   "highlight": [
+    {
+     "module": "Clock"
+    },
+    {
+     "module": "ADSR"
+    }
+   ],
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "The envelope starts its shape when its GATE input goes on.",
+   "do": "Drag a cable from X2 of the clock to GATE of the envelope.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "Clock",
+     "output": "x2"
+    },
+    {
+     "module": "ADSR",
+     "input": "Gate"
+    }
+   ],
+   "after": "The envelope now runs on every eighth note, but you hear no change: its output ENV goes nowhere yet.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "Clock",
+      "output": "x2"
+     },
+     "to": {
+      "module": "ADSR",
+      "input": "Gate"
+     }
+    }
+   }
+  },
+  {
+   "why": "The envelope should control the volume, so it goes to the level input of the amplifier.",
+   "do": "Drag a cable from ENV of the envelope to CV 1 of the amplifier.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "ADSR",
+     "output": "Env"
+    },
+    {
+     "module": "VCA",
+     "input": "CV 1"
+    }
+   ],
+   "after": "Notes! With a cable in CV 1 the amplifier is closed at 0 V and fully open at 10 V. The envelope goes from 0 to 10 V and back for every gate, so every note gets the same volume shape.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "ADSR",
+      "output": "Env"
+     },
+     "to": {
+      "module": "VCA",
+      "input": "CV 1"
+     }
+    }
+   }
+  },
+  {
+   "why": "To see the shape, send the envelope to the scope as well.",
+   "do": "Hold Ctrl and drag a second cable from ENV of the envelope to IN 1 of the scope.",
+   "side": "back",
+   "highlight": [
+    {
+     "module": "ADSR",
+     "output": "Env"
+    },
+    {
+     "module": "Scope",
+     "input": "In 1"
+    }
+   ],
+   "after": "The green trace shows each note: a rise (attack), a fall (decay) to a level (sustain) that holds while the gate is on, and a fade (release) after it ends. If the shape is too fast or too slow to see, turn TIME / DIV of the scope.",
+   "done": {
+    "cable": {
+     "from": {
+      "module": "ADSR",
+      "output": "Env"
+     },
+     "to": {
+      "module": "Scope",
+      "input": "In 1"
+     }
+    }
+   }
+  },
+  {
+   "why": "Attack and release decide how a note begins and ends.",
+   "do": "Press F1 and turn ATTACK of the envelope up and down, then RELEASE. Watch the scope and listen.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "ADSR",
+     "param": "Attack"
+    },
+    {
+     "module": "ADSR",
+     "param": "Release"
+    }
+   ],
+   "after": "A short attack makes a hard start, a long one fades the note in. A long release lets the note ring after the gate is off; the notes start to overlap and blur.",
+   "done": {
+    "all": [
+     {
+      "param": {
+       "module": "ADSR",
+       "param": "Attack"
+      },
+      "moved": 0.15
+     },
+     {
+      "param": {
+       "module": "ADSR",
+       "param": "Release"
+      },
+      "moved": 0.15
+     }
+    ]
+   }
+  },
+  {
+   "why": "Sustain is different: it is not a time but a level.",
+   "do": "Turn SUSTAIN all the way down, then turn DECAY.",
+   "side": "front",
+   "highlight": [
+    {
+     "module": "ADSR",
+     "param": "Sustain"
+    },
+    {
+     "module": "ADSR",
+     "param": "Decay"
+    }
+   ],
+   "after": "With sustain at zero the note dies away even while the gate is on, and DECAY sets how fast: a plucked or struck sound. A high sustain gives an organ-like sound that stays loud as long as the key is held.",
+   "try": "Flip MODE to AD: the envelope ignores how long the gate lasts and only rises and falls. LOOP makes it repeat by itself without any gate.",
+   "done": {
+    "all": [
+     {
+      "param": {
+       "module": "ADSR",
+       "param": "Sustain"
+      },
+      "max": 15
+     },
+     {
+      "param": {
+       "module": "ADSR",
+       "param": "Decay"
+      },
+      "moved": 0.1
+     }
+    ]
+   }
+  },
+  {
+   "do": "Gate says when, the envelope says how. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}

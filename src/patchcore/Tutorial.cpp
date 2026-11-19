@@ -35,6 +35,7 @@
 #include <sstream>
 
 #include "../CardinalCommon.hpp"
+#include <plugincontext.hpp>
 #include "../patchcore/PatchCore.hpp"
 #include <patchcore/Mixer.hpp>
 #include <patchcore/Editor.hpp>
@@ -63,13 +64,68 @@ static std::string readFile(const std::string& path) {
 	}
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// Language
+
+static std::string langDir() {
+	plugin::Plugin* const p = plugin::getPlugin("JXMP");
+	return p ? system::join(p->path, "res/lang") : std::string();
+}
+
+std::vector<std::pair<std::string, std::string>> languages() {
+	std::vector<std::pair<std::string, std::string>> list = {{"en", "English"}};
+	for (const std::string& f : system::getEntries(langDir())) {
+		std::string name, error;
+		std::map<std::string, std::string> strings;
+		if (system::getExtension(f) == ".json" && patchcore_lang::parseLanguage(readFile(f), &name, &strings, &error))
+			list.push_back({system::getStem(f), name});
+	}
+	return list;
+}
+
+/** Loads the strings of settings.language when it changed (English: none) */
+void applyLanguage() {
+	static std::string loaded = "en";
+	if (settings.language == loaded)
+		return;
+	loaded = settings.language;
+	patchcore_lang::current().clear();
+	if (loaded == "en")
+		return;
+	std::string name, error;
+	std::map<std::string, std::string> strings;
+	if (patchcore_lang::parseLanguage(readFile(system::join(langDir(), loaded + ".json")), &name, &strings, &error))
+		patchcore_lang::current() = strings;
+	else
+		WARN("PatchCore language %s: %s", loaded.c_str(), error.c_str());
+}
+
+/** A translation next to an English file: lesson.json → lesson.cs.json ("" in English or when there is none) */
+static std::string translated(const std::string& dir, const std::string& stem) {
+	applyLanguage();
+	if (settings.language == "en")
+		return std::string();
+	const std::string path = system::join(dir, stem + "." + settings.language + ".json");
+	return system::isFile(path) ? readFile(path) : std::string();
+}
+
 static bool loadLesson(const std::string& id, tu::Lesson* out, std::string* error) {
-	return tu::parseLesson(readFile(system::join(tutorialsDir(), id, "lesson.json")), out, error);
+	if (!tu::parseLesson(readFile(system::join(tutorialsDir(), id, "lesson.json")), out, error))
+		return false;
+	const std::string overlay = translated(system::join(tutorialsDir(), id), "lesson");
+	std::string e;
+	if (!overlay.empty() && !tu::applyLessonOverlay(overlay, out, &e))
+		WARN("PatchCore tutorials: %s translation: %s", id.c_str(), e.c_str());
+	return true;
 }
 
 static bool isDone(const std::string& id) {
 	for (const std::string& d : settings.tutorialsDone)
-		if (d == id)
+		// Old lessons rewritten in the categories: their done mark counts for the new one
+		if (d == id || (id == "basics-5-first-sound" && d == "01-first-sound") ||
+		    (id == "synth-3-filter-envelope" && d == "02-filter-envelope") || (id == "synth-4-lfo" && d == "03-modulation") ||
+		    (id == "rhythm-4-random" && d == "04-sequences") || (id == "rhythm-6-together" && d == "05-drums") ||
+		    (id == "fx-4-reverb" && d == "06-effects-mix"))
 			return true;
 	return false;
 }
@@ -92,6 +148,10 @@ std::vector<TutorialInfo> tutorialList() {
 		info.available = loadLesson(e.id, &l, &error);
 		if (!info.available)
 			WARN("PatchCore tutorials: %s: %s", e.id.c_str(), error.c_str());
+		// The Editor and the transport buttons exist only in the standalone app (a DAW has its own)
+		info.standaloneOnly = info.available && l.standaloneOnly;
+		if (info.standaloneOnly && !isStandalone())
+			info.available = false;
 		info.done = isDone(e.id);
 		list.push_back(info);
 	}
@@ -125,9 +185,57 @@ static int sideOf(app::ModuleWidget* mw, bool output, int index) {
 	return pw != nullptr && portSide(pw) == SIDE_BACK ? tu::SIDE_BACK : tu::SIDE_FRONT;
 }
 
+/** Counts saves: the patch turns from unsaved to saved, or is saved under another name */
+static int saveCounter() {
+	static int count = 0;
+	static bool wasSaved = true;
+	static std::string lastPath;
+	const bool saved = APP->history->isSaved();
+	const std::string path = APP->patch->path;
+	if ((saved && !wasSaved) || (saved && path != lastPath && !lastPath.empty()))
+		++count;
+	wasSaved = saved;
+	if (saved)
+		lastPath = path;
+	return count;
+}
+
+/** The Editor's song as the audio thread plays it, and the standalone transport */
+static void readSong(tu::RackState* s) {
+	CardinalPluginContext* const c = static_cast<CardinalPluginContext*>(APP);
+	if (c == nullptr)
+		return;
+	s->playing = c->internalTransportActive ? (bool) c->internalTransportPlaying : c->playing;
+	s->loop = c->internalTransportLoop;
+	s->click = c->internalTransportMetronome;
+	s->rec = c->internalTransportRecord;
+	s->bpm = c->internalTransportBeatsPerMinute;
+	s->loopBeats = c->internalTransportLoopEnd - c->internalTransportLoopStart;
+	// The published song lives at least a second after it is replaced: safe to read here on the UI thread
+	const ::pcsong::Song* const song = editorAvailable() ? c->editorSong.current() : nullptr;
+	s->editor = song != nullptr;
+	for (int k = 0; song != nullptr && k < tu::kSongTracks; ++k) {
+		const ::pcsong::Track& t = song->tracks[k];
+		s->notes[k] = (int) t.notes.size();
+		s->mute[k] = t.mute;
+		s->solo[k] = t.solo;
+		tu::NoteHash h;
+		for (const ::pcsong::Note& n : t.notes) {
+			h.add(n.start);
+			h.add(n.length);
+			h.add(n.pitch);
+			h.add(n.vel);
+		}
+		s->trackHash[k] = h.h;
+	}
+}
+
 static tu::RackState snapshot(std::map<std::string, PeakHold>& peaks, double t) {
 	tu::RackState s;
 	s.side = isBackView() ? tu::SIDE_BACK : tu::SIDE_FRONT;
+	s.saveCount = saveCounter();
+	s.view = mixerShown() ? "mixer" : editorShown() ? "editor" : "rack";
+	readSong(&s);
 	for (int64_t id : APP->engine->getModuleIds()) {
 		engine::Module* const m = APP->engine->getModule(id);
 		if (m == nullptr || m->model == nullptr)
@@ -304,6 +412,17 @@ static void perform(const tu::Action& a, std::map<std::string, PeakHold>& peaks,
 }
 
 
+/** For the development bridge: own peak memory, so the lesson's peaks are not disturbed */
+static std::map<std::string, PeakHold>& bridgePeaks() {
+	static std::map<std::string, PeakHold> peaks;
+	return peaks;
+}
+
+tu::RackState tutorialSnapshot() {
+	return snapshot(bridgePeaks(), system::getTime());
+}
+
+
 // ---------------------------------------------------------------------------------------------------------
 // The layer: panel + highlight + first-start offer
 
@@ -316,16 +435,41 @@ struct TutorialPanel : widget::OpaqueWidget {
 	math::Rect backRect, nextRect, exitRect, showMeRect;
 	bool dragging = false;
 	bool placed = false;
+	/** Height the text wants (measured while drawing), the scroll offset of the text, the step it belongs to */
+	float contentH = 0.f;
+	float scroll = 0.f;
+	int scrollKey = -1;
 
-	static constexpr float kW = 340.f, kH = 200.f;
+	static constexpr float kW = 420.f, kMinH = 190.f, kTop = 40.f, kBottom = 74.f;
 
 	TutorialPanel(TutorialLayer* l) : layer(l) {
-		box.size = math::Vec(kW, kH);
-		const float by = kH - 40.f;
+		box.size = math::Vec(kW, kMinH);
+		layoutButtons();
+	}
+
+	void layoutButtons() {
+		const float by = box.size.y - 40.f;
 		backRect = math::Rect(16.f, by, 70.f, 28.f);
 		showMeRect = math::Rect(96.f, by, 80.f, 28.f);
 		exitRect = math::Rect(kW - 166.f, by, 70.f, 28.f);
 		nextRect = math::Rect(kW - 86.f, by, 70.f, 28.f);
+	}
+
+	/** Grows with the text up to 60 % of the window, always inside it (the text scrolls beyond that) */
+	void step() override {
+		const math::Vec room = parent ? parent->box.size : math::Vec(1280.f, 720.f);
+		const float maxH = std::max(kMinH, room.y * 0.6f);
+		box.size.y = math::clamp(kTop + contentH + kBottom, kMinH, maxH);
+		box.pos.x = math::clamp(box.pos.x, 0.f, std::max(0.f, room.x - box.size.x));
+		box.pos.y = math::clamp(box.pos.y, 0.f, std::max(0.f, room.y - box.size.y));
+		scroll = math::clamp(scroll, 0.f, std::max(0.f, contentH - (box.size.y - kTop - kBottom)));
+		layoutButtons();
+		OpaqueWidget::step();
+	}
+
+	void onHoverScroll(const HoverScrollEvent& e) override {
+		scroll -= e.scrollDelta.y;
+		e.consume(this);
 	}
 
 	void onButton(const ButtonEvent& e) override;
@@ -381,10 +525,31 @@ struct TutorialLayer : widget::Widget {
 		nextId = findNextLessonId();
 		finishSeen = 0;
 		setViewSide(lesson.startSide == tu::SIDE_BACK ? VIEW_BACK : VIEW_FRONT);
+		resetTransport(loaded);
 		runner.start(lesson, now());
 		scrolledStep = -1;
 		panel->placed = false;
 		panel->show();
+	}
+
+	/** Each lesson starts at 120 BPM with REC off and the song stopped at its start (the steps assume it: a song left
+	 * playing would run past a LOOP the learner turns on and never come back); without an Editor in the start patch
+	 * (it keeps its own) LOOP and CLICK start off too, so a step that asks for them is not done before the learner
+	 * does it */
+	static void resetTransport(const std::vector<tu::ModuleState>& loaded) {
+		CardinalPluginContext* const c = static_cast<CardinalPluginContext*>(APP);
+		if (c == nullptr || !c->internalTransportActive)
+			return;
+		c->internalTransportBeatsPerMinute = 120.0;
+		c->internalTransportRecord = false;
+		transportStop();
+		for (const tu::ModuleState& m : loaded)
+			if (m.slug == "Editor" && m.plugin == "JXMP")
+				return;
+		c->internalTransportLoop = false;
+		c->internalTransportLoopStart = 0.0;
+		c->internalTransportLoopEnd = 16.0;
+		c->internalTransportMetronome = false;
 	}
 
 	void end() {
@@ -421,6 +586,7 @@ struct TutorialLayer : widget::Widget {
 	}
 
 	void step() override {
+		applyLanguage();
 		if (parent != nullptr)
 			box = math::Rect(math::Vec(), parent->box.size);
 		if (!panel->placed && box.size.x > 0.f) {
@@ -520,7 +686,8 @@ struct TutorialLayer : widget::Widget {
 	}
 
 	void drawHighlight(NVGcontext* vg) {
-		if (!active || runner.phase == tu::Runner::FINISHED || mixerShown())
+		// The Mixer and the Editor cover the rack: nothing of it to point at
+		if (!active || runner.phase == tu::Runner::FINISHED || mixerShown() || editorShown())
 			return;
 		const math::Rect clip = APP->scene->rackScroll->box;
 		nvgSave(vg);
@@ -550,10 +717,10 @@ struct TutorialLayer : widget::Widget {
 		nvgFill(vg);
 		const NVGcolor fg = nvgRGB(0xbf, 0xf0, 0xcf);
 		draw::text(vg, uiFont(), 12.f, fg, math::Vec(16.f, offerBox.getCenter().y), NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE,
-		           "New to modular? Start the first lesson and patch your first sound.");
+		           patchcore_lang::tr("New to modular? Start the first lesson and patch your first sound."));
 		draw::bevelBox(vg, offerStart, 4.f, nvgRGB(0xf0, 0x9a, 0x3c), nvgRGB(0xc8, 0x76, 0x22), nvgRGB(0, 0, 0));
-		draw::text(vg, uiFont(), 11.f, nvgRGB(0x16, 0x12, 0x0c), offerStart.getCenter(), NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, "Start");
-		draw::text(vg, uiFont(), 11.f, fg, offerLater.getCenter(), NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, "Not now");
+		draw::text(vg, uiFont(), 11.f, nvgRGB(0x16, 0x12, 0x0c), offerStart.getCenter(), NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, patchcore_lang::tr("Start"));
+		draw::text(vg, uiFont(), 11.f, fg, offerLater.getCenter(), NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, patchcore_lang::tr("Not now"));
 	}
 
 	void draw(const DrawArgs& args) override {
@@ -618,60 +785,98 @@ void TutorialPanel::draw(const DrawArgs& args) {
 	const tu::Lesson& l = layer->lesson;
 
 	draw::bevelBox(vg, box.zeroPos(), 8.f, t.chrome2, t.chrome1, nvgRGB(0, 0, 0));
-	draw::text(vg, labelFont(), 11.f, t.textDim, math::Vec(16.f, 22.f), NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, string::uppercase(l.title), 1.4f);
+	draw::text(vg, labelFont(), 11.f, t.textDim, math::Vec(16.f, 22.f), NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, patchcore_lang::upper(l.title), 1.4f);
 	const bool finished = r.phase == tu::Runner::FINISHED;
 	if (!finished)
 		draw::text(vg, uiFont(), 11.f, t.textFaint, math::Vec(kW - 16.f, 22.f), NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE,
-		           string::f("Step %d / %d", r.step + 1, (int) l.steps.size()));
+		           patchcore_lang::trf("Step %s / %s", {std::to_string(r.step + 1), std::to_string(l.steps.size())}));
 
-	// Body text: the step, the "gone" notice, or the summary
-	std::string body;
+	// The text: WHY, DO, then (when done) WHAT HAPPENED and TRY; or the "gone" notice; or the summary
+	// Plain paragraphs, each with its own job (why, what to do, what happened, an experiment): no headings. What
+	// happened is green, a done experiment gets a checkmark.
+	struct Part {
+		std::string text;
+		NVGcolor color;
+	};
+	std::vector<Part> parts;
 	if (finished) {
-		body = "You learned:";
+		std::string list = patchcore_lang::tr("You have learned:");
 		for (const std::string& s : l.learned)
-			body += "\n\xE2\x80\xA2 " + s;
+			list += "\n" + std::string("\xE2\x80\xA2 ") + s;
+		parts.push_back({list, t.text});
 	}
 	else {
-		body = r.current().text;
-		const std::vector<std::string> gone = tu::goneModules(r.current(), layer->state, r.seen);
-		if (!gone.empty())
-			body = "The " + gone[0] + " is gone \xE2\x80\x93 press Show me to put it back.";
+		const tu::Step& st = r.current();
+		const std::vector<std::string> gone = tu::goneModules(st, layer->state, r.seen);
+		if (!st.why.empty())
+			parts.push_back({st.why, t.text});
+		parts.push_back({st.doText, t.text});
+		// A module the step needs was removed: say how to get it back (the step may also be about bringing it back)
+		if (!gone.empty() && r.phase == tu::Runner::ACTIVE)
+			parts.push_back({patchcore_lang::trf("The %s is gone \xE2\x80\x93 Ctrl+Z or Show me puts it back.", {gone[0]}), t.textDim});
+		const bool explaining = r.phase == tu::Runner::EXPLAIN;
+		if (explaining && !st.after.empty())
+			parts.push_back({st.after, t.play});
+		if (st.hasTry && (explaining || (!r.isTask() && r.phase == tu::Runner::ACTIVE)))
+			parts.push_back({st.tryText + (r.tryPassed ? "  \xE2\x9C\x93" : ""), t.text});
 	}
+	const int key = finished ? -2 : r.step * 2 + (r.phase == tu::Runner::EXPLAIN ? 1 : 0);
+	if (key != scrollKey) {
+		scrollKey = key;
+		scroll = 0.f;
+	}
+	const float textW = kW - 32.f, viewH = box.size.y - kTop - kBottom;
 	nvgSave(vg);
+	nvgIntersectScissor(vg, 0.f, kTop - 4.f, kW, viewH + 4.f);
 	nvgFontFaceId(vg, uiFont()->handle);
-	nvgFontSize(vg, 12.5f);
 	nvgTextLineHeight(vg, 1.3f);
-	nvgFillColor(vg, t.text);
 	nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
-	nvgTextBox(vg, 16.f, 40.f, kW - 32.f, body.c_str(), nullptr);
+	float y = kTop - scroll;
+	for (const Part& part : parts) {
+		nvgFontSize(vg, 12.5f);
+		float bounds[4] = {0.f, 0.f, 0.f, 0.f};
+		nvgTextBoxBounds(vg, 16.f, y, textW, part.text.c_str(), nullptr, bounds);
+		nvgFillColor(vg, part.color);
+		nvgTextBox(vg, 16.f, y, textW, part.text.c_str(), nullptr);
+		y = bounds[3] + 10.f;
+	}
+	contentH = y + scroll - kTop;
 	nvgRestore(vg);
+	// More text below: a hint to scroll
+	if (contentH > viewH + 1.f && scroll < contentH - viewH - 1.f)
+		draw::text(vg, uiFont(), 10.f, t.textFaint, math::Vec(kW - 16.f, kTop + viewH - 6.f),
+		           NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, patchcore_lang::tr("\xE2\x96\xBE scroll"));
 
 	// Status line above the buttons
 	std::string status;
 	NVGcolor statusColor = t.textFaint;
 	if (!finished && r.needsTurn(layer->state))
-		status = "Press Tab to turn the rack around";
+		status = patchcore_lang::tr("Press Tab to turn the rack around");
 	else if (r.phase == tu::Runner::DONE) {
-		status = "\xE2\x9C\x93 Done";
+		status = patchcore_lang::tr("\xE2\x9C\x93 Done");
+		statusColor = t.play;
+	}
+	else if (r.phase == tu::Runner::EXPLAIN) {
+		status = patchcore_lang::tr("\xE2\x9C\x93 Done \xE2\x80\x93 read what happened, then Next");
 		statusColor = t.play;
 	}
 	else if (!finished && r.isTask() && !r.reviewing) {
 		tu::StepContext probe = r.ctx;
-		status = "Waiting for: " + tu::waitingFor(r.current().done, layer->state, probe, layer->now());
+		status = patchcore_lang::tr("Waiting for: ") + tu::waitingFor(r.current().done, layer->state, probe, layer->now());
 	}
 	nvgSave(vg);
-	nvgIntersectScissor(vg, 16.f, kH - 64.f, kW - 32.f, 20.f);
-	draw::text(vg, uiFont(), 11.f, statusColor, math::Vec(16.f, kH - 54.f), NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, status);
+	nvgIntersectScissor(vg, 16.f, box.size.y - 64.f, kW - 32.f, 20.f);
+	draw::text(vg, uiFont(), 11.f, statusColor, math::Vec(16.f, box.size.y - 54.f), NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, status);
 	nvgRestore(vg);
 
-	drawPanelButton(vg, backRect, "Back", r.step > 0 || finished, false);
+	drawPanelButton(vg, backRect, patchcore_lang::tr("Back"), r.step > 0 || finished, false);
 	if (!finished && tu::canShowMe(r.current()))
-		drawPanelButton(vg, showMeRect, "Show me", r.phase == tu::Runner::ACTIVE, false);
-	drawPanelButton(vg, exitRect, "Exit", true, false);
+		drawPanelButton(vg, showMeRect, patchcore_lang::tr("Show me"), r.phase == tu::Runner::ACTIVE, false);
+	drawPanelButton(vg, exitRect, patchcore_lang::tr("Exit"), true, false);
 	if (finished)
-		drawPanelButton(vg, nextRect, layer->nextId.empty() ? "Close" : "Next lesson", true, true);
+		drawPanelButton(vg, nextRect, layer->nextId.empty() ? patchcore_lang::tr("Close") : patchcore_lang::tr("Next lesson"), true, true);
 	else
-		drawPanelButton(vg, nextRect, "Next", r.nextEnabled(), true);
+		drawPanelButton(vg, nextRect, patchcore_lang::tr("Next"), r.nextEnabled(), true);
 
 	OpaqueWidget::draw(args);
 }
@@ -693,17 +898,52 @@ void openTutorial(const std::string& id) {
 
 
 void appendTutorialItems(ui::Menu* menu) {
+	std::vector<tu::Category> cats;
+	std::string error;
+	if (!tu::parseCategories(readFile(system::join(tutorialsDir(), "index.json")), &cats, &error)) {
+		WARN("PatchCore tutorials: index.json: %s", error.c_str());
+		cats.clear();
+	}
+	const std::string overlay = translated(tutorialsDir(), "index");
+	if (!overlay.empty() && !tu::applyIndexOverlay(overlay, &cats, &error))
+		WARN("PatchCore tutorials: index translation: %s", error.c_str());
+	if (cats.empty())
+		menu->addChild(createMenuLabel(patchcore_lang::tr("No lessons found")));
 	const std::vector<TutorialInfo> list = tutorialList();
-	if (list.empty())
-		menu->addChild(createMenuLabel("No lessons found"));
-	for (const TutorialInfo& t : list) {
-		const std::string id = t.id;
-		ui::MenuItem* const item = createMenuItem(t.title, t.done ? CHECKMARK_STRING : "", [id]() {
-			openTutorial(id);
-		});
-		item->disabled = !t.available;
-		menu->addChild(item);
-		menu->addChild(createMenuLabel("    " + t.description));
+	for (const tu::Category& c : cats) {
+		int done = 0;
+		for (const tu::IndexEntry& e : c.lessons)
+			done += isDone(e.id) ? 1 : 0;
+		const std::string count = c.lessons.empty() ? patchcore_lang::tr("soon") : string::f("%d/%d", done, (int) c.lessons.size());
+		const std::vector<tu::IndexEntry> lessons = c.lessons;
+		const std::string description = c.description;
+		menu->addChild(createSubmenuItem(c.title, count, [lessons, description, list](ui::Menu* menu) {
+			if (!description.empty())
+				menu->addChild(createMenuLabel(description));
+			if (lessons.empty()) {
+				ui::MenuItem* const soon = createMenuItem(patchcore_lang::tr("Coming soon"), "", []() {});
+				soon->disabled = true;
+				menu->addChild(soon);
+			}
+			for (const tu::IndexEntry& e : lessons) {
+				bool available = false, done = false, standaloneOnly = false;
+				for (const TutorialInfo& t : list)
+					if (t.id == e.id) {
+						available = t.available;
+						done = t.done;
+						standaloneOnly = t.standaloneOnly;
+					}
+				const std::string id = e.id;
+				const std::string right = done ? CHECKMARK_STRING : standaloneOnly && !isStandalone() ? patchcore_lang::tr("standalone app only") : "";
+				ui::MenuItem* const item = createMenuItem(e.title, right, [id]() {
+					openTutorial(id);
+				});
+				item->disabled = !available;
+				menu->addChild(item);
+				if (!e.description.empty())
+					menu->addChild(createMenuLabel("    " + e.description));
+			}
+		}));
 	}
 }
 

@@ -2,7 +2,8 @@
  * PatchCore frontend for DISTRHO Cardinal
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * Quick search logic: query syntax (text @brand #purpose), filters and the order of the empty-query list.
+ * Quick search logic: query syntax (text @brand #purpose), filters, the order of the empty-query list and of
+ * typed-search results.
  * No Rack dependency, so it can be tested alone.
  */
 
@@ -61,6 +62,55 @@ inline Query parseQuery(const std::string& s) {
 	q.brand = normalize(brand);
 	q.tag = normalize(tag);
 	return q;
+}
+
+/** A search result as the fuzzy library search returns it */
+struct Hit {
+	std::string name;
+	std::string slug;
+	bool ours;  // a JXMP module
+};
+
+/** 0 the name or slug is the text, 1 it starts with it (or one word of the name does), 2 contains it, 3 neither
+(a loose fuzzy match). Compared normalised: case, spaces and punctuation do not count. */
+inline int matchTier(const Hit& h, const std::string& needle) {
+	const std::string name = normalize(h.name), slug = normalize(h.slug);
+	if (needle.empty())
+		return 3;
+	if (name == needle || slug == needle)
+		return 0;
+	if (name.compare(0, needle.size(), needle) == 0 || slug.compare(0, needle.size(), needle) == 0)
+		return 1;
+	std::string word;
+	for (size_t i = 0; i <= h.name.size(); ++i) {
+		const unsigned char c = i < h.name.size() ? (unsigned char) h.name[i] : ' ';
+		if (std::isalnum(c)) {
+			word += (char) std::tolower(c);
+			continue;
+		}
+		if (word.compare(0, needle.size(), needle) == 0)
+			return 1;
+		word.clear();
+	}
+	if (name.find(needle) != std::string::npos || slug.find(needle) != std::string::npos)
+		return 2;
+	return 3;
+}
+
+/** The order to show typed-search results in (indexes into `hits`): JXMP modules that really match the text (tiers
+0-2) by tier, then other brands' real matches by tier, then the loose fuzzy matches (JXMP first); the fuzzy order
+otherwise. Typing "edit" + Enter adds the Editor, not "Exit Mixer Bus"; "console" adds Console 4. */
+inline std::vector<int> rankHits(const std::vector<Hit>& hits, const std::string& text) {
+	const std::string needle = normalize(text);
+	std::vector<int> order(hits.size());
+	std::vector<int> key(hits.size());
+	for (size_t i = 0; i < hits.size(); ++i) {
+		order[i] = (int) i;
+		const int tier = matchTier(hits[i], needle);
+		key[i] = tier < 3 ? (hits[i].ours ? tier : 3 + tier) : (hits[i].ours ? 6 : 7);
+	}
+	std::stable_sort(order.begin(), order.end(), [&](int a, int b) { return key[a] < key[b]; });
+	return order;
 }
 
 struct Entry {

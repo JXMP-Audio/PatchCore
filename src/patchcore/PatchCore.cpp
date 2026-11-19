@@ -180,6 +180,9 @@ void loadSettings() {
 	}
 	if (json_t* const j = json_object_get(rootJ, "tutorialOffered"))
 		settings.tutorialOffered = json_boolean_value(j);
+	if (json_t* const j = json_object_get(rootJ, "language"))
+		if (json_is_string(j))
+			settings.language = json_string_value(j);
 
 	json_decref(rootJ);
 }
@@ -198,6 +201,7 @@ void saveSettings() {
 		json_array_append_new(doneJ, json_string(id.c_str()));
 	json_object_set_new(rootJ, "tutorialsDone", doneJ);
 	json_object_set_new(rootJ, "tutorialOffered", json_boolean(settings.tutorialOffered));
+	json_object_set_new(rootJ, "language", json_string(settings.language.c_str()));
 
 	const std::string path = settingsPath();
 	if (json_dump_file(rootJ, path.c_str(), JSON_INDENT(2)) != 0)
@@ -273,9 +277,21 @@ double timeSinceFlip() {
 }
 
 
+// Empty defaults when the local DevBridge.cpp is not built in (src/Makefile defines PATCHCORE_DEV_BRIDGE then)
+#ifndef PATCHCORE_DEV_BRIDGE
+void devBridgeStep() {}
+void devBridgeDraw(NVGcontext*) {}
+void devBridgeFrameDone(int, int) {}
+bool devBridgeHoldsMouse() {
+	return false;
+}
+#endif
+
+
 void devStep() {
 	static int frame = 0;
 	++frame;
+	devBridgeStep();
 
 	if (frame == 1) {
 		bool loaded = false;
@@ -333,14 +349,18 @@ void devStep() {
 			devCheck();  // closes the app
 		if (std::getenv("PATCHCORE_DEV_MIXER") != nullptr)
 			showMixer(true);
-		if (std::getenv("PATCHCORE_DEV_EDITOR") != nullptr)
-			showEditor(true);
 		// "start,end" in beats: the loop on (a test of the Editor's loop without the mouse)
 		if (const char* const loop = std::getenv("PATCHCORE_DEV_LOOP")) {
 			double a = 0.0, b = 0.0;
 			if (std::sscanf(loop, "%lf,%lf", &a, &b) == 2)
 				transportSetLoop(a, b, true);
 		}
+		// A lesson by id (a test of the tutorial panel)
+		if (const char* const lesson = std::getenv("PATCHCORE_DEV_TUTORIAL"))
+			openTutorial(lesson);
+		// After the lesson: its start patch may bring the editor module
+		if (std::getenv("PATCHCORE_DEV_EDITOR") != nullptr)
+			showEditor(true);
 		if (std::getenv("PATCHCORE_DEV_CLICK") != nullptr)
 			transportSetMetronome(true);
 		if (std::getenv("PATCHCORE_DEV_AUDIO_DIALOG") != nullptr)

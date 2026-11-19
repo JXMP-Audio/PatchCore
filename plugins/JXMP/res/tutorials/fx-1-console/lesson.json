@@ -1,0 +1,111 @@
+{
+ "title": "The console and the Mixer",
+ "startSide": "back",
+ "learned": [
+  "Every sound gets its own console channel; the console mixes them to MAIN L / R",
+  "The channel controls live in the Mixer view: F3 (or double-click the console)",
+  "Fader = how loud, PAN = where between left and right",
+  "SOLO lets you hear one channel alone, MUTE silences one; EQ shapes the colour of a channel"
+ ],
+ "steps": [
+  {
+   "why": "With more than one sound, you need to balance them: which is louder, which sits left or right, which is brighter. That is mixing, and the console (JX-CONSOLE) is the mixing desk of your patch.",
+   "do": "A melody plays into IN 1 of the console and drums into IN 2. The console sends the mix out of MAIN L / R through the patchbay. Press Next.",
+   "highlight": [
+    {
+     "module": "Console4",
+     "input": "In 1"
+    },
+    {
+     "module": "Console4",
+     "input": "In 2"
+    }
+   ],
+   "done": {
+    "next": true
+   }
+  },
+  {
+   "why": "The console module itself is small: its channel controls are in the Mixer view, a full-size mixing desk that covers the rack.",
+   "do": "Press F3 (or Mixer in the top bar, or double-click the console's panel).",
+   "after": "One strip per channel: EQ at the top, the sends, PAN, MUTE and SOLO, the fader at the bottom. The MASTER strip on the right sets the level of the whole mix. Tab or Esc goes back to the rack.",
+   "done": {
+    "view": "mixer"
+   }
+  },
+  {
+   "why": "The fader is the most used control: how loud the channel is in the mix.",
+   "do": "Drag the fader of channel 2 (the drums) down and up until the drums and the melody sit well together.",
+   "after": "0 dB is the level the sound came in with; lower settings turn it down. Balancing levels is most of mixing: start with the most important sound and fit the others around it.",
+   "done": {
+    "param": {
+     "module": "Console4",
+     "param": "Ch 2 fader"
+    },
+    "moved": 0.05
+   }
+  },
+  {
+   "why": "PAN places a channel between the left and right speakers.",
+   "do": "Turn PAN of channel 1 (the melody) to the left.",
+   "after": "The melody moved toward the left speaker, the drums stayed in the middle. Spreading sounds across the stereo field gives each of them room.",
+   "try": "Double-click PAN to bring it back to the middle.",
+   "done": {
+    "param": {
+     "module": "Console4",
+     "param": "Ch 1 pan"
+    },
+    "max": -40
+   }
+  },
+  {
+   "why": "SOLO lets you hear one channel alone, without stopping the others.",
+   "do": "Press SOLO of channel 2, listen, then press it again.",
+   "after": "With SOLO on, only the drums played; the other channels' MUTE lamps blinked to show they were silenced by a solo. MUTE does the opposite: it silences one channel. Both help you hear what one sound is doing.",
+   "done": {
+    "param": {
+     "module": "Console4",
+     "param": "Ch 2 solo"
+    },
+    "min": 0.5
+   }
+  },
+  {
+   "why": "The EQ turns ranges of frequencies up or down: LOW the bass, HIGH the treble, MID a band you pick with FREQ.",
+   "do": "Turn LOW of channel 1 down, then HIGH up.",
+   "after": "Less low end makes the melody thinner and leaves room for the kick drum; more high end makes it brighter and closer. EQ is the filter of the mixing desk: it shapes a sound to fit the others.",
+   "done": {
+    "all": [
+     {
+      "param": {
+       "module": "Console4",
+       "param": "Ch 1 low (100 Hz shelf)"
+      },
+      "max": -3
+     },
+     {
+      "param": {
+       "module": "Console4",
+       "param": "Ch 1 high (8 kHz shelf)"
+      },
+      "min": 3
+     }
+    ]
+   }
+  },
+  {
+   "why": "Back to the rack.",
+   "do": "Press Tab (or Esc, or F1).",
+   "after": "The rack is back. Everything you set in the Mixer is saved with the patch.",
+   "done": {
+    "view": "rack"
+   }
+  },
+  {
+   "do": "Fader, pan, solo and EQ: the console turns several sounds into one mix. Press Next to finish.",
+   "done": {
+    "next": true
+   }
+  }
+ ]
+}
