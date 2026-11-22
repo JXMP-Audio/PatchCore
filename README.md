@@ -17,9 +17,9 @@ It comes as a **standalone app** and as two **VST3 plugins**, **PatchCore** (ins
 - 25+ JXMP modules: oscillator, filter, envelopes, LFO, sequencers, quantizer, clock, Euclidean rhythms, drums, a 16-slot sampler,
   scope, delay, chorus, reverb, wavefolder, ring modulator, logic, switch, poly tools and a mixing console with a
   Mixer view
-- **Learn**: interactive lessons in six categories, from the basics (the rack, cables and voltages, a first sound,
-  playing notes) to synthesis, rhythm, effects, the Editor and advanced patching; every step explains why and what
-  just happened
+- **Learn**: 28 interactive lessons in five categories, from the basics (the rack, cables and voltages, a first sound,
+  playing notes) to synthesis, rhythm, effects and the Editor (an Advanced category is coming); every step explains
+  why and what just happened
 - Quick search (right-click on the rack or `Enter`): `@jxmp` filters by brand, `#filter` by purpose
 - Standalone: sound card settings in **Engine → Audio Settings…** (PipeWire/JACK or ALSA on Linux, WASAPI or ASIO
   on Windows), its own transport and a master meter
