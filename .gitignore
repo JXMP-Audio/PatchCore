@@ -34,6 +34,8 @@ compile_commands.json
 compile_flags.txt
 /run-patchcore.sh
 /patches/jxmp-*.vcv
+/patches/editorbug.vcv
+/plugins/staQqUJ7
 # Tests and dev tools (local only)
 /src/patchcore/tests/
 /src/patchcore/DevBridge.cpp
