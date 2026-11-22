@@ -39,14 +39,26 @@ inline int unisonOffsets(int n, float cents, float* out) {
 	return n;
 }
 
-/** Square sub-oscillator from the main phase: flips on every main phase wrap (÷2), every second wrap for ÷4. */
+/** Linear FM per the FM equation f(t) = f0 + Δf·m(t), with the deviation Δf = f0·m proportional to the carrier
+ * (m = FM knob × FM volts; at C4 that is the old 261.6 Hz per volt). Through-zero: the result may be negative and the
+ * oscillator then runs backwards, so the average frequency stays f0 at any index (Chowning 1973). Δf ∝ f0 keeps the
+ * index Δf/fm, i.e. the timbre, the same on every key when the modulator tracks the keyboard too. Works on float_4. */
+template <typename T>
+T linearFm(T f0, T m) {
+	return f0 * (1.f + m);
+}
+
+/** Square sub-oscillator from the main phase: flips on every main phase wrap (÷2), every second wrap for ÷4.
+ * A wrap backwards (through-zero FM, soft sync) undoes one, so the sub stays in step with the main phase. */
 struct SubDivider {
 	float lastPhase = 0.f;
-	int count = 0;
+	int count = 0;  // 0..3
 	float process(float phase, int octaves) {
-		// A wrap is a jump back by most of a cycle; SOFT sync runs the phase backwards in small steps, which are not
+		// A wrap is a jump by most of a cycle; ordinary steps (also backwards) are small
 		if (phase < lastPhase - 0.5f)
-			++count;
+			count = (count + 1) & 3;
+		else if (phase > lastPhase + 0.5f)
+			count = (count + 3) & 3;
 		lastPhase = phase;
 		const int div = octaves >= 2 ? 2 : 1;
 		return ((count / div) & 1) ? -1.f : 1.f;

@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * Based on VCV Fundamental (GPL-3.0-or-later), src/VCO.cpp, Copyright (C) VCV and contributors.
- * Band-limited oscillator core, unchanged apart from the namespace and the analogue saw centred on 0 V (no DC).
+ * Band-limited oscillator core. Changes: namespace; the analogue saw centred on 0 V (no DC); through-zero frequency
+ * (a negative freq runs the phase backwards, for linear FM per the FM equation); a pure sine (FM needs one).
  */
 
 #pragma once
@@ -66,8 +67,8 @@ struct VoltageControlledOscillator {
 	}
 
 	void process(float deltaTime, T syncValue) {
-		// Advance phase
-		T deltaPhase = simd::clamp(freq * deltaTime, 0.f, 0.35f);
+		// Advance phase; a negative freq (through-zero linear FM) runs it backwards
+		T deltaPhase = simd::clamp(freq * deltaTime, -0.35f, 0.35f);
 		if (soft) {
 			// Reverse direction
 			deltaPhase *= syncDirection;
@@ -79,9 +80,15 @@ struct VoltageControlledOscillator {
 		phase += deltaPhase;
 		// Wrap phase
 		phase -= simd::floor(phase);
+		// Running backwards, keep the phase in (0, 1]: landing exactly on 0 would hide the next wrap from the
+		// crossing test below (no minBLEP, a click)
+		const T backwards = deltaPhase < 0.f;
+		phase = simd::ifelse(backwards & (phase == 0.f), 1.f, phase);
+		// The real direction of travel: soft sync and negative frequencies both reverse it
+		const T dir = simd::ifelse(backwards, -1.f, 1.f);
 
 		// Jump sqr when crossing 0, or 1 if backwards
-		T wrapPhase = (syncDirection == -1.f) & 1.f;
+		T wrapPhase = backwards & 1.f;
 		T wrapCrossing = (wrapPhase - (phase - deltaPhase)) / deltaPhase;
 		int wrapMask = simd::movemask((0 < wrapCrossing) & (wrapCrossing <= 1.f));
 		if (wrapMask) {
@@ -89,7 +96,7 @@ struct VoltageControlledOscillator {
 				if (wrapMask & (1 << i)) {
 					T mask = simd::movemaskInverse<T>(1 << i);
 					float p = wrapCrossing[i] - 1.f;
-					T x = mask & (2.f * syncDirection);
+					T x = mask & (2.f * dir);
 					sqrMinBlep.insertDiscontinuity(p, x);
 				}
 			}
@@ -103,7 +110,7 @@ struct VoltageControlledOscillator {
 				if (pulseMask & (1 << i)) {
 					T mask = simd::movemaskInverse<T>(1 << i);
 					float p = pulseCrossing[i] - 1.f;
-					T x = mask & (-2.f * syncDirection);
+					T x = mask & (-2.f * dir);
 					sqrMinBlep.insertDiscontinuity(p, x);
 				}
 			}
@@ -117,7 +124,7 @@ struct VoltageControlledOscillator {
 				if (halfMask & (1 << i)) {
 					T mask = simd::movemaskInverse<T>(1 << i);
 					float p = halfCrossing[i] - 1.f;
-					T x = mask & (-2.f * syncDirection);
+					T x = mask & (-2.f * dir);
 					sawMinBlep.insertDiscontinuity(p, x);
 				}
 			}
@@ -137,6 +144,8 @@ struct VoltageControlledOscillator {
 				}
 				else {
 					T newPhase = simd::ifelse(sync, (1.f - syncCrossing) * deltaPhase, phase);
+					// Restarting while running backwards lands just below 1, not below 0
+					newPhase -= simd::floor(newPhase);
 					// Insert minBLEP for sync
 					for (int i = 0; i < channels; i++) {
 						if (syncMask & (1 << i)) {
@@ -182,20 +191,9 @@ struct VoltageControlledOscillator {
 	}
 
 	T sin(T phase) {
-		T v;
-		if (analog) {
-			// Quadratic approximation of sine, slightly richer harmonics
-			T halfPhase = (phase < 0.5f);
-			T x = phase - simd::ifelse(halfPhase, 0.25f, 0.75f);
-			v = 1.f - 16.f * simd::pow(x, 2);
-			v *= simd::ifelse(halfPhase, 1.f, -1.f);
-		}
-		else {
-			v = sin2pi_pade_05_5_4(phase);
-			// v = sin2pi_pade_05_7_6(phase);
-			// v = simd::sin(2 * T(M_PI) * phase);
-		}
-		return v;
+		// A pure sine in both modes (harmonics below −120 dB): FM needs one, the parabolic "analog" sine (3rd harmonic
+		// −29 dB) added sidebands that are not in the FM equation
+		return sin2pi_pade_05_7_6(phase);
 	}
 	T sin() {
 		return sinValue;

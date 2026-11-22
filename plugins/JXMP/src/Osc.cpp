@@ -45,7 +45,7 @@ struct Osc : engine::Module {
 		configParam(VOICES_PARAM, 1.f, 7.f, 1.f, "Unison voices")->snapEnabled = true;
 		configParam(DETUNE_PARAM, 0.f, 50.f, 15.f, "Unison detune", " cents");
 		configInput(PITCH_INPUT, "V/Oct")->description = "Pitch, 1 V per octave (0 V = C4). Polyphonic: one oscillator per channel.";
-		configInput(FM_INPUT, "FM")->description = "Frequency modulation, amount set by the FM knob. EXP: in octaves per volt, LIN: linear (in Hz), stays in tune for bell and metal tones.";
+		configInput(FM_INPUT, "FM")->description = "Frequency modulation, amount set by the FM knob. EXP: in octaves per volt, LIN: linear through-zero FM, stays in tune at any depth (bells, metal), same timbre on every key.";
 		configInput(SYNC_INPUT, "Sync")->description = "Sync: a rising signal restarts the cycle (HARD) or reverses it (SOFT).";
 		configInput(PW_INPUT, "PWM")->description = "Pulse width CV for the square, amount set by the PWM knob.";
 		configInput(MORPH_INPUT, "Morph")->description = "Morph CV: moves the MIX output through sine, triangle, saw and square, amount set by MORPH CV.";
@@ -96,10 +96,11 @@ struct Osc : engine::Module {
 					freq = dsp::FREQ_C4 * dsp::approxExp2_taylor5(pitch + 30.f) / std::pow(2.f, 30.f);
 				}
 				else {
+					// Through-zero, deviation proportional to the carrier (see linearFm)
 					freq = dsp::FREQ_C4 * dsp::approxExp2_taylor5(pitch + 30.f) / std::pow(2.f, 30.f);
-					freq += dsp::FREQ_C4 * fmIn * fmParam;
+					freq = jxmp::linearFm(freq, float_4(fmIn * fmParam));
 				}
-				o.freq = simd::clamp(freq, 0.f, args.sampleRate / 2.f);
+				o.freq = simd::clamp(freq, -args.sampleRate / 2.f, args.sampleRate / 2.f);
 				o.setPulseWidth(float_4(pw));
 				o.syncEnabled = inputs[SYNC_INPUT].isConnected();
 				o.process(args.sampleTime, sync);

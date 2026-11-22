@@ -48,7 +48,7 @@ flowchart LR
 | FREQ | C4 ±54 semitones (≈ 12 Hz – 5.9 kHz) | Base pitch; the centre is C4 (262 Hz). |
 | OCTAVE | −2 … +2 | Shifts the pitch in whole octaves. |
 | FM | −100 … +100 % | How much the FM socket moves the pitch; negative inverts it. |
-| FM MODE (LIN / EXP) | EXP default | EXP: octaves per volt (vibrato, sweeps). LIN: linear FM (in Hz), stays in tune for bell and metal tones. Not through-zero: the frequency stops at 0 Hz. |
+| FM MODE (LIN / EXP) | EXP default | EXP: octaves per volt (vibrato, sweeps; the pitch drifts up with depth, as on analogue synths). LIN: true linear FM, through-zero (the cycle runs backwards below 0 Hz), so it stays in tune at any depth; the deviation follows the pitch, so a bell keeps its timbre on every key. |
 | SYNC (HARD / SOFT) | HARD default | HARD restarts the cycle on each rising edge at SYNC; SOFT reverses it (gentler). |
 | PW | 1 … 99 % | Pulse width of the square; 50 % is a true square, narrow is nasal. |
 | PWM | −100 … +100 % | How much the PWM socket moves PW. |
@@ -70,7 +70,7 @@ flowchart LR
 | SYNC | Audio / gate | Sync source, usually another oscillator. |
 | PWM | CV | Pulse width CV, amount by PWM (10 V = the full range). |
 | MORPH | CV | Morph CV, amount by MORPH CV. |
-| SIN, TRI | Audio ±5 V | Sine and triangle, all unison voices summed. |
+| SIN, TRI | Audio ±5 V | Pure sine (good as an FM modulator or carrier) and triangle, all unison voices summed. |
 | SAW | Audio ±5 V | Sawtooth, centred on 0 V (no DC). |
 | SQR | Audio ±5 V | Square / pulse, width by PW. |
 | SUB | Audio ±5 V | The sub square on its own, full level. |
